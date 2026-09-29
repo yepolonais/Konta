@@ -1,6 +1,31 @@
-@Konta.Api_HostAddress = http://localhost:5255
+@baseUrl = http://localhost:5255
 
-GET {{Konta.Api_HostAddress}}/weatherforecast/
+### Health check
+GET {{baseUrl}}/api/health
 Accept: application/json
 
-###
+### List saved transactions (empty until transactions are added)
+GET {{baseUrl}}/api/transactions
+Accept: application/json
+
+### Preview the supplied Société Générale sample CSV (does not persist transactions)
+POST {{baseUrl}}/api/imports/preview
+Content-Type: multipart/form-data; boundary=kontaBoundary
+
+--kontaBoundary
+Content-Disposition: form-data; name="file"; filename="transactions-sample.csv"
+Content-Type: text/csv
+
+< ../../sample/transactions-sample.csv
+--kontaBoundary--
+
+### Invalid extension returns 400 Problem Details
+POST {{baseUrl}}/api/imports/preview
+Content-Type: multipart/form-data; boundary=kontaInvalidBoundary
+
+--kontaInvalidBoundary
+Content-Disposition: form-data; name="file"; filename="not-a-csv.txt"
+Content-Type: text/plain
+
+This is not a CSV file.
+--kontaInvalidBoundary--

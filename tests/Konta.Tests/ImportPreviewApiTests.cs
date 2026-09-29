@@ -19,6 +19,11 @@ public sealed class ImportPreviewApiTests
                 })));
         using var client = factory.CreateClient();
 
+            using var swaggerResponse = await client.GetAsync("/swagger/v1/swagger.json");
+            swaggerResponse.EnsureSuccessStatusCode();
+            using var swaggerDocument = JsonDocument.Parse(await swaggerResponse.Content.ReadAsStringAsync());
+            Assert.Equal("3.1.1", swaggerDocument.RootElement.GetProperty("openapi").GetString());
+
         var samplePath = Path.Combine(AppContext.BaseDirectory, "TestData", "transactions-sample.csv");
         using var content = new MultipartFormDataContent();
         using var csvContent = new ByteArrayContent(await File.ReadAllBytesAsync(samplePath));
@@ -41,6 +46,29 @@ public sealed class ImportPreviewApiTests
         await using var listStream = await listResponse.Content.ReadAsStreamAsync();
         using var persistedTransactions = await JsonDocument.ParseAsync(listStream);
         Assert.Equal(0, persistedTransactions.RootElement.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task PreviewRejectsFilesThatAreNotCsvWithProblemDetails()
+    {
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(webHost =>
+            webHost.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Konta:DatabasePath"] = Path.Combine(dataDirectory.FullName, "test.db")
+                })));
+        using var client = factory.CreateClient();
+        using var content = new MultipartFormDataContent();
+        using var fileContent = new StringContent("not a csv");
+        content.Add(fileContent, "file", "invalid.txt");
+
+        var response = await client.PostAsync("/api/imports/preview", content);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("Format non pris en charge", problem.RootElement.GetProperty("title").GetString());
     }
 
     private sealed class TemporaryDirectory : IDisposable
