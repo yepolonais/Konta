@@ -58,3 +58,6 @@ nunit-*.xml
 
 # Ignore local secrets and imported bank files
 /secret/
+*.db
+*.db-shm
+*.db-wal

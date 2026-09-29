@@ -10,10 +10,16 @@ Phases principales
   - Confirmer SDK .NET 8 installé et chemin de la DB SQLite.
 
 - Phase 1 — POC Web (1-2 semaines)
-  - Scaffolder solution DDD (.sln + projets Domain, Application, Infrastructure, Api, Tests).
-  - Implémenter entités principales + `KontaDbContext` et migrations SQLite.
-  - Écrire parseur CSV POC (preview non persistante) et endpoint `POST /api/imports/preview`.
-  - Frontend minimal: liste opérations + écran d'import preview.
+  - Créer la solution `Konta.sln` et les projets `Konta.Api`, `Konta.Application`, `Konta.Domain`, `Konta.Infrastructure`, `Konta.Tests` (`net8.0`) avec leurs références.
+  - API: `Program.cs`, configuration et `GET /api/health` pour vérifier le démarrage.
+  - Domaine: modèles `Transaction`, `Category` et enums nécessaires; montant positif, type revenu/dépense, compte source conservé.
+  - Infrastructure: EF Core SQLite, `KontaDbContext`, configurations et première migration; chemin de la base configurable hors du dépôt.
+  - Application: cas d'usage et contrats pour consulter les opérations et prévisualiser un import; API sans accès direct au `DbContext`.
+  - Import CSV: parser le format observé (`;`, ISO-8859-1, dates `dd/MM/yyyy`, montants avec virgule); afficher les erreurs par ligne. Garder dates, compte (`Num Compte`, `Libellé Compte`), libellés et montant/type dans le modèle importé. Pas de persistance à l'étape preview.
+  - API: `POST /api/imports/preview` reçoit un fichier, renvoie opérations interprétées et erreurs, sans enregistrer les transactions.
+  - Frontend `frontend/`: HTML, CSS et JavaScript natif avec Web Components; liste des opérations et formulaire d'import/preview utilisant `fetch`.
+  - Tests: parser sur `sample/transactions-sample.csv` (encodage, séparateur, montants, compte) et tests API; `dotnet build` et `dotnet test` doivent réussir.
+  - Validation de fin: démarrer l'API et le frontend, prévisualiser l'échantillon, confirmer qu'aucune transaction n'est persistée avant une future étape de commit.
 
 - Phase 2 — Features MVP (2-4 semaines)
   - CRUD catégories, règles de catégorisation, budgets et tableaux (mensuel/annuel).
@@ -27,4 +33,4 @@ Phases principales
   - Option Docker Compose (recommandé) ou service `systemd`.
   - `nginx` reverse-proxy, volume persistant pour la DB, sauvegardes et HTTPS si exposition externe.
 
-Prochain choix (à vous): je démarre par 1) scaffolder la solution `.NET` ou 2) écrire le parseur CSV POC. Indiquez 1 ou 2.
+État actuel: Phase 1 implémentée et validée en local (build, tests et preview du CSV échantillon). La prévisualisation ne persiste rien; le CRUD et la validation définitive d'import restent à développer.
