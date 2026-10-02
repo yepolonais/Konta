@@ -1,7 +1,4 @@
 {
-  "files.exclude": {
-    "**/secret": true
-  },
   "search.exclude": {
     "**/secret": true
   },
