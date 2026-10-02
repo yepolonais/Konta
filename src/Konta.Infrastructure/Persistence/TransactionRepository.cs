@@ -19,6 +19,7 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 transaction.Type,
                 transaction.AccountNumber,
                 transaction.AccountLabel,
+                transaction.Account == null ? null : transaction.Account.Name,
                 transaction.Category == null ? null : transaction.Category.Name))
             .ToListAsync(cancellationToken);
     }

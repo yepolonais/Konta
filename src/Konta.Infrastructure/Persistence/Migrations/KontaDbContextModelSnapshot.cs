@@ -39,6 +39,43 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("Konta.Domain.Accounts.Account", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BankAccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BankLabel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BankAccountNumber")
+                        .IsUnique();
+
+                    b.ToTable("Accounts");
+                });
+
             modelBuilder.Entity("Konta.Domain.Transactions.Transaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -57,6 +94,9 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("TEXT");
 
@@ -70,6 +110,13 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("ImportFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ImportOccurrence")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -88,6 +135,11 @@ namespace Konta.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("AccountId", "ImportFingerprint", "ImportOccurrence")
+                        .IsUnique();
+
+                    b.HasIndex("AccountId");
+
                     b.HasIndex("Date");
 
                     b.ToTable("Transactions");
@@ -95,10 +147,17 @@ namespace Konta.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Konta.Domain.Transactions.Transaction", b =>
                 {
+                    b.HasOne("Konta.Domain.Accounts.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Konta.Domain.Categories.Category", "Category")
                         .WithMany()
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Account");
 
                     b.Navigation("Category");
                 });

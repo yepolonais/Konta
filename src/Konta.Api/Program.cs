@@ -1,5 +1,6 @@
 using Konta.Application.Imports;
 using Konta.Application.Transactions;
+using Konta.Application.Accounts;
 using Konta.Infrastructure;
 using Konta.Infrastructure.Persistence;
 using System.Text.Json.Serialization;
@@ -20,6 +21,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddKontaInfrastructure(builder.Configuration);
 builder.Services.AddScoped<IImportPreviewService, ImportPreviewService>();
 builder.Services.AddScoped<ITransactionQueryService, TransactionQueryService>();
+builder.Services.AddScoped<IAccountService, AccountService>();
 
 var app = builder.Build();
 var frontendPath = app.Environment.IsDevelopment()

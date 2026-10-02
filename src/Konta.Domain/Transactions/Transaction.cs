@@ -1,4 +1,5 @@
 using Konta.Domain.Categories;
+using Konta.Domain.Accounts;
 
 namespace Konta.Domain.Transactions;
 
@@ -16,7 +17,10 @@ public sealed class Transaction
         string? accountNumber = null,
         string? accountLabel = null,
         Guid? categoryId = null,
-        TransactionSource source = TransactionSource.Manual)
+        TransactionSource source = TransactionSource.Manual,
+        Guid? accountId = null,
+        string? importFingerprint = null,
+        int? importOccurrence = null)
     {
         if (string.IsNullOrWhiteSpace(label))
         {
@@ -35,6 +39,9 @@ public sealed class Transaction
         Type = type;
         AccountNumber = accountNumber;
         AccountLabel = accountLabel;
+        AccountId = accountId;
+        ImportFingerprint = importFingerprint;
+        ImportOccurrence = importOccurrence;
         CategoryId = categoryId;
         Source = source;
         CreatedAt = DateTimeOffset.UtcNow;
@@ -48,6 +55,10 @@ public sealed class Transaction
     public TransactionType Type { get; private set; }
     public string? AccountNumber { get; private set; }
     public string? AccountLabel { get; private set; }
+    public Guid? AccountId { get; private set; }
+    public Account? Account { get; private set; }
+    public string? ImportFingerprint { get; private set; }
+    public int? ImportOccurrence { get; private set; }
     public Guid? CategoryId { get; private set; }
     public Category? Category { get; private set; }
     public TransactionSource Source { get; private set; }

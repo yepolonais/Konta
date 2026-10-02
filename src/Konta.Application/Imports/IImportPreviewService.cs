@@ -2,5 +2,6 @@ namespace Konta.Application.Imports;
 
 public interface IImportPreviewService
 {
-    ImportPreview Preview(Stream csvStream);
+    Task<ImportPreview> PreviewAsync(Stream csvStream, CancellationToken cancellationToken);
+    Task<ImportCommitResult> CommitAsync(Stream csvStream, CancellationToken cancellationToken);
 }

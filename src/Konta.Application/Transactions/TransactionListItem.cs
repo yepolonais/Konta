@@ -10,4 +10,5 @@ public sealed record TransactionListItem(
     TransactionType Type,
     string? AccountNumber,
     string? AccountLabel,
+    string? AccountName,
     string? CategoryName);

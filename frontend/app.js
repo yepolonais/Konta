@@ -3,6 +3,7 @@ class KontaApp extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this.preview = null;
+    this.selectedFile = null;
   }
 
   connectedCallback() {
@@ -52,18 +53,22 @@ class KontaApp extends HTMLElement {
             <div class="panel-head"><h2 id="preview-title">Aperçu du fichier</h2><span class="count" id="preview-count"></span></div>
             <p class="preview-summary" id="preview-summary"></p>
             <div class="table-wrap"><table>
-              <thead><tr><th>Date opération</th><th>Opération</th><th>Compte</th><th>Catégorie CSV</th><th>Type</th><th style="text-align:right">Montant</th></tr></thead>
+              <thead><tr><th>Date opération</th><th>Opération</th><th>Compte Konta</th><th>Catégorie CSV</th><th>Type</th><th style="text-align:right">Montant</th><th>Import</th></tr></thead>
               <tbody id="preview-body"></tbody>
             </table></div>
+            <div class="account-setup" id="account-setup" hidden></div>
+            <div class="preview-actions"><button id="commit-button" type="button" disabled>Enregistrer les opérations</button></div>
             <div class="errors" id="preview-errors" hidden></div>
           </section>
         </main>
       </div>`;
 
     this.shadowRoot.querySelector("#csv-file").addEventListener("change", event => {
+      this.selectedFile = event.target.files[0] ?? null;
       this.shadowRoot.querySelector("#file-name").textContent = event.target.files[0]?.name ?? "Aucun fichier choisi";
     });
     this.shadowRoot.querySelector("#import-form").addEventListener("submit", event => this.previewFile(event));
+    this.shadowRoot.querySelector("#preview-panel").addEventListener("click", event => this.handlePreviewAction(event));
   }
 
   async loadTransactions() {
@@ -76,6 +81,7 @@ class KontaApp extends HTMLElement {
       const transactions = await response.json();
       this.shadowRoot.querySelector("#transaction-count").textContent = `${transactions.length} opération${transactions.length === 1 ? "" : "s"}`;
       empty.hidden = transactions.length > 0;
+      body.replaceChildren();
       for (const transaction of transactions) body.append(this.transactionRow(transaction));
     } catch (exception) {
       error.textContent = exception.message;
@@ -86,9 +92,12 @@ class KontaApp extends HTMLElement {
 
   async previewFile(event) {
     event.preventDefault();
-    const input = this.shadowRoot.querySelector("#csv-file");
-    const file = input.files[0];
-    if (!file) return;
+    if (!this.selectedFile) return;
+
+    await this.requestPreview(this.selectedFile);
+  }
+
+  async requestPreview(file) {
 
     const button = this.shadowRoot.querySelector("#preview-button");
     const feedback = this.shadowRoot.querySelector("#import-feedback");
@@ -105,7 +114,7 @@ class KontaApp extends HTMLElement {
       if (!response.ok) throw new Error(result.error ?? "L'analyse du fichier a échoué.");
       this.renderPreview(result);
       feedback.className = "feedback success";
-      feedback.textContent = "Aperçu prêt. Aucune opération n'a été enregistrée.";
+      feedback.textContent = "Aperçu prêt. Vérifiez les lignes et associez les comptes inconnus avant validation.";
       feedback.hidden = false;
     } catch (exception) {
       feedback.className = "feedback error";
@@ -118,13 +127,18 @@ class KontaApp extends HTMLElement {
   }
 
   renderPreview(preview) {
+    this.preview = preview;
     const panel = this.shadowRoot.querySelector("#preview-panel");
     const body = this.shadowRoot.querySelector("#preview-body");
     body.replaceChildren();
     for (const transaction of preview.transactions) body.append(this.previewRow(transaction));
 
     this.shadowRoot.querySelector("#preview-count").textContent = `${preview.transactions.length} ligne${preview.transactions.length === 1 ? "" : "s"} valide${preview.transactions.length === 1 ? "" : "s"}`;
-    this.shadowRoot.querySelector("#preview-summary").textContent = `${preview.errors.length} erreur${preview.errors.length === 1 ? "" : "s"} · Dépenses et revenus reconnus à partir du signe du montant.`;
+    const duplicateCount = preview.transactions.filter(transaction => transaction.isDuplicate).length;
+    this.shadowRoot.querySelector("#preview-summary").textContent = `${preview.errors.length} erreur${preview.errors.length === 1 ? "" : "s"} · ${duplicateCount} doublon${duplicateCount === 1 ? "" : "s"} détecté${duplicateCount === 1 ? "" : "s"} · Le signe du montant détermine le type.`;
+    this.renderAccountSetup(preview.unmappedAccounts);
+    const commitButton = this.shadowRoot.querySelector("#commit-button");
+    commitButton.disabled = preview.transactions.length === 0 || preview.unmappedAccounts.length > 0;
     const errors = this.shadowRoot.querySelector("#preview-errors");
     errors.replaceChildren();
     errors.hidden = preview.errors.length === 0;
@@ -143,12 +157,130 @@ class KontaApp extends HTMLElement {
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  renderAccountSetup(accounts) {
+    const container = this.shadowRoot.querySelector("#account-setup");
+    container.replaceChildren();
+    container.hidden = accounts.length === 0;
+    if (accounts.length === 0) return;
+
+    const title = document.createElement("h3");
+    title.textContent = "Associer les comptes du relevé";
+    const description = document.createElement("p");
+    description.textContent = "Chaque numéro SG doit être associé une seule fois avant l'import.";
+    container.append(title, description);
+
+    for (const account of accounts) {
+      const row = document.createElement("div");
+      row.className = "account-map";
+      row.dataset.accountNumber = account.accountNumber;
+
+      const bank = document.createElement("div");
+      bank.className = "account-map-source";
+      const bankLabel = document.createElement("strong");
+      bankLabel.textContent = account.bankLabel;
+      const bankNumber = document.createElement("span");
+      bankNumber.textContent = account.accountNumber;
+      bank.append(bankLabel, bankNumber);
+
+      const nameLabel = document.createElement("label");
+      nameLabel.textContent = "Nom dans Konta";
+      const name = document.createElement("input");
+      name.required = true;
+      name.maxLength = 100;
+      name.value = account.bankLabel;
+      name.dataset.accountName = "";
+      nameLabel.append(name);
+
+      const kindLabel = document.createElement("label");
+      kindLabel.textContent = "Type";
+      const kind = document.createElement("select");
+      kind.dataset.accountKind = "";
+      for (const [value, label] of [["Current", "Compte courant"], ["Savings", "Épargne"], ["Other", "Autre"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        kind.append(option);
+      }
+      kindLabel.append(kind);
+
+      const createButton = document.createElement("button");
+      createButton.type = "button";
+      createButton.textContent = "Associer ce compte";
+      createButton.dataset.createAccount = "";
+      row.append(bank, nameLabel, kindLabel, createButton);
+      container.append(row);
+    }
+  }
+
+  async handlePreviewAction(event) {
+    const createButton = event.target.closest("[data-create-account]");
+    if (createButton) {
+      const row = createButton.closest(".account-map");
+      const name = row.querySelector("[data-account-name]").value.trim();
+      if (!name) return;
+      createButton.disabled = true;
+      try {
+        const response = await fetch("/api/accounts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            bankAccountNumber: row.dataset.accountNumber,
+            bankLabel: row.querySelector(".account-map-source strong").textContent,
+            kind: row.querySelector("[data-account-kind]").value
+          })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d'associer ce compte.");
+        await this.requestPreview(this.selectedFile);
+      } catch (exception) {
+        const feedback = this.shadowRoot.querySelector("#import-feedback");
+        feedback.className = "feedback error";
+        feedback.textContent = exception.message;
+        feedback.hidden = false;
+        createButton.disabled = false;
+      }
+      return;
+    }
+
+    if (event.target.closest("#commit-button")) {
+      await this.commitImport();
+    }
+  }
+
+  async commitImport() {
+    if (!this.selectedFile || !this.preview || this.preview.unmappedAccounts.length > 0) return;
+    const button = this.shadowRoot.querySelector("#commit-button");
+    const feedback = this.shadowRoot.querySelector("#import-feedback");
+    button.disabled = true;
+    button.textContent = "Enregistrement…";
+    try {
+      const formData = new FormData();
+      formData.append("file", this.selectedFile);
+      const response = await fetch("/api/imports/commit", { method: "POST", body: formData });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "L'import a échoué.");
+      feedback.className = "feedback success";
+      feedback.textContent = `${result.importedCount} opération${result.importedCount === 1 ? "" : "s"} ajoutée${result.importedCount === 1 ? "" : "s"}, ${result.duplicateCount} doublon${result.duplicateCount === 1 ? "" : "s"} ignoré${result.duplicateCount === 1 ? "" : "s"}, ${result.errors.length} erreur${result.errors.length === 1 ? "" : "s"}.`;
+      feedback.hidden = false;
+      await this.loadTransactions();
+      await this.requestPreview(this.selectedFile);
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+      button.disabled = false;
+    } finally {
+      button.textContent = "Enregistrer les opérations";
+    }
+  }
+
   transactionRow(transaction) {
     const row = document.createElement("tr");
     row.append(
       this.cell(this.formatDate(transaction.date), "date"),
       this.cell(transaction.label),
-      this.cell(transaction.accountLabel ?? "—"),
+      this.cell(transaction.accountName ?? transaction.accountLabel ?? "—"),
       this.typeCell(transaction.type),
       this.cell(this.formatAmount(transaction.amount, transaction.type), "amount")
     );
@@ -157,14 +289,17 @@ class KontaApp extends HTMLElement {
 
   previewRow(transaction) {
     const row = document.createElement("tr");
+    if (transaction.isDuplicate) row.className = "duplicate-row";
     const category = [transaction.categoryName, transaction.subcategoryName].filter(Boolean).join(" / ") || "Non catégorisé";
+    const accountName = transaction.accountName ?? `À associer · ${transaction.accountLabel}`;
     row.append(
       this.cell(this.formatDate(transaction.transactionDate), "date"),
       this.cell(transaction.label),
-      this.cell(`${transaction.accountLabel} · ${transaction.accountNumber}`),
+      this.cell(`${accountName} · ${transaction.accountNumber}`),
       this.cell(category, "category"),
       this.typeCell(transaction.type),
-      this.cell(this.formatAmount(transaction.amount, transaction.type), "amount")
+      this.cell(this.formatAmount(transaction.amount, transaction.type), "amount"),
+      this.cell(transaction.isDuplicate ? "Déjà importée" : "À importer", "import-state")
     );
     return row;
   }

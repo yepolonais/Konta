@@ -41,13 +41,13 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
 
         if (!csv.Read())
         {
-            return new ImportPreview(transactions, [new CsvRowError(1, "Le fichier est vide.")]);
+            return new ImportPreview(transactions, [new CsvRowError(1, "Le fichier est vide.")], []);
         }
 
         var headerIndexes = ReadHeaderIndexes(csv);
         if (headerIndexes is null)
         {
-            return new ImportPreview(transactions, [new CsvRowError(1, "En-têtes CSV manquants ou non reconnus. Vérifiez le format Société Générale exporté.")]);
+            return new ImportPreview(transactions, [new CsvRowError(1, "En-têtes CSV manquants ou non reconnus. Vérifiez le format Société Générale exporté.")], []);
         }
 
         while (true)
@@ -100,7 +100,7 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
             }
         }
 
-        return new ImportPreview(transactions, errors);
+        return new ImportPreview(transactions, errors, []);
     }
 
     private static Dictionary<string, int>? ReadHeaderIndexes(CsvReader csv)

@@ -55,6 +55,21 @@ button:disabled { cursor: wait; opacity: .65; }
 .feedback.success { color: var(--green-dark); }
 .preview { margin-top: 24px; }
 .preview-summary { color: var(--muted); font-size: 12px; padding: 0 22px 14px; }
+.account-setup { border-top: 1px solid var(--line); padding: 18px 22px; }
+.account-setup h3 { font-size: 13px; margin: 0 0 6px; }
+.account-setup > p { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+.account-map { align-items: end; border-top: 1px solid #edf0ed; display: grid; gap: 12px; grid-template-columns: minmax(150px, 1fr) minmax(140px, 1fr) minmax(130px, .8fr) auto; padding: 12px 0; }
+.account-map-source { display: grid; gap: 5px; min-width: 0; }
+.account-map-source strong { font-size: 12px; overflow-wrap: anywhere; }
+.account-map-source span { color: var(--muted); font-family: "DM Mono", monospace; font-size: 10px; }
+.account-map label { color: var(--muted); display: grid; font-size: 10px; font-weight: 700; gap: 5px; }
+.account-map input, .account-map select { background: white; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font: inherit; font-size: 12px; min-height: 38px; min-width: 0; padding: 0 9px; width: 100%; }
+.account-map button { min-height: 38px; white-space: nowrap; width: auto; }
+.preview-actions { border-top: 1px solid var(--line); padding: 14px 22px; }
+.preview-actions button { max-width: 260px; }
+.preview-actions button:disabled { background: #9aa69e; }
+.duplicate-row { background: #f5f7f3; }
+.import-state { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .errors { background: #fff4f0; border-top: 1px solid #f0d3cb; color: #843c2e; font-size: 12px; line-height: 1.6; padding: 14px 22px; }
 .errors ul { margin: 8px 0 0; padding-left: 20px; }
 .type { border-radius: 99px; display: inline-block; font-size: 10px; font-weight: 800; padding: 4px 8px; }
@@ -69,6 +84,9 @@ button:disabled { cursor: wait; opacity: .65; }
   .nav a { font-size: 11px; }
   .content-grid { grid-template-columns: 1fr; }
   .import-panel { order: -1; }
+  .account-map { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .account-map-source { grid-column: 1 / -1; }
+  .account-map button { grid-column: 1 / -1; width: 100%; }
   main { padding: 32px 16px 56px; }
 }
 
@@ -81,4 +99,5 @@ button:disabled { cursor: wait; opacity: .65; }
   .heading { align-items: start; flex-direction: column; gap: 8px; margin-bottom: 22px; }
   h1 { font-size: 30px; }
   .panel-head { padding: 0 16px; }
+  .account-setup, .preview-actions { padding-left: 16px; padding-right: 16px; }
 }

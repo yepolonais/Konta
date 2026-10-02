@@ -14,4 +14,8 @@ public sealed record ImportedTransaction(
     string? SubcategoryName,
     decimal Amount,
     TransactionType Type,
-    bool IsPointed);
+    bool IsPointed,
+    Guid? AccountId = null,
+    string? AccountName = null,
+    bool IsDuplicate = false,
+    string? Fingerprint = null);

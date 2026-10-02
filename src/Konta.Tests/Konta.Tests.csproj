@@ -26,10 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Konta.Application\Konta.Application.csproj" />
-    <ProjectReference Include="..\..\src\Konta.Domain\Konta.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Konta.Infrastructure\Konta.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\Konta.Api\Konta.Api.csproj" />
+    <ProjectReference Include="..\Konta.Application\Konta.Application.csproj" />
+    <ProjectReference Include="..\Konta.Domain\Konta.Domain.csproj" />
+    <ProjectReference Include="..\Konta.Infrastructure\Konta.Infrastructure.csproj" />
+    <ProjectReference Include="..\Konta.Api\Konta.Api.csproj" />
   </ItemGroup>
 
 </Project>

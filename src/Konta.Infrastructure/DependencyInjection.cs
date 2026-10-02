@@ -1,4 +1,5 @@
 using Konta.Application.Imports;
+using Konta.Application.Accounts;
 using Konta.Application.Transactions;
 using Konta.Infrastructure.Imports;
 using Konta.Infrastructure.Persistence;
@@ -18,6 +19,8 @@ public static class DependencyInjection
         Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
         services.AddDbContext<KontaDbContext>(options => options.UseSqlite($"Data Source={databasePath}"));
         services.AddScoped<ITransactionRepository, TransactionRepository>();
+        services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<IImportCommitRepository, ImportCommitRepository>();
         services.AddSingleton<ITransactionCsvParser, SocieteGeneraleCsvParser>();
         return services;
     }

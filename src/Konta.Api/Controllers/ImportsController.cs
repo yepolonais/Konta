@@ -15,7 +15,52 @@ public sealed class ImportsController(IImportPreviewService importPreviewService
     [RequestSizeLimit(MaximumUploadBytes)]
     [ProducesResponseType<ImportPreview>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    public ActionResult<ImportPreview> Preview(IFormFile? file)
+    public async Task<ActionResult<ImportPreview>> Preview(IFormFile? file, CancellationToken cancellationToken)
+    {
+        var validation = ValidateFile(file);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        using var stream = file!.OpenReadStream();
+        return Ok(await importPreviewService.PreviewAsync(stream, cancellationToken));
+    }
+
+    /// <summary>Imports the valid transactions from a reviewed Société Générale CSV.</summary>
+    [HttpPost("commit")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaximumUploadBytes)]
+    [ProducesResponseType<ImportCommitResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ImportCommitResult>> Commit(IFormFile? file, CancellationToken cancellationToken)
+    {
+        var validation = ValidateFile(file);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        try
+        {
+            using var stream = file!.OpenReadStream();
+            return Ok(await importPreviewService.CommitAsync(stream, cancellationToken));
+        }
+        catch (UnmappedAccountsException exception)
+        {
+            var problem = new ProblemDetails
+            {
+                Title = "Comptes à associer",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            };
+            problem.Extensions["accounts"] = exception.Accounts;
+            return Conflict(problem);
+        }
+    }
+
+    private ActionResult? ValidateFile(IFormFile? file)
     {
         if (file is null)
         {
@@ -49,7 +94,6 @@ public sealed class ImportsController(IImportPreviewService importPreviewService
                 statusCode: StatusCodes.Status400BadRequest);
         }
 
-        using var stream = file.OpenReadStream();
-        return Ok(importPreviewService.Preview(stream));
+        return null;
     }
 }
