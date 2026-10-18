@@ -33,13 +33,13 @@ Phases principales
   - [x] Ajouter les vues mensuelle et annuelle calculées depuis les opérations, avec filtres par compte/catégorie et accès aux opérations composant les totaux.
   - [x] Tester l'import couvrant plusieurs comptes, l'affectation, les doublons, les suggestions de catégorie et les calculs par période.
 
-- [ ] Phase 3 — Budgets, prévisions et soldes
-  - [ ] Gérer les budgets mensuels récurrents et leurs dérogations ponctuelles.
-  - [ ] Créer des prévisions d'échéances récurrentes séparées des transactions réelles; les prévisions ne modifient pas les dépenses ni les soldes constatés.
-  - [ ] À l'import, proposer le rapprochement entre une prévision et une opération réelle du même compte. Après confirmation, marquer l'échéance comme réalisée et utiliser les données de l'opération importée; signaler les écarts et laisser les cas ambigus à confirmer.
-  - [ ] Permettre de définir, pour chaque compte, un solde de référence associé à une opération. Ce solde correspond au compte juste après cette opération; calculer le solde constaté en ajoutant les mouvements ultérieurs, sans compter deux fois l'opération de référence.
-  - [ ] Afficher séparément le solde constaté et le solde prévisionnel; inclure les échéances futures uniquement dans ce dernier.
-  - [ ] Tester les rapprochements, les échéances manquantes ou inattendues, les écarts de montant et le calcul des soldes à partir de la référence.
+- [x] Phase 3 — Budgets, prévisions et soldes
+  - [x] Gérer les budgets mensuels récurrents et leurs dérogations ponctuelles.
+  - [x] Créer des prévisions d'échéances récurrentes séparées des transactions réelles; les prévisions ne modifient pas les dépenses ni les soldes constatés.
+  - [x] À l'import, proposer le rapprochement entre une prévision et une opération réelle du même compte. Après confirmation, marquer l'échéance comme réalisée et utiliser les données de l'opération importée; signaler les écarts et laisser les cas ambigus à confirmer.
+  - [x] Permettre de définir, pour chaque compte, un solde de référence associé à une opération. Ce solde correspond au compte juste après cette opération; calculer le solde constaté en ajoutant les mouvements ultérieurs, sans compter deux fois l'opération de référence.
+  - [x] Afficher séparément le solde constaté et le solde prévisionnel; inclure les échéances futures uniquement dans ce dernier.
+  - [x] Tester les rapprochements, les échéances manquantes ou inattendues, les écarts de montant et le calcul des soldes à partir de la référence.
 
 - [ ] Phase 4 — Transferts et objectifs d'épargne
   - [ ] Représenter les transferts entre comptes comme des mouvements liés, neutres dans les totaux de dépenses et de revenus du foyer.
@@ -54,4 +54,4 @@ Phases principales
   - [ ] Option Docker Compose (recommandé) ou service `systemd`.
   - [ ] `nginx` reverse-proxy, volume persistant pour la DB, sauvegardes et HTTPS si exposition externe.
 
-État au 18/10/2026: Phases 0, 1 et 2 terminées. L'import multi-comptes permet de revoir/corriger les opérations, de détecter les doublons et d'associer les catégories. Les catégories et règles sont gérables depuis l'interface. Les règles proposent une catégorie pendant l'aperçu (motif le plus spécifique prioritaire), avec possibilité de correction avant commit. Les synthèses mensuelles et annuelles incluent des filtres par compte/catégorie et le détail des opérations composant chaque total. La couverture automatisée vérifie notamment l'import multi-comptes, les doublons, les suggestions et les calculs filtrés/par année. Les phases 3 (budgets, prévisions et soldes) et 4 (transferts et objectifs d'épargne) restent à réaliser. La phase 5 PWA est reportée jusqu'à la fin des fonctionnalités métier des phases 3 et 4.
+État au 18/10/2026: Phases 0 à 3 terminées. L'import multi-comptes permet de revoir/corriger les opérations, de détecter les doublons et d'associer les catégories. Les catégories et règles sont gérables depuis l'interface. Les règles proposent une catégorie pendant l'aperçu (motif le plus spécifique prioritaire), avec possibilité de correction avant commit. Les synthèses mensuelles et annuelles incluent des filtres par compte/catégorie et le détail des opérations composant chaque total. La phase 3 ajoute les budgets mensuels et dérogations, les prévisions récurrentes (mensuelles ou annuelles), leur rapprochement explicite à l'import, et les soldes constatés/prévisionnels à partir d'une opération de référence. Les échéances non rapprochées restent distinctes des opérations réelles; les soldes prévisionnels de l'interface sont calculés jusqu'à la fin du mois sélectionné. La suite complète de tests (34 tests) et les parcours navigateur de planification ont été validés. La phase 4 (transferts et objectifs d'épargne) reste à réaliser. La phase 5 PWA est reportée jusqu'à la fin des fonctionnalités métier des phases 3 et 4.

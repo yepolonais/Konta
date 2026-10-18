@@ -12,4 +12,7 @@ public sealed record ImportTransactionReview(
     Guid? AccountId = null,
     string? AccountName = null,
     string? CategoryName = null,
-    string? SubcategoryName = null);
+    string? SubcategoryName = null,
+    bool ConfirmForecastMatch = false,
+    Guid? ForecastId = null,
+    DateOnly? ForecastDate = null);

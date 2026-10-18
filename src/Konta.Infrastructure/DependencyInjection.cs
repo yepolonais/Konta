@@ -1,6 +1,7 @@
 using Konta.Application.Categories;
 using Konta.Application.CategoryRules;
 using Konta.Application.Imports;
+using Konta.Application.Planning;
 using Konta.Application.Accounts;
 using Konta.Application.Transactions;
 using Konta.Infrastructure.Imports;
@@ -25,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<ICategoryRuleRepository, CategoryRuleRepository>();
         services.AddScoped<IImportCommitRepository, ImportCommitRepository>();
+        services.AddScoped<IPlanningRepository, PlanningRepository>();
         services.AddSingleton<ITransactionCsvParser, SocieteGeneraleCsvParser>();
         return services;
     }

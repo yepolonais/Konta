@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Konta.Application.Accounts;
+using Konta.Application.Planning;
 using Konta.Domain.Accounts;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,7 +8,7 @@ namespace Konta.Api.Controllers;
 
 [ApiController]
 [Route("api/accounts")]
-public sealed class AccountsController(IAccountService accountService) : ControllerBase
+public sealed class AccountsController(IAccountService accountService, IPlanningService planningService) : ControllerBase
 {
     /// <summary>Returns the accounts configured for Société Générale imports.</summary>
     [HttpGet]
@@ -66,6 +67,59 @@ public sealed class AccountsController(IAccountService accountService) : Control
             });
         }
     }
+
+    [HttpGet("{id:guid}/balances")]
+    [ProducesResponseType<AccountBalanceSummary>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AccountBalanceSummary>> GetBalances(
+        Guid id,
+        [FromQuery] DateOnly? throughDate,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await planningService.GetBalancesAsync(
+                id,
+                throughDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+                cancellationToken));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    [HttpPut("{id:guid}/balances/reference")]
+    [ProducesResponseType<AccountBalanceSummary>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<AccountBalanceSummary>> SetBalanceReference(
+        Guid id,
+        SetAccountBalanceReferenceRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await planningService.SetReferenceBalanceAsync(
+                id,
+                request.TransactionId,
+                request.BalanceAfterTransaction,
+                cancellationToken));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Solde de référence invalide",
+                Detail = exception.Message,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+    }
 }
 
 /// <summary>Information used to associate an imported bank account with Konta.</summary>
@@ -82,4 +136,12 @@ public sealed record CreateAccountRequest
 
     [Required]
     public required AccountKind Kind { get; init; }
+}
+
+public sealed record SetAccountBalanceReferenceRequest
+{
+    [Required]
+    public required Guid TransactionId { get; init; }
+
+    public decimal BalanceAfterTransaction { get; init; }
 }

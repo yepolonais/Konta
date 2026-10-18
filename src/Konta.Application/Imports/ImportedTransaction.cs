@@ -19,4 +19,6 @@ public sealed record ImportedTransaction(
     string? AccountName = null,
     bool IsDuplicate = false,
     string? Fingerprint = null,
-    CategoryRuleSuggestion? CategorySuggestion = null);
+    CategoryRuleSuggestion? CategorySuggestion = null,
+    IReadOnlyList<Konta.Application.Planning.ForecastMatchCandidate>? ForecastMatchCandidates = null,
+    ForecastMatchConfirmation? ForecastMatchConfirmation = null);

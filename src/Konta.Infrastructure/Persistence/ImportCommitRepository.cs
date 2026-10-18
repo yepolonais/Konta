@@ -1,5 +1,6 @@
 using Konta.Application.Imports;
 using Konta.Domain.Categories;
+using Konta.Domain.Forecasts;
 using Konta.Domain.Transactions;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,6 +42,16 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
         await using var databaseTransaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var existing = await GetExistingOccurrencesAsync(importRows, cancellationToken);
         var categoryLookup = await ResolveCategoryIdsAsync(importRows, cancellationToken);
+        var forecastIds = importRows
+            .Where(transaction => transaction.ForecastMatchConfirmation is not null)
+            .Select(transaction => transaction.ForecastMatchConfirmation!.ForecastId)
+            .Distinct()
+            .ToArray();
+        var forecasts = await dbContext.RecurringForecasts
+            .Where(forecast => forecastIds.Contains(forecast.Id) && forecast.IsActive)
+            .ToDictionaryAsync(forecast => forecast.Id, cancellationToken);
+        var forecastOccurrences = new List<ForecastOccurrence>();
+        var matchedOccurrenceKeys = new HashSet<(Guid ForecastId, DateOnly ScheduledDate)>();
         var newTransactions = new List<Transaction>();
 
         foreach (var group in importRows.GroupBy(transaction =>
@@ -59,7 +70,7 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
             {
                 nextOccurrence++;
                 var categoryId = GetCategoryId(transaction, categoryLookup);
-                newTransactions.Add(new Transaction(
+                var newEntity = new Transaction(
                     transaction.TransactionDate,
                     transaction.Label,
                     transaction.Amount,
@@ -70,15 +81,61 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
                     source: TransactionSource.Import,
                     accountId: transaction.AccountId,
                     importFingerprint: transaction.Fingerprint,
-                    importOccurrence: nextOccurrence));
+                    importOccurrence: nextOccurrence);
+                newTransactions.Add(newEntity);
+
+                if (transaction.ForecastMatchConfirmation is { } confirmation)
+                {
+                    if (!forecasts.TryGetValue(confirmation.ForecastId, out var forecast)
+                        || forecast.AccountId != transaction.AccountId
+                        || forecast.Type != transaction.Type
+                        || !transaction.Label.Contains(forecast.LabelPattern, StringComparison.OrdinalIgnoreCase)
+                        || Math.Abs(confirmation.ScheduledDate.DayNumber - transaction.TransactionDate.DayNumber) > 3
+                        || !IsScheduledDate(forecast, confirmation.ScheduledDate))
+                    {
+                        throw new InvalidOperationException("L'échéance prévisionnelle confirmée n'est plus valide.");
+                    }
+
+                    var occurrenceKey = (forecast.Id, confirmation.ScheduledDate);
+                    if (!matchedOccurrenceKeys.Add(occurrenceKey)
+                        || await dbContext.ForecastOccurrences.AnyAsync(
+                            occurrence => occurrence.ForecastId == forecast.Id
+                                && occurrence.ScheduledDate == confirmation.ScheduledDate,
+                            cancellationToken))
+                    {
+                        throw new InvalidOperationException("Cette échéance a déjà été rapprochée d'une opération.");
+                    }
+
+                    forecastOccurrences.Add(new ForecastOccurrence(
+                        forecast.Id,
+                        confirmation.ScheduledDate,
+                        newEntity.Id,
+                        transaction.Amount));
+                }
             }
         }
 
         dbContext.Transactions.AddRange(newTransactions);
+        dbContext.ForecastOccurrences.AddRange(forecastOccurrences);
         await dbContext.SaveChangesAsync(cancellationToken);
         await databaseTransaction.CommitAsync(cancellationToken);
 
         return (newTransactions.Count, importRows.Length - newTransactions.Count);
+    }
+
+    private static bool IsScheduledDate(RecurringForecast forecast, DateOnly date)
+    {
+        if (date < forecast.StartDate || (forecast.EndDate.HasValue && date > forecast.EndDate.Value))
+        {
+            return false;
+        }
+
+        if (forecast.Frequency == ForecastFrequency.Annual && date.Month != forecast.StartDate.Month)
+        {
+            return false;
+        }
+
+        return date.Day == Math.Min(forecast.DayOfMonth, DateTime.DaysInMonth(date.Year, date.Month));
     }
 
     private async Task<Dictionary<string, Guid>> ResolveCategoryIdsAsync(
