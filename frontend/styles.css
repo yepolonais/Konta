@@ -19,16 +19,17 @@
 .topbar { align-items: center; background: var(--paper); border-bottom: 1px solid var(--line); display: flex; gap: 40px; height: 72px; padding: 0 clamp(20px, 5vw, 76px); }
 .brand { align-items: center; color: var(--ink); display: flex; font-size: 20px; font-weight: 800; gap: 10px; text-decoration: none; }
 .brand-mark { align-items: center; background: var(--green); border-radius: 8px; color: var(--lime); display: inline-flex; font-family: "DM Mono", monospace; font-size: 16px; height: 32px; justify-content: center; width: 32px; }
-.nav { align-items: center; display: flex; gap: 26px; height: 100%; }
+.nav { align-items: center; display: flex; flex: 1; gap: 26px; height: 100%; }
 .nav a { align-items: center; border-bottom: 2px solid transparent; color: var(--muted); display: flex; font-size: 13px; font-weight: 700; height: 100%; text-decoration: none; }
 .nav a[aria-current="page"] { border-color: var(--green); color: var(--green-dark); }
-.status { color: var(--muted); font-size: 12px; margin-left: auto; }
+.nav a[href="#import"] { margin-left: auto; }
 main { margin: 0 auto; max-width: 1180px; padding: 48px 24px 72px; }
 .eyebrow { color: var(--green); font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .heading { align-items: end; display: flex; gap: 24px; justify-content: space-between; margin-bottom: 32px; }
 h1 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -.03em; line-height: 1.15; margin: 8px 0 0; }
 .intro { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
 .content-grid { align-items: start; display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr) 340px; }
+.content-grid.single-page { grid-template-columns: minmax(0, 1fr); }
 .content-grid > * { min-width: 0; }
 .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
 .panel-head { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; min-height: 64px; padding: 0 22px; }
@@ -202,7 +203,6 @@ button:disabled { cursor: wait; opacity: .65; }
   .nav { height: 42px; order: 3; width: 100%; }
   .nav { gap: 9px; justify-content: space-between; }
   .nav a { border-bottom-width: 2px; }
-  .status { font-size: 10px; }
   .heading { align-items: start; flex-direction: column; gap: 8px; margin-bottom: 22px; }
   h1 { font-size: 30px; }
   .panel-head { padding: 0 16px; }

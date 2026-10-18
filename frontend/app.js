@@ -19,9 +19,20 @@ class KontaApp extends HTMLElement {
 
   connectedCallback() {
     this.renderShell();
+    this.handlePageNavigation = () => {
+      this.showPage(window.location.hash.slice(1) || "transactions");
+    };
+    window.addEventListener("hashchange", this.handlePageNavigation);
+    window.addEventListener("popstate", this.handlePageNavigation);
+    this.showPage(window.location.hash.slice(1) || "transactions");
     this.loadTransactions();
     this.phase2DataPromise = this.loadPhase2Data();
     this.loadPlanningData();
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener("hashchange", this.handlePageNavigation);
+    window.removeEventListener("popstate", this.handlePageNavigation);
   }
 
   renderShell() {
@@ -33,17 +44,16 @@ class KontaApp extends HTMLElement {
           <nav class="nav" aria-label="Navigation principale">
             <a href="#transactions" aria-current="page">Opérations</a>
             <a href="#summary">Synthèses</a>
-            <a href="#import">Import CSV</a>
             <a href="#category-rules">Règles</a>
             <a href="#planning">Planification</a>
+            <a href="#import">Import CSV</a>
           </nav>
-          <span class="status">Compte commun · POC</span>
         </header>
         <main>
           <div class="heading">
             <div><div class="eyebrow">Espace finances · 01</div><h1>Opérations</h1><p class="intro">Consultez les mouvements et prévisualisez un relevé avant traitement.</p></div>
           </div>
-          <section class="panel summary-panel" id="summary" aria-labelledby="summary-title">
+          <section class="panel summary-panel" id="summary" data-page="summary" aria-labelledby="summary-title">
             <div class="panel-head"><h2 id="summary-title">Synthèse des opérations</h2><span class="count" id="summary-count"></span></div>
             <form class="summary-filters" id="summary-form">
               <label>Année<input id="summary-year" type="number" min="1" max="9998" required></label>
@@ -62,7 +72,7 @@ class KontaApp extends HTMLElement {
               <section class="summary-details" id="summary-details" aria-live="polite" hidden></section>
             </div>
           </section>
-          <section class="panel planning-panel" id="planning" aria-labelledby="planning-title">
+          <section class="panel planning-panel" id="planning" data-page="planning" aria-labelledby="planning-title">
             <div class="panel-head"><h2 id="planning-title">Budgets, échéances et soldes</h2></div>
             <div class="planning-grid">
               <section class="planning-section" aria-labelledby="budgets-title">
@@ -118,7 +128,7 @@ class KontaApp extends HTMLElement {
             <p class="feedback" id="planning-feedback" role="status" aria-live="polite" hidden></p>
           </section>
           <div class="content-grid">
-            <section class="panel" id="transactions" aria-labelledby="transactions-title">
+            <section class="panel" id="transactions" data-page="transactions" aria-labelledby="transactions-title">
               <div class="panel-head"><h2 id="transactions-title">Dernières opérations</h2><span class="count" id="transaction-count">…</span></div>
               <div class="table-wrap"><table>
                 <thead><tr><th>Date</th><th>Opération</th><th>Compte</th><th>Type</th><th style="text-align:right">Montant</th></tr></thead>
@@ -127,7 +137,7 @@ class KontaApp extends HTMLElement {
               <p class="empty" id="transactions-empty">Aucune opération enregistrée pour le moment. Les aperçus CSV ne sont pas enregistrés.</p>
               <p class="feedback error" id="transactions-error" role="status" hidden></p>
             </section>
-            <section class="panel import-panel" id="import" aria-labelledby="import-title">
+            <section class="panel import-panel" id="import" data-page="import" aria-labelledby="import-title">
               <div class="eyebrow">Relevé bancaire</div>
               <h2 id="import-title">Prévisualiser un CSV</h2>
               <p>Le fichier est analysé en mémoire. Rien n'est ajouté à la base à cette étape.</p>
@@ -139,7 +149,7 @@ class KontaApp extends HTMLElement {
               <p class="feedback" id="import-feedback" role="status" aria-live="polite" hidden></p>
             </section>
           </div>
-          <section class="panel preview" id="preview-panel" aria-labelledby="preview-title" hidden>
+          <section class="panel preview" id="preview-panel" data-page="import" aria-labelledby="preview-title" hidden>
             <div class="panel-head"><h2 id="preview-title">Aperçu du fichier</h2><span class="count" id="preview-count"></span></div>
             <p class="preview-summary" id="preview-summary"></p>
             <div class="table-wrap"><table>
@@ -150,7 +160,7 @@ class KontaApp extends HTMLElement {
             <div class="preview-actions"><button id="commit-button" type="button" disabled>Enregistrer les opérations</button></div>
             <div class="errors" id="preview-errors" hidden></div>
           </section>
-          <section class="panel rules-panel" id="category-rules" aria-labelledby="rules-title">
+          <section class="panel rules-panel" id="category-rules" data-page="category-rules" aria-labelledby="rules-title">
             <div class="panel-head"><h2 id="rules-title">Règles de catégorisation</h2><span class="count" id="rules-count"></span></div>
             <p class="rules-intro">Une règle associe automatiquement une catégorie aux libellés correspondants. En cas de plusieurs correspondances, le motif le plus long est prioritaire.</p>
             <form class="rule-form" id="category-rule-form">
@@ -174,6 +184,18 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#csv-file").addEventListener("change", event => {
       this.selectedFile = event.target.files[0] ?? null;
       this.shadowRoot.querySelector("#file-name").textContent = event.target.files[0]?.name ?? "Aucun fichier choisi";
+    });
+    this.shadowRoot.querySelector(".nav").addEventListener("click", event => {
+      const link = event.target.closest("a[href^='#']");
+      if (!link) return;
+      event.preventDefault();
+      const page = link.hash.slice(1);
+      if (page === (window.location.hash.slice(1) || "transactions")) {
+        this.showPage(page);
+      } else {
+        window.history.pushState(null, "", link.hash);
+        this.showPage(page);
+      }
     });
     this.shadowRoot.querySelector("#import-form").addEventListener("submit", event => this.previewFile(event));
     this.shadowRoot.querySelector("#preview-panel").addEventListener("click", event => this.handlePreviewAction(event));
@@ -219,6 +241,40 @@ class KontaApp extends HTMLElement {
       option.textContent = new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(2026, value - 1, 1));
       month.append(option);
     }
+  }
+
+  showPage(page) {
+    const pages = {
+      transactions: ["Opérations", "Consultez les mouvements enregistrés sur vos comptes."],
+      summary: ["Synthèses", "Comparez les revenus et les dépenses par mois ou par année."],
+      import: ["Import CSV", "Prévisualisez, vérifiez et confirmez l’import de vos relevés."],
+      "category-rules": ["Règles", "Gérez vos catégories et les règles de catégorisation automatique."],
+      planning: ["Planification", "Suivez vos budgets, échéances, soldes et objectifs d’épargne."]
+    };
+    if (!Object.hasOwn(pages, page)) page = "transactions";
+    this.currentPage = page;
+    for (const element of this.shadowRoot.querySelectorAll("[data-page]")) {
+      element.hidden = element.dataset.page !== page || (element.id === "preview-panel" && !this.preview);
+    }
+
+    const contentGrid = this.shadowRoot.querySelector(".content-grid");
+    contentGrid.hidden = page !== "transactions" && page !== "import";
+    contentGrid.classList.add("single-page");
+    this.shadowRoot.querySelector("#transactions").hidden = page !== "transactions";
+    this.shadowRoot.querySelector("#import").hidden = page !== "import";
+    this.shadowRoot.querySelector("#preview-panel").hidden = page !== "import" || !this.preview;
+
+    const [title, description] = pages[page];
+    this.shadowRoot.querySelector(".heading h1").textContent = title;
+    this.shadowRoot.querySelector(".heading .intro").textContent = description;
+    for (const link of this.shadowRoot.querySelectorAll(".nav a")) {
+      if (link.hash === `#${page}`) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    }
+    window.scrollTo(0, 0);
   }
 
   async loadTransactions() {
