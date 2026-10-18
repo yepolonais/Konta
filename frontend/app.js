@@ -19,6 +19,7 @@ class KontaApp extends HTMLElement {
 
   connectedCallback() {
     this.renderShell();
+    this.setTheme(localStorage.getItem("konta-theme") === "dark" ? "dark" : "light");
     this.handlePageNavigation = () => {
       this.showPage(window.location.hash.slice(1) || "transactions");
     };
@@ -47,6 +48,9 @@ class KontaApp extends HTMLElement {
             <a href="#category-rules">Règles</a>
             <a href="#planning">Planification</a>
             <a href="#import">Import CSV</a>
+            <button class="theme-toggle" type="button" aria-label="Activer le mode sombre" aria-pressed="false">
+              <span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Sombre</span>
+            </button>
           </nav>
         </header>
         <main>
@@ -54,17 +58,20 @@ class KontaApp extends HTMLElement {
             <div><div class="eyebrow">Espace finances · 01</div><h1>Opérations</h1><p class="intro">Consultez les mouvements et prévisualisez un relevé avant traitement.</p></div>
           </div>
           <section class="panel summary-panel" id="summary" data-page="summary" aria-labelledby="summary-title">
-            <div class="panel-head"><h2 id="summary-title">Synthèse des opérations</h2><span class="count" id="summary-count"></span></div>
+            <div class="panel-head"><div><span class="section-kicker">Analyse financière</span><h2 id="summary-title">Vue d’ensemble</h2></div><span class="count summary-count" id="summary-count"></span></div>
             <form class="summary-filters" id="summary-form">
+              <div class="summary-filter-heading"><strong>Choisir une période</strong><span>Affinez les résultats par compte ou catégorie.</span></div>
               <label>Année<input id="summary-year" type="number" min="1" max="9998" required></label>
               <label>Mois<select id="summary-month"><option value="">Année complète</option></select></label>
               <label>Compte<select id="summary-account"><option value="">Tous les comptes</option></select></label>
               <label>Catégorie<select id="summary-category"><option value="">Toutes les catégories</option></select></label>
-              <button type="submit">Actualiser</button>
+              <button class="summary-submit" type="submit"><span aria-hidden="true">↻</span> Actualiser</button>
             </form>
             <p class="feedback error" id="summary-error" role="status" hidden></p>
             <div id="summary-results" hidden>
+              <div class="summary-result-heading"><div><span class="section-kicker">En un coup d’œil</span><h3>Résultat de la période</h3></div><p id="summary-period"></p></div>
               <div class="summary-totals" id="summary-totals"></div>
+              <div class="summary-table-heading"><div><h3>Dépenses et revenus par catégorie</h3><p>Ouvrez une catégorie pour consulter les opérations correspondantes.</p></div></div>
               <div class="table-wrap"><table class="summary-table">
                 <thead><tr><th>Catégorie</th><th>Revenus</th><th>Dépenses</th><th>Solde net</th><th></th></tr></thead>
                 <tbody id="summary-categories"></tbody>
@@ -186,6 +193,10 @@ class KontaApp extends HTMLElement {
       this.shadowRoot.querySelector("#file-name").textContent = event.target.files[0]?.name ?? "Aucun fichier choisi";
     });
     this.shadowRoot.querySelector(".nav").addEventListener("click", event => {
+      if (event.target.closest(".theme-toggle")) {
+        this.setTheme(this.dataset.theme === "dark" ? "light" : "dark", true);
+        return;
+      }
       const link = event.target.closest("a[href^='#']");
       if (!link) return;
       event.preventDefault();
@@ -275,6 +286,19 @@ class KontaApp extends HTMLElement {
       }
     }
     window.scrollTo(0, 0);
+  }
+
+  setTheme(theme, persist = false) {
+    this.dataset.theme = theme;
+    document.documentElement.dataset.theme = theme;
+    const isDark = theme === "dark";
+    const toggle = this.shadowRoot.querySelector(".theme-toggle");
+    toggle.setAttribute("aria-label", `Activer le mode ${isDark ? "clair" : "sombre"}`);
+    toggle.setAttribute("aria-pressed", String(isDark));
+    toggle.querySelector(".theme-toggle-icon").textContent = isDark ? "☀" : "☾";
+    toggle.querySelector(".theme-toggle-label").textContent = isDark ? "Clair" : "Sombre";
+    document.querySelector('meta[name="theme-color"]').content = isDark ? "#171416" : "#f4f5f1";
+    if (persist) localStorage.setItem("konta-theme", theme);
   }
 
   async loadTransactions() {
@@ -1009,29 +1033,45 @@ class KontaApp extends HTMLElement {
     details.hidden = true;
     this.shadowRoot.querySelector("#summary-count").textContent =
       `${summary.transactionCount} opération${summary.transactionCount === 1 ? "" : "s"}`;
+    const period = summary.month
+      ? `${new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(summary.year, summary.month - 1, 1))} ${summary.year}`
+      : `Année ${summary.year}`;
+    this.shadowRoot.querySelector("#summary-period").textContent = period;
     const totals = this.shadowRoot.querySelector("#summary-totals");
     totals.replaceChildren();
-    for (const [label, amount] of [
-      ["Revenus", summary.incomeTotal],
-      ["Dépenses", summary.expenseTotal],
-      ["Solde net", summary.netTotal]
+    for (const [label, amount, descriptor, style] of [
+      ["Revenus", summary.incomeTotal, "Total des entrées", "income"],
+      ["Dépenses", summary.expenseTotal, "Total des sorties", "expense"],
+      ["Solde net", summary.netTotal, "Revenus moins dépenses", "net"]
     ]) {
       const card = document.createElement("div");
-      card.className = "summary-total";
+      const sentiment = style === "net" && amount < 0 ? "negative" : "positive";
+      card.className = `summary-total ${style} ${sentiment}`;
       const title = document.createElement("span");
       title.textContent = label;
       const value = document.createElement("strong");
       value.textContent = this.formatCurrency(amount);
-      card.append(title, value);
+      const note = document.createElement("small");
+      note.textContent = descriptor;
+      card.append(title, value, note);
       totals.append(card);
     }
 
     const body = this.shadowRoot.querySelector("#summary-categories");
     body.replaceChildren();
+    if (summary.categories.length === 0) {
+      const row = document.createElement("tr");
+      const emptyCell = document.createElement("td");
+      emptyCell.colSpan = 5;
+      emptyCell.className = "summary-empty";
+      emptyCell.textContent = "Aucune opération pour cette période et ces filtres.";
+      row.append(emptyCell);
+      body.append(row);
+    }
     summary.categories.forEach((category, index) => {
       const row = document.createElement("tr");
       row.append(
-        this.cell(category.categoryName),
+        this.cell(category.categoryName, "summary-category-name"),
         this.cell(this.formatCurrency(category.incomeTotal), "amount"),
         this.cell(this.formatCurrency(category.expenseTotal), "amount"),
         this.cell(this.formatCurrency(category.netTotal), "amount")
