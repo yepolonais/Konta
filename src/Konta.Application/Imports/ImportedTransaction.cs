@@ -18,4 +18,5 @@ public sealed record ImportedTransaction(
     Guid? AccountId = null,
     string? AccountName = null,
     bool IsDuplicate = false,
-    string? Fingerprint = null);
+    string? Fingerprint = null,
+    CategoryRuleSuggestion? CategorySuggestion = null);

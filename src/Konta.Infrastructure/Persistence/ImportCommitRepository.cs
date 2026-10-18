@@ -1,4 +1,5 @@
 using Konta.Application.Imports;
+using Konta.Domain.Categories;
 using Konta.Domain.Transactions;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,6 +40,7 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
             .ToArray();
         await using var databaseTransaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var existing = await GetExistingOccurrencesAsync(importRows, cancellationToken);
+        var categoryLookup = await ResolveCategoryIdsAsync(importRows, cancellationToken);
         var newTransactions = new List<Transaction>();
 
         foreach (var group in importRows.GroupBy(transaction =>
@@ -56,6 +58,7 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
             foreach (var transaction in group.OrderBy(transaction => transaction.RowNumber).Skip(existingCount))
             {
                 nextOccurrence++;
+                var categoryId = GetCategoryId(transaction, categoryLookup);
                 newTransactions.Add(new Transaction(
                     transaction.TransactionDate,
                     transaction.Label,
@@ -63,6 +66,7 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
                     transaction.Type,
                     transaction.AccountNumber,
                     transaction.AccountLabel,
+                    categoryId: categoryId,
                     source: TransactionSource.Import,
                     accountId: transaction.AccountId,
                     importFingerprint: transaction.Fingerprint,
@@ -75,6 +79,60 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
         await databaseTransaction.CommitAsync(cancellationToken);
 
         return (newTransactions.Count, importRows.Length - newTransactions.Count);
+    }
+
+    private async Task<Dictionary<string, Guid>> ResolveCategoryIdsAsync(
+        IReadOnlyCollection<ImportedTransaction> transactions,
+        CancellationToken cancellationToken)
+    {
+        var categoryNames = transactions
+            .Select(transaction => transaction.CategoryName ?? transaction.SubcategoryName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (categoryNames.Length == 0)
+        {
+            return new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var existing = await dbContext.Categories
+            .AsNoTracking()
+            .Where(category => category.IsActive && categoryNames.Contains(category.Name!))
+            .ToDictionaryAsync(category => category.Name!, category => category.Id, cancellationToken);
+
+        var toCreate = categoryNames
+            .Where(name => !existing.ContainsKey(name))
+            .Select(name => new Category(name.Trim()))
+            .ToArray();
+
+        if (toCreate.Length > 0)
+        {
+            dbContext.Categories.AddRange(toCreate);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            foreach (var category in toCreate)
+            {
+                existing[category.Name] = category.Id;
+            }
+        }
+
+        return existing;
+    }
+
+    private static Guid? GetCategoryId(
+        ImportedTransaction transaction,
+        IReadOnlyDictionary<string, Guid> categoryLookup)
+    {
+        var categoryName = transaction.CategoryName ?? transaction.SubcategoryName;
+        if (string.IsNullOrWhiteSpace(categoryName))
+        {
+            return null;
+        }
+
+        return categoryLookup.TryGetValue(categoryName.Trim(), out var categoryId)
+            ? categoryId
+            : null;
     }
 
     private async Task<List<ExistingImportOccurrence>> GetExistingOccurrencesAsync(

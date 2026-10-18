@@ -9,6 +9,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
 {
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<CategoryRule> CategoryRules => Set<CategoryRule>();
     public DbSet<Account> Accounts => Set<Account>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -55,6 +56,16 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.HasKey(category => category.Id);
             entity.Property(category => category.Name).HasMaxLength(100).IsRequired();
             entity.HasIndex(category => category.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<CategoryRule>(entity =>
+        {
+            entity.HasKey(rule => rule.Id);
+            entity.Property(rule => rule.Name).HasMaxLength(100).IsRequired();
+            entity.Property(rule => rule.Pattern).HasMaxLength(200).IsRequired();
+            entity.Property(rule => rule.CategoryId).IsRequired();
+            entity.HasIndex(rule => rule.Pattern).IsUnique();
+            entity.HasIndex(rule => rule.Name).IsUnique();
         });
     }
 }

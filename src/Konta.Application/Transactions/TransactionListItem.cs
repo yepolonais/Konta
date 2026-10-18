@@ -11,4 +11,6 @@ public sealed record TransactionListItem(
     string? AccountNumber,
     string? AccountLabel,
     string? AccountName,
-    string? CategoryName);
+    string? CategoryName,
+    Guid? AccountId = null,
+    Guid? CategoryId = null);

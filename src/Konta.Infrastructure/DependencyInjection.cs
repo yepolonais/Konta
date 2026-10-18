@@ -1,3 +1,5 @@
+using Konta.Application.Categories;
+using Konta.Application.CategoryRules;
 using Konta.Application.Imports;
 using Konta.Application.Accounts;
 using Konta.Application.Transactions;
@@ -20,6 +22,8 @@ public static class DependencyInjection
         services.AddDbContext<KontaDbContext>(options => options.UseSqlite($"Data Source={databasePath}"));
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
+        services.AddScoped<ICategoryRuleRepository, CategoryRuleRepository>();
         services.AddScoped<IImportCommitRepository, ImportCommitRepository>();
         services.AddSingleton<ITransactionCsvParser, SocieteGeneraleCsvParser>();
         return services;

@@ -1,3 +1,5 @@
+using Konta.Application.Categories;
+using Konta.Application.CategoryRules;
 using Konta.Application.Imports;
 using Konta.Application.Transactions;
 using Konta.Application.Accounts;
@@ -22,6 +24,8 @@ builder.Services.AddKontaInfrastructure(builder.Configuration);
 builder.Services.AddScoped<IImportPreviewService, ImportPreviewService>();
 builder.Services.AddScoped<ITransactionQueryService, TransactionQueryService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<ICategoryRuleService, CategoryRuleService>();
 
 var app = builder.Build();
 var frontendPath = app.Environment.IsDevelopment()

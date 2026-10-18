@@ -4,11 +4,18 @@ class KontaApp extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this.preview = null;
     this.selectedFile = null;
+    this.accountMappings = {};
+    this.categories = [];
+    this.accounts = [];
+    this.categoryRules = [];
+    this.editingRuleId = null;
+    this.editingCategoryId = null;
   }
 
   connectedCallback() {
     this.renderShell();
     this.loadTransactions();
+    this.phase2DataPromise = this.loadPhase2Data();
   }
 
   renderShell() {
@@ -19,7 +26,9 @@ class KontaApp extends HTMLElement {
           <a class="brand" href="/" aria-label="Konta, accueil"><span class="brand-mark">K</span>Konta</a>
           <nav class="nav" aria-label="Navigation principale">
             <a href="#transactions" aria-current="page">Opérations</a>
+            <a href="#summary">Synthèses</a>
             <a href="#import">Import CSV</a>
+            <a href="#category-rules">Règles</a>
           </nav>
           <span class="status">Compte commun · POC</span>
         </header>
@@ -27,6 +36,25 @@ class KontaApp extends HTMLElement {
           <div class="heading">
             <div><div class="eyebrow">Espace finances · 01</div><h1>Opérations</h1><p class="intro">Consultez les mouvements et prévisualisez un relevé avant traitement.</p></div>
           </div>
+          <section class="panel summary-panel" id="summary" aria-labelledby="summary-title">
+            <div class="panel-head"><h2 id="summary-title">Synthèse des opérations</h2><span class="count" id="summary-count"></span></div>
+            <form class="summary-filters" id="summary-form">
+              <label>Année<input id="summary-year" type="number" min="1" max="9998" required></label>
+              <label>Mois<select id="summary-month"><option value="">Année complète</option></select></label>
+              <label>Compte<select id="summary-account"><option value="">Tous les comptes</option></select></label>
+              <label>Catégorie<select id="summary-category"><option value="">Toutes les catégories</option></select></label>
+              <button type="submit">Actualiser</button>
+            </form>
+            <p class="feedback error" id="summary-error" role="status" hidden></p>
+            <div id="summary-results" hidden>
+              <div class="summary-totals" id="summary-totals"></div>
+              <div class="table-wrap"><table class="summary-table">
+                <thead><tr><th>Catégorie</th><th>Revenus</th><th>Dépenses</th><th>Solde net</th><th></th></tr></thead>
+                <tbody id="summary-categories"></tbody>
+              </table></div>
+              <section class="summary-details" id="summary-details" aria-live="polite" hidden></section>
+            </div>
+          </section>
           <div class="content-grid">
             <section class="panel" id="transactions" aria-labelledby="transactions-title">
               <div class="panel-head"><h2 id="transactions-title">Dernières opérations</h2><span class="count" id="transaction-count">…</span></div>
@@ -53,12 +81,30 @@ class KontaApp extends HTMLElement {
             <div class="panel-head"><h2 id="preview-title">Aperçu du fichier</h2><span class="count" id="preview-count"></span></div>
             <p class="preview-summary" id="preview-summary"></p>
             <div class="table-wrap"><table>
-              <thead><tr><th>Date opération</th><th>Opération</th><th>Compte Konta</th><th>Catégorie CSV</th><th>Type</th><th style="text-align:right">Montant</th><th>Import</th></tr></thead>
+              <thead><tr><th>Date</th><th>Libellé corrigible</th><th>Compte Konta</th><th>Catégorie / suggestion</th><th>Type</th><th style="text-align:right">Montant (€)</th><th>Inclure</th></tr></thead>
               <tbody id="preview-body"></tbody>
             </table></div>
             <div class="account-setup" id="account-setup" hidden></div>
             <div class="preview-actions"><button id="commit-button" type="button" disabled>Enregistrer les opérations</button></div>
             <div class="errors" id="preview-errors" hidden></div>
+          </section>
+          <section class="panel rules-panel" id="category-rules" aria-labelledby="rules-title">
+            <div class="panel-head"><h2 id="rules-title">Règles de catégorisation</h2><span class="count" id="rules-count"></span></div>
+            <p class="rules-intro">Une règle associe automatiquement une catégorie aux libellés correspondants. En cas de plusieurs correspondances, le motif le plus long est prioritaire.</p>
+            <form class="rule-form" id="category-rule-form">
+              <label>Nom de la règle<input id="rule-name" name="name" maxlength="100" required></label>
+              <label>Motif à rechercher<input id="rule-pattern" name="pattern" maxlength="200" required></label>
+              <label>Catégorie<select id="rule-category" name="categoryId" required></select></label>
+              <div class="rule-form-actions"><button id="rule-submit" type="submit">Créer la règle</button><button id="rule-cancel" type="button" class="secondary-button" hidden>Annuler</button></div>
+            </form>
+            <form class="category-form" id="category-form">
+              <label>Nouvelle catégorie<input id="new-category-name" maxlength="100" required></label>
+              <button id="category-submit" type="submit" class="secondary-button">Ajouter une catégorie</button>
+              <button id="category-cancel" type="button" class="secondary-button" hidden>Annuler</button>
+            </form>
+            <div class="category-list" id="category-list" aria-label="Catégories actives"></div>
+            <p class="feedback" id="rules-feedback" role="status" aria-live="polite" hidden></p>
+            <div class="rule-list" id="rule-list"></div>
           </section>
         </main>
       </div>`;
@@ -69,6 +115,26 @@ class KontaApp extends HTMLElement {
     });
     this.shadowRoot.querySelector("#import-form").addEventListener("submit", event => this.previewFile(event));
     this.shadowRoot.querySelector("#preview-panel").addEventListener("click", event => this.handlePreviewAction(event));
+    this.shadowRoot.querySelector("#summary-form").addEventListener("submit", event => {
+      event.preventDefault();
+      this.loadSummary();
+    });
+    this.shadowRoot.querySelector("#category-rule-form").addEventListener("submit", event => this.saveCategoryRule(event));
+    this.shadowRoot.querySelector("#rule-cancel").addEventListener("click", () => this.resetRuleForm());
+    this.shadowRoot.querySelector("#category-form").addEventListener("submit", event => this.createCategory(event));
+    this.shadowRoot.querySelector("#category-cancel").addEventListener("click", () => this.resetCategoryForm());
+    this.shadowRoot.querySelector("#rule-list").addEventListener("click", event => this.handleRuleAction(event));
+    this.shadowRoot.querySelector("#category-list").addEventListener("click", event => this.handleCategoryAction(event));
+
+    const year = this.shadowRoot.querySelector("#summary-year");
+    year.value = new Date().getFullYear();
+    const month = this.shadowRoot.querySelector("#summary-month");
+    for (let value = 1; value <= 12; value++) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(2026, value - 1, 1));
+      month.append(option);
+    }
   }
 
   async loadTransactions() {
@@ -90,6 +156,376 @@ class KontaApp extends HTMLElement {
     }
   }
 
+  async loadPhase2Data() {
+    const feedback = this.shadowRoot.querySelector("#rules-feedback");
+    try {
+      const [categoriesResponse, accountsResponse, rulesResponse] = await Promise.all([
+        fetch("/api/categories"),
+        fetch("/api/accounts"),
+        fetch("/api/category-rules")
+      ]);
+      if (!categoriesResponse.ok || !accountsResponse.ok || !rulesResponse.ok) {
+        throw new Error("Impossible de charger les catégories, comptes ou règles.");
+      }
+      [this.categories, this.accounts, this.categoryRules] = await Promise.all([
+        categoriesResponse.json(),
+        accountsResponse.json(),
+        rulesResponse.json()
+      ]);
+      this.renderPhase2Data();
+      await this.loadSummary();
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+    }
+  }
+
+  renderPhase2Data() {
+    this.renderCategoryOptions(this.shadowRoot.querySelector("#rule-category"));
+    this.renderCategoryOptions(this.shadowRoot.querySelector("#summary-category"), "Toutes les catégories");
+    const accountSelect = this.shadowRoot.querySelector("#summary-account");
+    accountSelect.replaceChildren(this.option("", "Tous les comptes"));
+    for (const account of this.accounts.filter(item => item.isActive)) {
+      accountSelect.append(this.option(account.id, account.name));
+    }
+    this.renderCategoryRules();
+    this.renderCategories();
+  }
+
+  renderCategoryOptions(select, placeholder = "Choisir une catégorie") {
+    const selected = select.value;
+    select.replaceChildren(this.option("", placeholder));
+    for (const category of this.categories.filter(item => item.isActive)) {
+      select.append(this.option(category.id, category.name));
+    }
+    if ([...select.options].some(option => option.value === selected)) select.value = selected;
+  }
+
+  option(value, label) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    return option;
+  }
+
+  renderCategoryRules() {
+    const list = this.shadowRoot.querySelector("#rule-list");
+    list.replaceChildren();
+    this.shadowRoot.querySelector("#rules-count").textContent =
+      `${this.categoryRules.length} règle${this.categoryRules.length === 1 ? "" : "s"}`;
+    if (this.categoryRules.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "Aucune règle active. Créez-en une pour suggérer automatiquement une catégorie lors des imports.";
+      list.append(empty);
+      return;
+    }
+    for (const rule of this.categoryRules) {
+      const row = document.createElement("article");
+      row.className = "rule-item";
+      const description = document.createElement("div");
+      const name = document.createElement("strong");
+      name.textContent = rule.name;
+      const details = document.createElement("span");
+      const category = this.categories.find(item => item.id === rule.categoryId)?.name ?? "Catégorie indisponible";
+      details.textContent = `Motif « ${rule.pattern} » · ${category}`;
+      description.append(name, details);
+      const actions = document.createElement("div");
+      actions.className = "rule-actions";
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "secondary-button";
+      edit.dataset.editRule = rule.id;
+      edit.textContent = "Modifier";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary-button danger-button";
+      remove.dataset.deleteRule = rule.id;
+      remove.textContent = "Désactiver";
+      actions.append(edit, remove);
+      row.append(description, actions);
+      list.append(row);
+    }
+  }
+
+  renderCategories() {
+    const list = this.shadowRoot.querySelector("#category-list");
+    list.replaceChildren();
+    if (this.categories.length === 0) return;
+    const heading = document.createElement("h3");
+    heading.textContent = "Catégories actives";
+    list.append(heading);
+    for (const category of this.categories.filter(item => item.isActive)) {
+      const row = document.createElement("article");
+      row.className = "category-item";
+      const name = document.createElement("strong");
+      name.textContent = category.name;
+      const actions = document.createElement("div");
+      actions.className = "rule-actions";
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "secondary-button";
+      edit.dataset.editCategory = category.id;
+      edit.textContent = "Renommer";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary-button danger-button";
+      remove.dataset.deleteCategory = category.id;
+      remove.textContent = "Désactiver";
+      actions.append(edit, remove);
+      row.append(name, actions);
+      list.append(row);
+    }
+  }
+
+  async saveCategoryRule(event) {
+    event.preventDefault();
+    const feedback = this.shadowRoot.querySelector("#rules-feedback");
+    const button = this.shadowRoot.querySelector("#rule-submit");
+    button.disabled = true;
+    try {
+      const rule = {
+        name: this.shadowRoot.querySelector("#rule-name").value.trim(),
+        pattern: this.shadowRoot.querySelector("#rule-pattern").value.trim(),
+        categoryId: this.shadowRoot.querySelector("#rule-category").value
+      };
+      const isEditing = Boolean(this.editingRuleId);
+      const response = await fetch(
+        isEditing ? `/api/category-rules/${this.editingRuleId}` : "/api/category-rules",
+        {
+          method: isEditing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(rule)
+        }
+      );
+      const result = response.status === 204 ? null : await response.json();
+      if (!response.ok) throw new Error(result?.detail ?? result?.title ?? "Impossible d'enregistrer la règle.");
+      feedback.className = "feedback success";
+      feedback.textContent = isEditing ? "Règle mise à jour." : "Règle créée.";
+      feedback.hidden = false;
+      this.resetRuleForm();
+      await this.loadPhase2Data();
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  resetRuleForm() {
+    this.editingRuleId = null;
+    this.shadowRoot.querySelector("#category-rule-form").reset();
+    this.shadowRoot.querySelector("#rule-submit").textContent = "Créer la règle";
+    this.shadowRoot.querySelector("#rule-cancel").hidden = true;
+  }
+
+  async handleRuleAction(event) {
+    const editButton = event.target.closest("[data-edit-rule]");
+    if (editButton) {
+      const rule = this.categoryRules.find(item => item.id === editButton.dataset.editRule);
+      if (!rule) return;
+      this.editingRuleId = rule.id;
+      this.shadowRoot.querySelector("#rule-name").value = rule.name;
+      this.shadowRoot.querySelector("#rule-pattern").value = rule.pattern;
+      this.shadowRoot.querySelector("#rule-category").value = rule.categoryId;
+      this.shadowRoot.querySelector("#rule-submit").textContent = "Enregistrer";
+      this.shadowRoot.querySelector("#rule-cancel").hidden = false;
+      this.shadowRoot.querySelector("#rule-name").focus();
+      return;
+    }
+
+    const deleteButton = event.target.closest("[data-delete-rule]");
+    if (!deleteButton) return;
+    const feedback = this.shadowRoot.querySelector("#rules-feedback");
+    deleteButton.disabled = true;
+    try {
+      const response = await fetch(`/api/category-rules/${deleteButton.dataset.deleteRule}`, { method: "DELETE" });
+      if (!response.ok) {
+        const problem = await response.json();
+        throw new Error(problem.detail ?? problem.title ?? "Impossible de désactiver la règle.");
+      }
+      feedback.className = "feedback success";
+      feedback.textContent = "Règle désactivée.";
+      feedback.hidden = false;
+      await this.loadPhase2Data();
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+      deleteButton.disabled = false;
+    }
+  }
+
+  async createCategory(event) {
+    event.preventDefault();
+    const feedback = this.shadowRoot.querySelector("#rules-feedback");
+    try {
+      const isEditing = Boolean(this.editingCategoryId);
+      const response = await fetch(
+        isEditing ? `/api/categories/${this.editingCategoryId}` : "/api/categories",
+        {
+        method: isEditing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: this.shadowRoot.querySelector("#new-category-name").value.trim() })
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de créer la catégorie.");
+      this.resetCategoryForm();
+      feedback.className = "feedback success";
+      feedback.textContent = isEditing
+        ? `Catégorie renommée « ${result.name} ».`
+        : `Catégorie « ${result.name} » créée.`;
+      feedback.hidden = false;
+      await this.loadPhase2Data();
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+    }
+  }
+
+  resetCategoryForm() {
+    this.editingCategoryId = null;
+    this.shadowRoot.querySelector("#category-form").reset();
+    this.shadowRoot.querySelector("#category-submit").textContent = "Ajouter une catégorie";
+    this.shadowRoot.querySelector("#category-cancel").hidden = true;
+  }
+
+  async handleCategoryAction(event) {
+    const editButton = event.target.closest("[data-edit-category]");
+    if (editButton) {
+      const category = this.categories.find(item => item.id === editButton.dataset.editCategory);
+      if (!category) return;
+      this.editingCategoryId = category.id;
+      this.shadowRoot.querySelector("#new-category-name").value = category.name;
+      this.shadowRoot.querySelector("#category-submit").textContent = "Enregistrer";
+      this.shadowRoot.querySelector("#category-cancel").hidden = false;
+      this.shadowRoot.querySelector("#new-category-name").focus();
+      return;
+    }
+
+    const deleteButton = event.target.closest("[data-delete-category]");
+    if (!deleteButton) return;
+    const feedback = this.shadowRoot.querySelector("#rules-feedback");
+    deleteButton.disabled = true;
+    try {
+      const response = await fetch(`/api/categories/${deleteButton.dataset.deleteCategory}`, { method: "DELETE" });
+      if (!response.ok) {
+        const problem = await response.json();
+        throw new Error(problem.detail ?? problem.title ?? "Impossible de désactiver la catégorie.");
+      }
+      feedback.className = "feedback success";
+      feedback.textContent = "Catégorie désactivée.";
+      feedback.hidden = false;
+      await this.loadPhase2Data();
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+      deleteButton.disabled = false;
+    }
+  }
+
+  async loadSummary() {
+    const error = this.shadowRoot.querySelector("#summary-error");
+    const results = this.shadowRoot.querySelector("#summary-results");
+    const year = this.shadowRoot.querySelector("#summary-year").value;
+    const month = this.shadowRoot.querySelector("#summary-month").value;
+    const accountId = this.shadowRoot.querySelector("#summary-account").value;
+    const categoryId = this.shadowRoot.querySelector("#summary-category").value;
+    const query = new URLSearchParams({ year });
+    if (month) query.set("month", month);
+    if (accountId) query.set("accountId", accountId);
+    if (categoryId) query.set("categoryId", categoryId);
+    error.hidden = true;
+    try {
+      const response = await fetch(`/api/transactions/summary?${query}`);
+      const summary = await response.json();
+      if (!response.ok) throw new Error(summary.detail ?? summary.title ?? "Impossible de charger la synthèse.");
+      this.summary = summary;
+      this.renderSummary(summary);
+      results.hidden = false;
+    } catch (exception) {
+      error.textContent = exception.message;
+      error.hidden = false;
+      results.hidden = true;
+    }
+  }
+
+  renderSummary(summary) {
+    const details = this.shadowRoot.querySelector("#summary-details");
+    details.replaceChildren();
+    details.hidden = true;
+    this.shadowRoot.querySelector("#summary-count").textContent =
+      `${summary.transactionCount} opération${summary.transactionCount === 1 ? "" : "s"}`;
+    const totals = this.shadowRoot.querySelector("#summary-totals");
+    totals.replaceChildren();
+    for (const [label, amount] of [
+      ["Revenus", summary.incomeTotal],
+      ["Dépenses", summary.expenseTotal],
+      ["Solde net", summary.netTotal]
+    ]) {
+      const card = document.createElement("div");
+      card.className = "summary-total";
+      const title = document.createElement("span");
+      title.textContent = label;
+      const value = document.createElement("strong");
+      value.textContent = this.formatCurrency(amount);
+      card.append(title, value);
+      totals.append(card);
+    }
+
+    const body = this.shadowRoot.querySelector("#summary-categories");
+    body.replaceChildren();
+    summary.categories.forEach((category, index) => {
+      const row = document.createElement("tr");
+      row.append(
+        this.cell(category.categoryName),
+        this.cell(this.formatCurrency(category.incomeTotal), "amount"),
+        this.cell(this.formatCurrency(category.expenseTotal), "amount"),
+        this.cell(this.formatCurrency(category.netTotal), "amount")
+      );
+      const actionCell = document.createElement("td");
+      const detailsButton = document.createElement("button");
+      detailsButton.type = "button";
+      detailsButton.className = "text-button";
+      detailsButton.dataset.summaryCategory = index;
+      detailsButton.textContent = "Opérations";
+      actionCell.append(detailsButton);
+      row.append(actionCell);
+      body.append(row);
+    });
+    body.onclick = event => {
+      const button = event.target.closest("[data-summary-category]");
+      if (button) this.renderSummaryDetails(summary.categories[Number(button.dataset.summaryCategory)]);
+    };
+  }
+
+  renderSummaryDetails(category) {
+    const details = this.shadowRoot.querySelector("#summary-details");
+    details.replaceChildren();
+    const title = document.createElement("h3");
+    title.textContent = `${category.categoryName} · ${category.transactions.length} opération${category.transactions.length === 1 ? "" : "s"}`;
+    const table = document.createElement("table");
+    const head = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    for (const label of ["Date", "Opération", "Compte", "Type", "Montant"]) {
+      const th = document.createElement("th");
+      th.textContent = label;
+      headerRow.append(th);
+    }
+    head.append(headerRow);
+    const body = document.createElement("tbody");
+    for (const transaction of category.transactions) body.append(this.transactionRow(transaction));
+    table.append(head, body);
+    details.append(title, table);
+    details.hidden = false;
+  }
+
   async previewFile(event) {
     event.preventDefault();
     if (!this.selectedFile) return;
@@ -98,7 +534,7 @@ class KontaApp extends HTMLElement {
   }
 
   async requestPreview(file) {
-
+    if (this.phase2DataPromise) await this.phase2DataPromise;
     const button = this.shadowRoot.querySelector("#preview-button");
     const feedback = this.shadowRoot.querySelector("#import-feedback");
     button.disabled = true;
@@ -109,6 +545,10 @@ class KontaApp extends HTMLElement {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const accountMappings = this.getAccountMappings();
+      if (Object.keys(accountMappings).length > 0) {
+        formData.append("accountMappings", JSON.stringify(accountMappings));
+      }
       const response = await fetch("/api/imports/preview", { method: "POST", body: formData });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "L'analyse du fichier a échoué.");
@@ -135,7 +575,7 @@ class KontaApp extends HTMLElement {
 
     this.shadowRoot.querySelector("#preview-count").textContent = `${preview.transactions.length} ligne${preview.transactions.length === 1 ? "" : "s"} valide${preview.transactions.length === 1 ? "" : "s"}`;
     const duplicateCount = preview.transactions.filter(transaction => transaction.isDuplicate).length;
-    this.shadowRoot.querySelector("#preview-summary").textContent = `${preview.errors.length} erreur${preview.errors.length === 1 ? "" : "s"} · ${duplicateCount} doublon${duplicateCount === 1 ? "" : "s"} détecté${duplicateCount === 1 ? "" : "s"} · Le signe du montant détermine le type.`;
+    this.shadowRoot.querySelector("#preview-summary").textContent = `${preview.errors.length} erreur${preview.errors.length === 1 ? "" : "s"} · ${duplicateCount} doublon${duplicateCount === 1 ? "" : "s"} détecté${duplicateCount === 1 ? "" : "s"}. Vous pouvez exclure une ligne ou corriger sa date, son libellé, sa catégorie, son type et son montant avant l'import.`;
     this.renderAccountSetup(preview.unmappedAccounts);
     const commitButton = this.shadowRoot.querySelector("#commit-button");
     commitButton.disabled = preview.transactions.length === 0 || preview.unmappedAccounts.length > 0;
@@ -232,6 +672,7 @@ class KontaApp extends HTMLElement {
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d'associer ce compte.");
+        this.accountMappings[row.dataset.accountNumber] = result.id;
         await this.requestPreview(this.selectedFile);
       } catch (exception) {
         const feedback = this.shadowRoot.querySelector("#import-feedback");
@@ -252,18 +693,30 @@ class KontaApp extends HTMLElement {
     if (!this.selectedFile || !this.preview || this.preview.unmappedAccounts.length > 0) return;
     const button = this.shadowRoot.querySelector("#commit-button");
     const feedback = this.shadowRoot.querySelector("#import-feedback");
+    const invalidControl = [...this.shadowRoot.querySelectorAll("#preview-body input, #preview-body select")]
+      .find(control => control.dataset.include === undefined && !control.checkValidity());
+    if (invalidControl) {
+      invalidControl.reportValidity();
+      return;
+    }
     button.disabled = true;
     button.textContent = "Enregistrement…";
     try {
       const formData = new FormData();
       formData.append("file", this.selectedFile);
+      const accountMappings = this.getAccountMappings();
+      if (Object.keys(accountMappings).length > 0) {
+        formData.append("accountMappings", JSON.stringify(accountMappings));
+      }
+      formData.append("review", JSON.stringify(this.getImportReview()));
       const response = await fetch("/api/imports/commit", { method: "POST", body: formData });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "L'import a échoué.");
       feedback.className = "feedback success";
-      feedback.textContent = `${result.importedCount} opération${result.importedCount === 1 ? "" : "s"} ajoutée${result.importedCount === 1 ? "" : "s"}, ${result.duplicateCount} doublon${result.duplicateCount === 1 ? "" : "s"} ignoré${result.duplicateCount === 1 ? "" : "s"}, ${result.errors.length} erreur${result.errors.length === 1 ? "" : "s"}.`;
+      feedback.textContent = `${result.importedCount} opération${result.importedCount === 1 ? "" : "s"} ajoutée${result.importedCount === 1 ? "" : "s"}, ${result.excludedCount} exclue${result.excludedCount === 1 ? "" : "s"}, ${result.duplicateCount} doublon${result.duplicateCount === 1 ? "" : "s"} ignoré${result.duplicateCount === 1 ? "" : "s"}, ${result.errors.length} erreur${result.errors.length === 1 ? "" : "s"}.`;
       feedback.hidden = false;
       await this.loadTransactions();
+      await this.loadSummary();
       await this.requestPreview(this.selectedFile);
     } catch (exception) {
       feedback.className = "feedback error";
@@ -273,6 +726,22 @@ class KontaApp extends HTMLElement {
     } finally {
       button.textContent = "Enregistrer les opérations";
     }
+  }
+
+  getAccountMappings() {
+    return Object.fromEntries(Object.entries(this.accountMappings).filter(([, value]) => Boolean(value)));
+  }
+
+  getImportReview() {
+    return [...this.shadowRoot.querySelectorAll("#preview-body tr")].map(row => ({
+      rowNumber: Number(row.dataset.rowNumber),
+      include: row.querySelector("[data-include]").checked,
+      transactionDate: row.querySelector("[data-date]").value,
+      label: row.querySelector("[data-label]").value,
+      amount: Number(row.querySelector("[data-amount]").value),
+      type: row.querySelector("[data-type]").value,
+      categoryName: row.querySelector("[data-category]").value
+    }));
   }
 
   transactionRow(transaction) {
@@ -289,19 +758,92 @@ class KontaApp extends HTMLElement {
 
   previewRow(transaction) {
     const row = document.createElement("tr");
+    row.dataset.rowNumber = transaction.rowNumber;
     if (transaction.isDuplicate) row.className = "duplicate-row";
-    const category = [transaction.categoryName, transaction.subcategoryName].filter(Boolean).join(" / ") || "Non catégorisé";
     const accountName = transaction.accountName ?? `À associer · ${transaction.accountLabel}`;
+    const dateInput = document.createElement("input");
+    dateInput.type = "date";
+    dateInput.value = transaction.transactionDate;
+    dateInput.required = true;
+    dateInput.dataset.date = "";
+    dateInput.setAttribute("aria-label", `Date de l'opération, ligne ${transaction.rowNumber}`);
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.value = transaction.label;
+    labelInput.required = true;
+    labelInput.maxLength = 500;
+    labelInput.dataset.label = "";
+    labelInput.setAttribute("aria-label", `Libellé de l'opération, ligne ${transaction.rowNumber}`);
+    const typeSelect = document.createElement("select");
+    typeSelect.dataset.type = "";
+    typeSelect.setAttribute("aria-label", `Type de l'opération, ligne ${transaction.rowNumber}`);
+    for (const [value, label] of [["Expense", "Dépense"], ["Income", "Revenu"]]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      typeSelect.append(option);
+    }
+    typeSelect.value = transaction.type === 0 || transaction.type === "Expense" ? "Expense" : "Income";
+    const amountInput = document.createElement("input");
+    amountInput.type = "number";
+    amountInput.min = "0.01";
+    amountInput.step = "0.01";
+    amountInput.value = transaction.amount;
+    amountInput.required = true;
+    amountInput.dataset.amount = "";
+    amountInput.setAttribute("aria-label", `Montant en euros, ligne ${transaction.rowNumber}`);
+    const includeInput = document.createElement("input");
+    includeInput.type = "checkbox";
+    includeInput.checked = true;
+    includeInput.dataset.include = "";
+    includeInput.setAttribute("aria-label", `Inclure l'opération, ligne ${transaction.rowNumber}`);
+    const includeControl = document.createElement("label");
+    includeControl.className = "review-toggle";
+    includeControl.append(includeInput);
+    if (transaction.isDuplicate) {
+      const duplicateNote = document.createElement("span");
+      duplicateNote.className = "duplicate-note";
+      duplicateNote.textContent = "Doublon";
+      includeControl.append(duplicateNote);
+    }
+    const categorySelect = document.createElement("select");
+    categorySelect.dataset.category = "";
+    categorySelect.setAttribute("aria-label", `Catégorie de l'opération, ligne ${transaction.rowNumber}`);
+    categorySelect.append(this.option("", "Non catégorisé"));
+    for (const categoryOption of this.categories.filter(item => item.isActive)) {
+      categorySelect.append(this.option(categoryOption.name, categoryOption.name));
+    }
+    const currentCategory = transaction.categoryName ?? transaction.subcategoryName ?? "";
+    if (currentCategory && ![...categorySelect.options].some(option => option.value === currentCategory)) {
+      categorySelect.append(this.option(currentCategory, currentCategory));
+    }
+    categorySelect.value = currentCategory;
+    const categoryContent = document.createElement("div");
+    categoryContent.className = "preview-category";
+    categoryContent.append(categorySelect);
+    if (transaction.categorySuggestion) {
+      const suggestion = document.createElement("small");
+      suggestion.className = "category-suggestion";
+      suggestion.textContent = `Suggestion · ${transaction.categorySuggestion.ruleName} (${transaction.categorySuggestion.pattern})`;
+      categoryContent.append(suggestion);
+    }
     row.append(
-      this.cell(this.formatDate(transaction.transactionDate), "date"),
-      this.cell(transaction.label),
+      this.controlCell(dateInput, "date"),
+      this.controlCell(labelInput, "review-label"),
       this.cell(`${accountName} · ${transaction.accountNumber}`),
-      this.cell(category, "category"),
-      this.typeCell(transaction.type),
-      this.cell(this.formatAmount(transaction.amount, transaction.type), "amount"),
-      this.cell(transaction.isDuplicate ? "Déjà importée" : "À importer", "import-state")
+      this.controlCell(categoryContent, "category"),
+      this.controlCell(typeSelect, "review-type"),
+      this.controlCell(amountInput, "review-amount"),
+      this.controlCell(includeControl, "review-include")
     );
     return row;
+  }
+
+  controlCell(control, className = "") {
+    const cell = document.createElement("td");
+    cell.className = className;
+    cell.append(control);
+    return cell;
   }
 
   cell(text, className = "") {
@@ -329,6 +871,10 @@ class KontaApp extends HTMLElement {
     const isExpense = type === 0 || type === "Expense";
     const formatted = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
     return isExpense ? `− ${formatted}` : `+ ${formatted}`;
+  }
+
+  formatCurrency(amount) {
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
   }
 }
 

@@ -21,33 +21,37 @@ Phases principales
   - [x] Tests: parser sur `sample/transactions-sample.csv` (encodage, séparateur, montants, compte) et tests API; `dotnet build` et `dotnet test` doivent réussir.
   - [x] Validation de fin: démarrer l'API et le frontend, prévisualiser l'échantillon, confirmer qu'aucune transaction n'est persistée avant une future étape de commit.
 
-- Phase 2 — Import opérationnel et comptes multiples
-  - Modéliser les comptes du foyer (compte commun, personnel et épargne) et associer chaque compte SG à un compte Konta à partir de `Num Compte`; demander confirmation pour un compte inconnu.
-  - Étendre l'aperçu CSV à la sélection, l'exclusion et la correction des opérations avant validation; conserver l'affectation au compte correspondant.
-  - Détecter les doublons, enregistrer l'import de façon atomique et conserver son historique. Ne pas fusionner aveuglément des opérations identiques légitimes.
-  - Ajouter le CRUD des opérations, catégories et règles de catégorisation; permettre de revoir rapidement les opérations non catégorisées.
-  - Ajouter les vues mensuelle et annuelle calculées depuis les opérations, avec filtres et accès aux opérations composant les totaux.
-  - Tester l'import d'un relevé couvrant plusieurs comptes, l'affectation des comptes, les doublons et les calculs par période.
+- [x] Phase 2 — Import opérationnel et comptes multiples
+  - [x] Modéliser les comptes du foyer (compte commun, personnel et épargne) et associer chaque compte SG à un compte Konta à partir de `Num Compte`; demander confirmation pour un compte inconnu.
+  - [x] Étendre l'aperçu CSV à la sélection, l'exclusion et la correction des opérations avant validation; conserver l'affectation au compte correspondant.
+    - [x] Sélectionner ou exclure chaque opération dans l'aperçu; corriger sa date, son libellé, son type et son montant avant le commit.
+    - [x] Corriger l'affectation du compte et la catégorie d'une opération directement dans l'aperçu.
+  - [x] Détecter les doublons, enregistrer l'import de façon atomique et conserver son historique. Ne pas fusionner aveuglément des opérations identiques légitimes.
+  - [x] Ajouter le CRUD des catégories et leur association aux opérations importées; permettre de revoir rapidement les opérations non catégorisées.
+  - [x] Ajouter le CRUD API et l'interface de gestion des règles de catégorisation avec validation, détection des doublons et désactivation.
+  - [x] Appliquer à l'aperçu et au commit la règle active la plus spécifique pour catégoriser les opérations sans catégorie; afficher la suggestion et permettre la correction manuelle.
+  - [x] Ajouter les vues mensuelle et annuelle calculées depuis les opérations, avec filtres par compte/catégorie et accès aux opérations composant les totaux.
+  - [x] Tester l'import couvrant plusieurs comptes, l'affectation, les doublons, les suggestions de catégorie et les calculs par période.
 
-- Phase 3 — Budgets, prévisions et soldes
-  - Gérer les budgets mensuels récurrents et leurs dérogations ponctuelles.
-  - Créer des prévisions d'échéances récurrentes séparées des transactions réelles; les prévisions ne modifient pas les dépenses ni les soldes constatés.
-  - À l'import, proposer le rapprochement entre une prévision et une opération réelle du même compte. Après confirmation, marquer l'échéance comme réalisée et utiliser les données de l'opération importée; signaler les écarts et laisser les cas ambigus à confirmer.
-  - Permettre de définir, pour chaque compte, un solde de référence associé à une opération. Ce solde correspond au compte juste après cette opération; calculer le solde constaté en ajoutant les mouvements ultérieurs, sans compter deux fois l'opération de référence.
-  - Afficher séparément le solde constaté et le solde prévisionnel; inclure les échéances futures uniquement dans ce dernier.
-  - Tester les rapprochements, les échéances manquantes ou inattendues, les écarts de montant et le calcul des soldes à partir de la référence.
+- [ ] Phase 3 — Budgets, prévisions et soldes
+  - [ ] Gérer les budgets mensuels récurrents et leurs dérogations ponctuelles.
+  - [ ] Créer des prévisions d'échéances récurrentes séparées des transactions réelles; les prévisions ne modifient pas les dépenses ni les soldes constatés.
+  - [ ] À l'import, proposer le rapprochement entre une prévision et une opération réelle du même compte. Après confirmation, marquer l'échéance comme réalisée et utiliser les données de l'opération importée; signaler les écarts et laisser les cas ambigus à confirmer.
+  - [ ] Permettre de définir, pour chaque compte, un solde de référence associé à une opération. Ce solde correspond au compte juste après cette opération; calculer le solde constaté en ajoutant les mouvements ultérieurs, sans compter deux fois l'opération de référence.
+  - [ ] Afficher séparément le solde constaté et le solde prévisionnel; inclure les échéances futures uniquement dans ce dernier.
+  - [ ] Tester les rapprochements, les échéances manquantes ou inattendues, les écarts de montant et le calcul des soldes à partir de la référence.
 
-- Phase 4 — Transferts et objectifs d'épargne
-  - Représenter les transferts entre comptes comme des mouvements liés, neutres dans les totaux de dépenses et de revenus du foyer.
-  - Repérer les transferts potentiels entre comptes à l'import et demander confirmation lorsque la correspondance est incertaine.
-  - Gérer les objectifs d'épargne (compte associé, montant cible et contribution prévue) et comparer contributions prévues et réalisées à partir des transferts enregistrés.
-  - Tester qu'un transfert ne crée ni dépense ni revenu et que les contributions d'épargne ne sont pas comptées deux fois.
+- [ ] Phase 4 — Transferts et objectifs d'épargne
+  - [ ] Représenter les transferts entre comptes comme des mouvements liés, neutres dans les totaux de dépenses et de revenus du foyer.
+  - [ ] Repérer les transferts potentiels entre comptes à l'import et demander confirmation lorsque la correspondance est incertaine.
+  - [ ] Gérer les objectifs d'épargne (compte associé, montant cible et contribution prévue) et comparer contributions prévues et réalisées à partir des transferts enregistrés.
+  - [ ] Tester qu'un transfert ne crée ni dépense ni revenu et que les contributions d'épargne ne sont pas comptées deux fois.
 
-- Phase 5 — PWA / Mobile (1 semaine)
-  - Rendre le frontend PWA (manifest, service-worker), responsive et installable.
+- [ ] Phase 5 — PWA / Mobile (1 semaine)
+  - [ ] Rendre le frontend PWA (manifest, service-worker), responsive et installable.
 
-- Phase 6 — Déploiement sur Debian/Freebox (1 semaine)
-  - Option Docker Compose (recommandé) ou service `systemd`.
-  - `nginx` reverse-proxy, volume persistant pour la DB, sauvegardes et HTTPS si exposition externe.
+- [ ] Phase 6 — Déploiement sur Debian/Freebox (1 semaine)
+  - [ ] Option Docker Compose (recommandé) ou service `systemd`.
+  - [ ] `nginx` reverse-proxy, volume persistant pour la DB, sauvegardes et HTTPS si exposition externe.
 
-État actuel: Phases 0 et 1 terminées et validées en local. Prochaine étape: Phase 2, en commençant par l'import définitif et l'affectation des opérations aux différents comptes SG. Les prévisions, soldes de référence, transferts et objectifs d'épargne sont planifiés dans les phases suivantes.
+État au 18/10/2026: Phases 0, 1 et 2 terminées. L'import multi-comptes permet de revoir/corriger les opérations, de détecter les doublons et d'associer les catégories. Les catégories et règles sont gérables depuis l'interface. Les règles proposent une catégorie pendant l'aperçu (motif le plus spécifique prioritaire), avec possibilité de correction avant commit. Les synthèses mensuelles et annuelles incluent des filtres par compte/catégorie et le détail des opérations composant chaque total. La couverture automatisée vérifie notamment l'import multi-comptes, les doublons, les suggestions et les calculs filtrés/par année. Les phases 3 (budgets, prévisions et soldes) et 4 (transferts et objectifs d'épargne) restent à réaliser. La phase 5 PWA est reportée jusqu'à la fin des fonctionnalités métier des phases 3 et 4.
