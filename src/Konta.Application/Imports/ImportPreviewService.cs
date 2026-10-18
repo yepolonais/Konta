@@ -26,12 +26,14 @@ public sealed class ImportPreviewService(
         var duplicateRows = await importCommitRepository.FindDuplicateRowNumbersAsync(
             matchedPreview.Transactions,
             cancellationToken);
-        return matchedPreview with
+        var duplicatePreview = matchedPreview with
         {
             Transactions = matchedPreview.Transactions
                 .Select(transaction => transaction with { IsDuplicate = duplicateRows.Contains(transaction.RowNumber) })
                 .ToArray()
         };
+        var transferPreview = await ApplyTransferMatchesAsync(duplicatePreview, cancellationToken);
+        return transferPreview;
     }
 
     public Task<ImportCommitResult> CommitAsync(Stream csvStream, CancellationToken cancellationToken) =>
@@ -56,12 +58,20 @@ public sealed class ImportPreviewService(
         var preview = await ResolveAccountsAsync(reviewed.Preview, accountMappings, reviewed.AccountOverrides, cancellationToken);
         var categorizedPreview = await ApplyCategoryRulesAsync(preview, cancellationToken);
         var matchedPreview = await ApplyForecastMatchesAsync(categorizedPreview, cancellationToken);
-        if (matchedPreview.UnmappedAccounts.Count > 0)
+        var duplicateRows = await importCommitRepository.FindDuplicateRowNumbersAsync(matchedPreview.Transactions, cancellationToken);
+        var duplicatePreview = matchedPreview with
         {
-            throw new UnmappedAccountsException(matchedPreview.UnmappedAccounts);
+            Transactions = matchedPreview.Transactions
+                .Select(transaction => transaction with { IsDuplicate = duplicateRows.Contains(transaction.RowNumber) })
+                .ToArray()
+        };
+        var transferPreview = await ApplyTransferMatchesAsync(duplicatePreview, cancellationToken);
+        if (transferPreview.UnmappedAccounts.Count > 0)
+        {
+            throw new UnmappedAccountsException(transferPreview.UnmappedAccounts);
         }
 
-        var saveResult = await importCommitRepository.SaveAsync(matchedPreview.Transactions, cancellationToken);
+        var saveResult = await importCommitRepository.SaveAsync(transferPreview.Transactions, cancellationToken);
         return new ImportCommitResult(
             saveResult.ImportedCount,
             saveResult.DuplicateCount,
@@ -90,6 +100,82 @@ public sealed class ImportPreviewService(
             }
 
             transactions.Add(transaction with { ForecastMatchCandidates = candidates });
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidImportReviewException(errors);
+        }
+
+        return preview with { Transactions = transactions.ToArray() };
+    }
+
+    private async Task<ImportPreview> ApplyTransferMatchesAsync(ImportPreview preview, CancellationToken cancellationToken)
+    {
+        var transactions = new List<ImportedTransaction>(preview.Transactions.Count);
+        var linkedReferences = new Dictionary<string, string>(StringComparer.Ordinal);
+        var errors = new List<string>();
+        foreach (var transaction in preview.Transactions)
+        {
+            var candidates = transaction.AccountId.HasValue && !transaction.IsDuplicate
+                ? (await importCommitRepository.FindTransferMatchCandidatesAsync(
+                    transaction.AccountId.Value,
+                    transaction.TransactionDate,
+                    transaction.Amount,
+                    transaction.Type,
+                    cancellationToken)).ToList()
+                : [];
+            candidates.AddRange(preview.Transactions
+                .Where(candidate => candidate.RowNumber != transaction.RowNumber
+                    && !candidate.IsDuplicate
+                    && candidate.AccountId.HasValue
+                    && candidate.AccountId != transaction.AccountId
+                    && candidate.Type != transaction.Type
+                    && candidate.Amount == transaction.Amount
+                    && Math.Abs(candidate.TransactionDate.DayNumber - transaction.TransactionDate.DayNumber) <= 3)
+                .Select(candidate => new TransferMatchCandidate(
+                    null,
+                    candidate.RowNumber,
+                    candidate.Label,
+                    candidate.AccountId!.Value,
+                    candidate.AccountName ?? candidate.AccountLabel ?? "Compte inconnu",
+                    candidate.TransactionDate,
+                    candidate.Amount,
+                    candidate.Type,
+                    Math.Abs(candidate.TransactionDate.DayNumber - transaction.TransactionDate.DayNumber),
+                    false)));
+
+            var normalizedCandidates = candidates
+                .Select(candidate => candidate with { IsAmbiguous = candidates.Count > 1 })
+                .ToArray();
+            if (transaction.TransferMatchConfirmation is { } confirmation
+                && !normalizedCandidates.Any(candidate =>
+                    candidate.TransactionId == confirmation.TransactionId
+                    && candidate.RowNumber == confirmation.RowNumber))
+            {
+                errors.Add($"Le rapprochement de transfert de la ligne {transaction.RowNumber} n'est plus disponible ou ne correspond pas à l'opération.");
+            }
+            else if (transaction.TransferMatchConfirmation is { } selected)
+            {
+                var currentReference = $"row:{transaction.RowNumber}";
+                var otherReference = selected.TransactionId.HasValue
+                    ? $"transaction:{selected.TransactionId.Value}"
+                    : $"row:{selected.RowNumber}";
+                if (linkedReferences.TryGetValue(currentReference, out var currentMatch)
+                    && currentMatch != otherReference
+                    || linkedReferences.TryGetValue(otherReference, out var otherMatch)
+                    && otherMatch != currentReference)
+                {
+                    errors.Add($"Une opération ne peut être associée qu'à un seul transfert (ligne {transaction.RowNumber}).");
+                }
+                else
+                {
+                    linkedReferences[currentReference] = otherReference;
+                    linkedReferences[otherReference] = currentReference;
+                }
+            }
+
+            transactions.Add(transaction with { TransferMatchCandidates = normalizedCandidates });
         }
 
         if (errors.Count > 0)
@@ -303,6 +389,12 @@ public sealed class ImportPreviewService(
                 errors.Add($"Le rapprochement de la ligne {transaction.RowNumber} doit désigner une échéance.");
             }
 
+            if (decision.ConfirmTransferMatch
+                && (decision.TransferTransactionId.HasValue == decision.TransferRowNumber.HasValue))
+            {
+                errors.Add($"Le rapprochement de transfert de la ligne {transaction.RowNumber} doit désigner une seule opération.");
+            }
+
             transactions.Add(transaction with
             {
                 TransactionDate = decision.TransactionDate ?? transaction.TransactionDate,
@@ -314,6 +406,9 @@ public sealed class ImportPreviewService(
                 SubcategoryName = decision.SubcategoryName ?? transaction.SubcategoryName,
                 ForecastMatchConfirmation = decision.ConfirmForecastMatch && decision.ForecastId.HasValue && decision.ForecastDate.HasValue
                     ? new ForecastMatchConfirmation(decision.ForecastId.Value, decision.ForecastDate.Value)
+                    : null,
+                TransferMatchConfirmation = decision.ConfirmTransferMatch
+                    ? new TransferMatchConfirmation(decision.TransferTransactionId, decision.TransferRowNumber)
                     : null
             });
         }

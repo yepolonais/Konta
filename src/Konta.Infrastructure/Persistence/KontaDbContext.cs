@@ -3,6 +3,8 @@ using Konta.Domain.Accounts;
 using Konta.Domain.Transactions;
 using Konta.Domain.Budgets;
 using Konta.Domain.Forecasts;
+using Konta.Domain.Savings;
+using Konta.Domain.Transfers;
 using Microsoft.EntityFrameworkCore;
 
 namespace Konta.Infrastructure.Persistence;
@@ -18,6 +20,8 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
     public DbSet<RecurringForecast> RecurringForecasts => Set<RecurringForecast>();
     public DbSet<ForecastOccurrence> ForecastOccurrences => Set<ForecastOccurrence>();
     public DbSet<AccountBalanceReference> AccountBalanceReferences => Set<AccountBalanceReference>();
+    public DbSet<AccountTransfer> AccountTransfers => Set<AccountTransfer>();
+    public DbSet<SavingsGoal> SavingsGoals => Set<SavingsGoal>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -127,6 +131,33 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.HasOne<Account>().WithMany().HasForeignKey(reference => reference.AccountId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<Transaction>().WithMany().HasForeignKey(reference => reference.TransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AccountTransfer>(entity =>
+        {
+            entity.HasKey(transfer => transfer.Id);
+            entity.Property(transfer => transfer.Amount).HasPrecision(18, 2);
+            entity.HasIndex(transfer => transfer.SourceTransactionId).IsUnique();
+            entity.HasIndex(transfer => transfer.DestinationTransactionId).IsUnique();
+            entity.HasOne(transfer => transfer.SourceTransaction).WithMany()
+                .HasForeignKey(transfer => transfer.SourceTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(transfer => transfer.DestinationTransaction).WithMany()
+                .HasForeignKey(transfer => transfer.DestinationTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SavingsGoal>(entity =>
+        {
+            entity.HasKey(goal => goal.Id);
+            entity.Property(goal => goal.Name).HasMaxLength(100).IsRequired();
+            entity.Property(goal => goal.TargetAmount).HasPrecision(18, 2);
+            entity.Property(goal => goal.PlannedMonthlyContribution).HasPrecision(18, 2);
+            entity.HasIndex(goal => goal.AccountId)
+                .IsUnique()
+                .HasFilter("\"IsActive\" = 1");
+            entity.HasOne<Account>().WithMany().HasForeignKey(goal => goal.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

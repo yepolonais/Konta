@@ -22,7 +22,10 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 transaction.Account == null ? null : transaction.Account.Name,
                 transaction.Category == null ? null : transaction.Category.Name,
                 transaction.AccountId,
-                transaction.CategoryId))
+                transaction.CategoryId,
+                dbContext.AccountTransfers.Any(transfer =>
+                    transfer.SourceTransactionId == transaction.Id
+                    || transfer.DestinationTransactionId == transaction.Id)))
             .ToListAsync(cancellationToken);
     }
 
@@ -60,7 +63,10 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 transaction.Account == null ? null : transaction.Account.Name,
                 transaction.Category == null ? null : transaction.Category.Name,
                 transaction.AccountId,
-                transaction.CategoryId))
+                transaction.CategoryId,
+                dbContext.AccountTransfers.Any(transfer =>
+                    transfer.SourceTransactionId == transaction.Id
+                    || transfer.DestinationTransactionId == transaction.Id)))
             .ToListAsync(cancellationToken);
     }
 }

@@ -41,11 +41,11 @@ Phases principales
   - [x] Afficher séparément le solde constaté et le solde prévisionnel; inclure les échéances futures uniquement dans ce dernier.
   - [x] Tester les rapprochements, les échéances manquantes ou inattendues, les écarts de montant et le calcul des soldes à partir de la référence.
 
-- [ ] Phase 4 — Transferts et objectifs d'épargne
-  - [ ] Représenter les transferts entre comptes comme des mouvements liés, neutres dans les totaux de dépenses et de revenus du foyer.
-  - [ ] Repérer les transferts potentiels entre comptes à l'import et demander confirmation lorsque la correspondance est incertaine.
-  - [ ] Gérer les objectifs d'épargne (compte associé, montant cible et contribution prévue) et comparer contributions prévues et réalisées à partir des transferts enregistrés.
-  - [ ] Tester qu'un transfert ne crée ni dépense ni revenu et que les contributions d'épargne ne sont pas comptées deux fois.
+- [x] Phase 4 — Transferts et objectifs d'épargne
+  - [x] Représenter les transferts entre comptes comme des mouvements liés, neutres dans les totaux de dépenses et de revenus du foyer.
+  - [x] Repérer les transferts potentiels entre comptes à l'import et demander confirmation lorsque la correspondance est incertaine.
+  - [x] Gérer les objectifs d'épargne (compte associé, montant cible et contribution prévue) et comparer contributions prévues et réalisées à partir des transferts enregistrés.
+  - [x] Tester qu'un transfert ne crée ni dépense ni revenu et que les contributions d'épargne ne sont pas comptées deux fois.
 
 - [ ] Phase 5 — PWA / Mobile (1 semaine)
   - [ ] Rendre le frontend PWA (manifest, service-worker), responsive et installable.
@@ -54,4 +54,4 @@ Phases principales
   - [ ] Option Docker Compose (recommandé) ou service `systemd`.
   - [ ] `nginx` reverse-proxy, volume persistant pour la DB, sauvegardes et HTTPS si exposition externe.
 
-État au 18/10/2026: Phases 0 à 3 terminées. L'import multi-comptes permet de revoir/corriger les opérations, de détecter les doublons et d'associer les catégories. Les catégories et règles sont gérables depuis l'interface. Les règles proposent une catégorie pendant l'aperçu (motif le plus spécifique prioritaire), avec possibilité de correction avant commit. Les synthèses mensuelles et annuelles incluent des filtres par compte/catégorie et le détail des opérations composant chaque total. La phase 3 ajoute les budgets mensuels et dérogations, les prévisions récurrentes (mensuelles ou annuelles), leur rapprochement explicite à l'import, et les soldes constatés/prévisionnels à partir d'une opération de référence. Les échéances non rapprochées restent distinctes des opérations réelles; les soldes prévisionnels de l'interface sont calculés jusqu'à la fin du mois sélectionné. La suite complète de tests (34 tests) et les parcours navigateur de planification ont été validés. La phase 4 (transferts et objectifs d'épargne) reste à réaliser. La phase 5 PWA est reportée jusqu'à la fin des fonctionnalités métier des phases 3 et 4.
+État au 18/10/2026: Phases 0 à 4 terminées. L'import multi-comptes permet de revoir/corriger les opérations, de détecter les doublons et d'associer les catégories. Les catégories et règles sont gérables depuis l'interface. Les règles proposent une catégorie pendant l'aperçu (motif le plus spécifique prioritaire), avec possibilité de correction avant commit. Les synthèses mensuelles et annuelles incluent des filtres par compte/catégorie et le détail des opérations composant chaque total. La phase 3 ajoute les budgets mensuels et dérogations, les prévisions récurrentes (mensuelles ou annuelles), leur rapprochement explicite à l'import, et les soldes constatés/prévisionnels à partir d'une opération de référence. La phase 4 ajoute la détection des virements inter-comptes lors de l'import, leur confirmation par l'utilisateur, leur neutralisation dans les totaux du foyer et le suivi des objectifs d'épargne. Un seul objectif actif est autorisé par compte d'épargne afin que chaque virement entrant ne soit attribué qu'une fois. La validation complète compte 43 tests réussis; les parcours navigateur de transfert et d'objectif d'épargne ont été vérifiés en grand écran et sur mobile. La phase 5 PWA peut commencer.

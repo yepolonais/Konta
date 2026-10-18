@@ -13,4 +13,5 @@ public sealed record TransactionListItem(
     string? AccountName,
     string? CategoryName,
     Guid? AccountId = null,
-    Guid? CategoryId = null);
+    Guid? CategoryId = null,
+    bool IsTransfer = false);

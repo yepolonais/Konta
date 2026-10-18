@@ -35,7 +35,10 @@ public sealed class TransactionQueryService(ITransactionRepository repository) :
             categoryId,
             cancellationToken);
 
-        var categories = transactions
+        var householdTransactions = accountId.HasValue
+            ? transactions
+            : transactions.Where(transaction => !transaction.IsTransfer).ToArray();
+        var categories = householdTransactions
             .GroupBy(transaction => (transaction.CategoryId, transaction.CategoryName))
             .Select(group =>
             {
@@ -55,10 +58,10 @@ public sealed class TransactionQueryService(ITransactionRepository repository) :
             .OrderByDescending(category => category.ExpenseTotal)
             .ThenBy(category => category.CategoryName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        var totalIncome = transactions
+        var totalIncome = householdTransactions
             .Where(item => item.Type == TransactionType.Income)
             .Sum(item => item.Amount);
-        var totalExpense = transactions
+        var totalExpense = householdTransactions
             .Where(item => item.Type == TransactionType.Expense)
             .Sum(item => item.Amount);
 
@@ -68,7 +71,7 @@ public sealed class TransactionQueryService(ITransactionRepository repository) :
             totalIncome,
             totalExpense,
             totalIncome - totalExpense,
-            transactions.Count,
+            householdTransactions.Count,
             categories);
     }
 }

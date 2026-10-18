@@ -90,6 +90,15 @@ public sealed class ImportsController(IImportPreviewService importPreviewService
             problem.Extensions["errors"] = exception.Errors;
             return BadRequest(problem);
         }
+        catch (InvalidTransferMatchException exception)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Correspondance de transfert invalide",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            });
+        }
     }
 
     private static bool TryParseReview(

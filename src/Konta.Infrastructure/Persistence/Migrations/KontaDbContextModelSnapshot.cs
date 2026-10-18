@@ -273,6 +273,40 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.ToTable("RecurringForecasts");
                 });
 
+            modelBuilder.Entity("Konta.Domain.Savings.SavingsGoal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("PlannedMonthlyContribution")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TargetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId")
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = 1");
+
+                    b.ToTable("SavingsGoals");
+                });
+
             modelBuilder.Entity("Konta.Domain.Transactions.Transaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -340,6 +374,36 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.ToTable("Transactions");
                 });
 
+            modelBuilder.Entity("Konta.Domain.Transfers.AccountTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DestinationTransactionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SourceTransactionId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationTransactionId")
+                        .IsUnique();
+
+                    b.HasIndex("SourceTransactionId")
+                        .IsUnique();
+
+                    b.ToTable("AccountTransfers");
+                });
+
             modelBuilder.Entity("Konta.Domain.Accounts.AccountBalanceReference", b =>
                 {
                     b.HasOne("Konta.Domain.Accounts.Account", null)
@@ -402,6 +466,15 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("Konta.Domain.Savings.SavingsGoal", b =>
+                {
+                    b.HasOne("Konta.Domain.Accounts.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Konta.Domain.Transactions.Transaction", b =>
                 {
                     b.HasOne("Konta.Domain.Accounts.Account", "Account")
@@ -417,6 +490,25 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.Navigation("Account");
 
                     b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("Konta.Domain.Transfers.AccountTransfer", b =>
+                {
+                    b.HasOne("Konta.Domain.Transactions.Transaction", "DestinationTransaction")
+                        .WithMany()
+                        .HasForeignKey("DestinationTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Konta.Domain.Transactions.Transaction", "SourceTransaction")
+                        .WithMany()
+                        .HasForeignKey("SourceTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DestinationTransaction");
+
+                    b.Navigation("SourceTransaction");
                 });
 #pragma warning restore 612, 618
         }

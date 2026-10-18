@@ -257,6 +257,14 @@ public sealed class ImportPreviewServiceTests
                 It.IsAny<Konta.Domain.Transactions.TransactionType>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<ForecastMatchCandidate>());
+        fixture.Freeze<Mock<IImportCommitRepository>>()
+            .Setup(repository => repository.FindTransferMatchCandidatesAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<DateOnly>(),
+                It.IsAny<decimal>(),
+                It.IsAny<Konta.Domain.Transactions.TransactionType>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TransferMatchCandidate>());
         return fixture;
     }
 
@@ -264,7 +272,11 @@ public sealed class ImportPreviewServiceTests
         fixture.Build<ImportPreview>()
             .With(preview => preview.Transactions, new[]
             {
-                transaction with { ForecastMatchConfirmation = null }
+                transaction with
+                {
+                    ForecastMatchConfirmation = null,
+                    TransferMatchConfirmation = null
+                }
             })
             .With(preview => preview.Errors, Array.Empty<CsvRowError>())
             .With(preview => preview.UnmappedAccounts, Array.Empty<UnmappedAccount>())

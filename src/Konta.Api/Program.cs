@@ -4,6 +4,7 @@ using Konta.Application.Imports;
 using Konta.Application.Transactions;
 using Konta.Application.Accounts;
 using Konta.Application.Planning;
+using Konta.Application.Savings;
 using Konta.Infrastructure;
 using Konta.Infrastructure.Persistence;
 using System.Text.Json.Serialization;
@@ -28,6 +29,7 @@ builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ICategoryRuleService, CategoryRuleService>();
 builder.Services.AddScoped<IPlanningService, PlanningService>();
+builder.Services.AddScoped<ISavingsGoalService, SavingsGoalService>();
 
 var app = builder.Build();
 var frontendPath = app.Environment.IsDevelopment()

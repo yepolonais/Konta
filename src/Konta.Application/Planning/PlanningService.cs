@@ -34,6 +34,7 @@ public sealed class PlanningService(
                 var effectiveAmount = overrides[index]?.Amount ?? budget.Amount;
                 var spent = transactions
                     .Where(transaction => transaction.CategoryId == budget.CategoryId
+                        && !transaction.IsTransfer
                         && transaction.Type == TransactionType.Expense)
                     .Sum(transaction => transaction.Amount);
                 return new MonthlyBudgetItem(

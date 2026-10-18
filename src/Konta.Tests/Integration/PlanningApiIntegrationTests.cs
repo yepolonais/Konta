@@ -163,6 +163,213 @@ public sealed class PlanningApiIntegrationTests
     }
 
     [Fact]
+    public async Task Transfers_AreSuggestedConfirmedAndExcludedFromHouseholdTotals_AndCountTowardSavingsGoal()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var currentAccountId = await CreateAccountAsync(client, "Compte courant", "2001");
+        var savingsAccountId = await CreateAccountAsync(client, "Livret", "2002");
+        var categoryId = await CreateCategoryAsync(client, "Épargne");
+        using var budgetResponse = await client.PostAsync("/api/planning/budgets", JsonContent(
+            $$"""{"categoryId":"{{categoryId}}","amount":500}"""));
+        budgetResponse.EnsureSuccessStatusCode();
+        using var goalResponse = await client.PostAsync("/api/savings-goals", JsonContent(
+            $$"""{"name":"Vacances","accountId":"{{savingsAccountId}}","targetAmount":1000,"plannedMonthlyContribution":80,"year":2026,"month":10}"""));
+        goalResponse.EnsureSuccessStatusCode();
+
+        using var recipientImport = await PostCsvAsync(client,
+            Csv("15/10/2026", "2002", "Virement reçu", "Épargne", "100,00"));
+        recipientImport.EnsureSuccessStatusCode();
+        var normalizedOutgoingCsv = Csv("16/10/2026", "2001", "Virement épargne", "Épargne", "-100,00");
+        using var previewContent = CsvContent(normalizedOutgoingCsv);
+        using var previewResponse = await client.PostAsync("/api/imports/preview", previewContent);
+        previewResponse.EnsureSuccessStatusCode();
+        using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
+        var candidate = Assert.Single(preview.RootElement.GetProperty("transactions")[0]
+            .GetProperty("transferMatchCandidates").EnumerateArray());
+        Assert.Equal(savingsAccountId, candidate.GetProperty("accountId").GetGuid());
+        var counterpartId = candidate.GetProperty("transactionId").GetGuid();
+
+        // Act
+        using var commitContent = CsvContent(normalizedOutgoingCsv);
+        commitContent.Add(new StringContent(
+            $$"""[{"rowNumber":2,"include":true,"confirmTransferMatch":true,"transferTransactionId":"{{counterpartId}}"}]"""),
+            "review");
+        using var commitResponse = await client.PostAsync("/api/imports/commit", commitContent);
+
+        // Assert
+        commitResponse.EnsureSuccessStatusCode();
+        using var householdSummaryResponse = await client.GetAsync("/api/transactions/summary?year=2026&month=10");
+        using var householdSummary = JsonDocument.Parse(await householdSummaryResponse.Content.ReadAsStringAsync());
+        Assert.Equal(0m, householdSummary.RootElement.GetProperty("incomeTotal").GetDecimal());
+        Assert.Equal(0m, householdSummary.RootElement.GetProperty("expenseTotal").GetDecimal());
+        Assert.Equal(0, householdSummary.RootElement.GetProperty("transactionCount").GetInt32());
+        using var budgetListResponse = await client.GetAsync("/api/planning/budgets?year=2026&month=10");
+        using var budgets = JsonDocument.Parse(await budgetListResponse.Content.ReadAsStringAsync());
+        var budget = Assert.Single(budgets.RootElement.EnumerateArray());
+        Assert.Equal(0m, budget.GetProperty("expenseTotal").GetDecimal());
+        Assert.Equal(500m, budget.GetProperty("remainingAmount").GetDecimal());
+        using var accountSummaryResponse = await client.GetAsync(
+            $"/api/transactions/summary?year=2026&month=10&accountId={currentAccountId}");
+        using var accountSummary = JsonDocument.Parse(await accountSummaryResponse.Content.ReadAsStringAsync());
+        Assert.Equal(100m, accountSummary.RootElement.GetProperty("expenseTotal").GetDecimal());
+        using var goalListResponse = await client.GetAsync("/api/savings-goals?year=2026&month=10");
+        using var goals = JsonDocument.Parse(await goalListResponse.Content.ReadAsStringAsync());
+        var goal = Assert.Single(goals.RootElement.EnumerateArray());
+        Assert.Equal(100m, goal.GetProperty("realizedMonthlyContribution").GetDecimal());
+        Assert.Equal(100m, goal.GetProperty("totalContributions").GetDecimal());
+        Assert.Equal(10m, goal.GetProperty("progressPercent").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Transfers_CanPairTwoOpposingRowsFromTheSameImport()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte courant", "3001");
+        await CreateAccountAsync(client, "Livret", "3002");
+        const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
+            + "17/10/2026;17/10/2026;3001;Compte courant;Virement livret;Virement livret;;;-250,00;Non\n"
+            + "17/10/2026;17/10/2026;3002;Livret;Virement reçu;Virement reçu;;;250,00;Non\n";
+
+        // Act
+        using var commitContent = CsvContent(csv);
+        commitContent.Add(new StringContent(
+            """[{"rowNumber":2,"include":true,"confirmTransferMatch":true,"transferRowNumber":3}]"""),
+            "review");
+        using var commitResponse = await client.PostAsync("/api/imports/commit", commitContent);
+
+        // Assert
+        commitResponse.EnsureSuccessStatusCode();
+        using var summaryResponse = await client.GetAsync("/api/transactions/summary?year=2026&month=10");
+        using var summary = JsonDocument.Parse(await summaryResponse.Content.ReadAsStringAsync());
+        Assert.Equal(0m, summary.RootElement.GetProperty("incomeTotal").GetDecimal());
+        Assert.Equal(0m, summary.RootElement.GetProperty("expenseTotal").GetDecimal());
+        Assert.Equal(0, summary.RootElement.GetProperty("transactionCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task Transfers_MarkMultipleCandidatesAsAmbiguousWithoutChoosingOne()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte courant", "5001");
+        await CreateAccountAsync(client, "Livret 1", "5002");
+        await CreateAccountAsync(client, "Livret 2", "5003");
+        using var firstRecipient = await PostCsvAsync(client,
+            Csv("17/10/2026", "5002", "Virement reçu 1", "", "75,00"));
+        firstRecipient.EnsureSuccessStatusCode();
+        using var secondRecipient = await PostCsvAsync(client,
+            Csv("18/10/2026", "5003", "Virement reçu 2", "", "75,00"));
+        secondRecipient.EnsureSuccessStatusCode();
+        using var previewContent = CsvContent(Csv("18/10/2026", "5001", "Virement vers épargne", "", "-75,00"));
+
+        // Act
+        using var previewResponse = await client.PostAsync("/api/imports/preview", previewContent);
+
+        // Assert
+        previewResponse.EnsureSuccessStatusCode();
+        using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
+        var candidates = preview.RootElement.GetProperty("transactions")[0]
+            .GetProperty("transferMatchCandidates").EnumerateArray().ToArray();
+        Assert.Equal(2, candidates.Length);
+        Assert.All(candidates, candidate => Assert.True(candidate.GetProperty("isAmbiguous").GetBoolean()));
+        Assert.All(candidates, candidate =>
+            Assert.Equal(JsonValueKind.Null, candidate.GetProperty("rowNumber").ValueKind));
+    }
+
+    [Fact]
+    public async Task Transfers_AreNotPairedUntilTheUserConfirmsAMatch()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte courant", "5501");
+        await CreateAccountAsync(client, "Livret", "5502");
+        using var recipientImport = await PostCsvAsync(client,
+            Csv("17/10/2026", "5502", "Virement reçu", "", "75,00"));
+        recipientImport.EnsureSuccessStatusCode();
+        using var outgoingImport = await PostCsvAsync(client,
+            Csv("18/10/2026", "5501", "Virement vers épargne", "", "-75,00"));
+        outgoingImport.EnsureSuccessStatusCode();
+
+        // Act
+        using var summaryResponse = await client.GetAsync("/api/transactions/summary?year=2026&month=10");
+        using var transactionsResponse = await client.GetAsync("/api/transactions");
+
+        // Assert
+        summaryResponse.EnsureSuccessStatusCode();
+        using var summary = JsonDocument.Parse(await summaryResponse.Content.ReadAsStringAsync());
+        Assert.Equal(75m, summary.RootElement.GetProperty("incomeTotal").GetDecimal());
+        Assert.Equal(75m, summary.RootElement.GetProperty("expenseTotal").GetDecimal());
+        transactionsResponse.EnsureSuccessStatusCode();
+        using var transactions = JsonDocument.Parse(await transactionsResponse.Content.ReadAsStringAsync());
+        Assert.All(transactions.RootElement.EnumerateArray(), transaction =>
+            Assert.False(transaction.GetProperty("isTransfer").GetBoolean()));
+    }
+
+    [Fact]
+    public async Task SavingsGoals_CanBeUpdatedAndDeactivated()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var accountId = await CreateAccountAsync(client, "Livret", "6001");
+        using var createResponse = await client.PostAsync("/api/savings-goals", JsonContent(
+            $$"""{"name":"Voyage","accountId":"{{accountId}}","targetAmount":1000,"plannedMonthlyContribution":100,"year":2026,"month":10}"""));
+        createResponse.EnsureSuccessStatusCode();
+        using var createdGoal = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var goalId = createdGoal.RootElement.GetProperty("id").GetGuid();
+
+        // Act
+        using var updateResponse = await client.PutAsync($"/api/savings-goals/{goalId}", JsonContent(
+            $$"""{"name":"Voyage été","accountId":"{{accountId}}","targetAmount":1500,"plannedMonthlyContribution":125,"year":2026,"month":10}"""));
+        updateResponse.EnsureSuccessStatusCode();
+        using var deleteResponse = await client.DeleteAsync($"/api/savings-goals/{goalId}");
+
+        // Assert
+        using var updatedGoal = JsonDocument.Parse(await updateResponse.Content.ReadAsStringAsync());
+        Assert.Equal("Voyage été", updatedGoal.RootElement.GetProperty("name").GetString());
+        Assert.Equal(1500m, updatedGoal.RootElement.GetProperty("targetAmount").GetDecimal());
+        Assert.Equal(125m, updatedGoal.RootElement.GetProperty("plannedMonthlyContribution").GetDecimal());
+        Assert.Equal(System.Net.HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        using var listResponse = await client.GetAsync("/api/savings-goals?year=2026&month=10");
+        using var goals = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        Assert.Empty(goals.RootElement.EnumerateArray());
+        using var replacementGoal = await client.PostAsync("/api/savings-goals", JsonContent(
+            $$"""{"name":"Voiture","accountId":"{{accountId}}","targetAmount":5000,"plannedMonthlyContribution":200,"year":2026,"month":10}"""));
+        Assert.Equal(System.Net.HttpStatusCode.Created, replacementGoal.StatusCode);
+    }
+
+    [Fact]
+    public async Task SavingsGoals_AllowOnlyOneActiveGoalPerAccount()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var accountId = await CreateAccountAsync(client, "Livret", "6002");
+        using var firstGoal = await client.PostAsync("/api/savings-goals", JsonContent(
+            $$"""{"name":"Voyage","accountId":"{{accountId}}","targetAmount":1000,"plannedMonthlyContribution":100,"year":2026,"month":10}"""));
+        firstGoal.EnsureSuccessStatusCode();
+
+        // Act
+        using var secondGoal = await client.PostAsync("/api/savings-goals", JsonContent(
+            $$"""{"name":"Voiture","accountId":"{{accountId}}","targetAmount":5000,"plannedMonthlyContribution":200,"year":2026,"month":10}"""));
+
+        // Assert
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, secondGoal.StatusCode);
+    }
+
+    [Fact]
     public async Task Balance_UsesReferenceAfterOperation_AndAddsFutureMovementsAndForecasts()
     {
         // Arrange

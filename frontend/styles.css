@@ -93,6 +93,7 @@ button:disabled { cursor: wait; opacity: .65; }
 .type { border-radius: 99px; display: inline-block; font-size: 10px; font-weight: 800; padding: 4px 8px; }
 .type.expense { background: #fff0eb; color: #a34430; }
 .type.income { background: #e9f4e9; color: #17664d; }
+.type.transfer { background: #edf0fa; color: #3f548e; }
 .category { color: var(--muted); }
 .summary-panel, .rules-panel { margin-bottom: 24px; }
 .summary-filters, .rule-form, .category-form { align-items: end; display: grid; gap: 12px; padding: 18px 22px; }
@@ -144,7 +145,10 @@ button:disabled { cursor: wait; opacity: .65; }
 .budget-override input { border: 1px solid var(--line); border-radius: 4px; font: inherit; font-size: 11px; min-height: 34px; min-width: 100px; padding: 0 6px; width: 120px; }
 .balance-result { color: var(--green-dark); font-size: 12px; line-height: 1.5; margin: 12px 0 0; }
 .forecast-suggestion { color: #8a5a12; display: block; font-size: 10px; line-height: 1.4; margin-top: 4px; max-width: 220px; }
+.transfer-suggestion { color: #3f548e; display: block; font-size: 10px; line-height: 1.4; margin-top: 4px; max-width: 220px; }
 .preview-category select[data-forecast-match] { border-color: #dec68f; }
+.preview-category select[data-transfer-match] { border-color: #aab6dc; }
+.savings-goal-form { max-width: 620px; }
 .rules-intro { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0; padding: 16px 22px 0; }
 .rule-form { align-items: end; grid-template-columns: 1fr 1.2fr 1fr auto; }
 .rule-form-actions { display: flex; gap: 8px; }

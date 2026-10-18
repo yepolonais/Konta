@@ -13,6 +13,8 @@ class KontaApp extends HTMLElement {
     this.transactions = [];
     this.planningBudgets = [];
     this.forecasts = [];
+    this.savingsGoals = [];
+    this.editingSavingsGoalId = null;
   }
 
   connectedCallback() {
@@ -100,6 +102,18 @@ class KontaApp extends HTMLElement {
                 </form>
                 <p id="balance-result" class="balance-result" role="status"></p>
               </section>
+              <section class="planning-section" aria-labelledby="savings-goals-title">
+                <h3 id="savings-goals-title">Objectifs d’épargne</h3>
+                <form class="planning-form savings-goal-form" id="savings-goal-form">
+                  <label>Nom<input id="savings-goal-name" maxlength="100" required></label>
+                  <label>Compte d’épargne<select id="savings-goal-account" required></select></label>
+                  <label>Montant cible (€)<input id="savings-goal-target" type="number" min="0.01" step="0.01" required></label>
+                  <label>Contribution mensuelle prévue (€)<input id="savings-goal-contribution" type="number" min="0.01" step="0.01" required></label>
+                  <button id="savings-goal-submit" type="submit">Créer l’objectif</button>
+                  <button id="savings-goal-cancel" class="secondary-button" type="button" hidden>Annuler</button>
+                </form>
+                <div id="savings-goal-list" class="planning-list"></div>
+              </section>
             </div>
             <p class="feedback" id="planning-feedback" role="status" aria-live="polite" hidden></p>
           </section>
@@ -178,6 +192,9 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#forecast-form").addEventListener("submit", event => this.createForecast(event));
     this.shadowRoot.querySelector("#forecast-list").addEventListener("click", event => this.handleForecastAction(event));
     this.shadowRoot.querySelector("#balance-form").addEventListener("submit", event => this.setBalanceReference(event));
+    this.shadowRoot.querySelector("#savings-goal-form").addEventListener("submit", event => this.saveSavingsGoal(event));
+    this.shadowRoot.querySelector("#savings-goal-list").addEventListener("click", event => this.handleSavingsGoalAction(event));
+    this.shadowRoot.querySelector("#savings-goal-cancel").addEventListener("click", () => this.resetSavingsGoalForm());
     this.shadowRoot.querySelector("#balance-account").addEventListener("change", () => {
       this.renderBalanceTransactions();
       this.loadBalance();
@@ -259,23 +276,40 @@ class KontaApp extends HTMLElement {
     const lastDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
     feedback.hidden = true;
     try {
-      const [accountResponse, transactionResponse, budgetResponse, forecastResponse, occurrenceResponse] = await Promise.all([
+      const [
+        accountResponse,
+        transactionResponse,
+        budgetResponse,
+        forecastResponse,
+        occurrenceResponse,
+        savingsGoalResponse
+      ] = await Promise.all([
         fetch("/api/accounts"),
         fetch("/api/transactions"),
         fetch(`/api/planning/budgets?year=${year}&month=${month}`),
         fetch("/api/planning/forecasts"),
-        fetch(`/api/planning/occurrences?startDate=${firstDate}&endDate=${lastDate}`)
+        fetch(`/api/planning/occurrences?startDate=${firstDate}&endDate=${lastDate}`),
+        fetch(`/api/savings-goals?year=${year}&month=${month}`)
       ]);
-      if (![accountResponse, transactionResponse, budgetResponse, forecastResponse, occurrenceResponse].every(response => response.ok)) {
+      if (![accountResponse, transactionResponse, budgetResponse, forecastResponse, occurrenceResponse, savingsGoalResponse]
+        .every(response => response.ok)) {
         throw new Error("Impossible de charger les données de planification.");
       }
-      [this.accounts, this.transactions, this.planningBudgets, this.forecasts] = await Promise.all([
+      [
+        this.accounts,
+        this.transactions,
+        this.planningBudgets,
+        this.forecasts,
+        this.occurrences,
+        this.savingsGoals
+      ] = await Promise.all([
         accountResponse.json(),
         transactionResponse.json(),
         budgetResponse.json(),
-        forecastResponse.json()
+        forecastResponse.json(),
+        occurrenceResponse.json(),
+        savingsGoalResponse.json()
       ]);
-      this.occurrences = await occurrenceResponse.json();
       this.renderPlanningData();
       await this.loadBalance();
     } catch (exception) {
@@ -288,7 +322,7 @@ class KontaApp extends HTMLElement {
   renderPlanningData() {
     this.renderCategoryOptions(this.shadowRoot.querySelector("#budget-category"));
     this.renderCategoryOptions(this.shadowRoot.querySelector("#forecast-category"), "Sans catégorie");
-    for (const selector of ["#forecast-account", "#balance-account"]) {
+    for (const selector of ["#forecast-account", "#balance-account", "#savings-goal-account"]) {
       const select = this.shadowRoot.querySelector(selector);
       const selected = select.value;
       select.replaceChildren(this.option("", "Choisir un compte"));
@@ -301,6 +335,7 @@ class KontaApp extends HTMLElement {
     this.renderBudgets();
     this.renderForecasts();
     this.renderOccurrences();
+    this.renderSavingsGoals();
   }
 
   renderBudgets() {
@@ -401,6 +436,49 @@ class KontaApp extends HTMLElement {
     }
   }
 
+  renderSavingsGoals() {
+    const list = this.shadowRoot.querySelector("#savings-goal-list");
+    list.replaceChildren();
+    for (const goal of this.savingsGoals ?? []) {
+      const item = document.createElement("article");
+      item.className = "planning-item";
+      const description = document.createElement("div");
+      description.className = "planning-item-summary";
+      const title = document.createElement("strong");
+      title.textContent = goal.name;
+      const details = document.createElement("span");
+      details.textContent =
+        `${goal.accountName} · cible ${this.formatCurrency(goal.targetAmount)} · ` +
+        `${this.formatCurrency(goal.realizedMonthlyContribution)} réalisés · ` +
+        `${this.formatCurrency(goal.plannedMonthlyContribution)} prévus ce mois`;
+      const progress = document.createElement("span");
+      progress.textContent =
+        `${this.formatCurrency(goal.totalContributions)} de versements suivis · ${this.formatPercent(goal.progressPercent)} % de l’objectif`;
+      description.append(title, details, progress);
+      const actions = document.createElement("div");
+      actions.className = "rule-actions";
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "secondary-button";
+      edit.dataset.editSavingsGoal = goal.id;
+      edit.textContent = "Modifier";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary-button danger-button";
+      remove.dataset.deleteSavingsGoal = goal.id;
+      remove.textContent = "Désactiver";
+      actions.append(edit, remove);
+      item.append(description, actions);
+      list.append(item);
+    }
+    if ((this.savingsGoals ?? []).length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "Aucun objectif d’épargne défini.";
+      list.append(empty);
+    }
+  }
+
   renderBalanceTransactions() {
     const accountSelect = this.shadowRoot.querySelector("#balance-account");
     const transactionSelect = this.shadowRoot.querySelector("#balance-transaction");
@@ -454,7 +532,7 @@ class KontaApp extends HTMLElement {
     event.preventDefault();
     const startDate = this.shadowRoot.querySelector("#forecast-start").value;
     const categoryId = this.shadowRoot.querySelector("#forecast-category").value || null;
-    await this.planningRequest("/api/planning/forecasts", "POST", {
+    const succeeded = await this.planningRequest("/api/planning/forecasts", "POST", {
       name: this.shadowRoot.querySelector("#forecast-name").value.trim(),
       labelPattern: this.shadowRoot.querySelector("#forecast-pattern").value.trim(),
       accountId: this.shadowRoot.querySelector("#forecast-account").value,
@@ -465,8 +543,64 @@ class KontaApp extends HTMLElement {
       startDate,
       categoryId
     }, "Échéance prévisionnelle ajoutée.");
-    this.shadowRoot.querySelector("#forecast-form").reset();
-    this.shadowRoot.querySelector("#forecast-start").value = new Date().toISOString().slice(0, 10);
+    if (succeeded) {
+      this.shadowRoot.querySelector("#forecast-form").reset();
+      this.shadowRoot.querySelector("#forecast-start").value = new Date().toISOString().slice(0, 10);
+    }
+  }
+
+  async saveSavingsGoal(event) {
+    event.preventDefault();
+    const year = Number(this.shadowRoot.querySelector("#summary-year").value);
+    const month = Number(this.shadowRoot.querySelector("#summary-month").value || new Date().getMonth() + 1);
+    const succeeded = await this.planningRequest(
+      this.editingSavingsGoalId ? `/api/savings-goals/${this.editingSavingsGoalId}` : "/api/savings-goals",
+      this.editingSavingsGoalId ? "PUT" : "POST",
+      {
+        name: this.shadowRoot.querySelector("#savings-goal-name").value.trim(),
+        accountId: this.shadowRoot.querySelector("#savings-goal-account").value,
+        targetAmount: Number(this.shadowRoot.querySelector("#savings-goal-target").value),
+        plannedMonthlyContribution: Number(this.shadowRoot.querySelector("#savings-goal-contribution").value),
+        year,
+        month
+      },
+      this.editingSavingsGoalId ? "Objectif d’épargne mis à jour." : "Objectif d’épargne créé."
+    );
+    if (succeeded) this.resetSavingsGoalForm();
+  }
+
+  async handleSavingsGoalAction(event) {
+    const editButton = event.target.closest("[data-edit-savings-goal]");
+    if (editButton) {
+      const goal = this.savingsGoals.find(item => item.id === editButton.dataset.editSavingsGoal);
+      if (!goal) return;
+      this.editingSavingsGoalId = goal.id;
+      this.shadowRoot.querySelector("#savings-goal-name").value = goal.name;
+      this.shadowRoot.querySelector("#savings-goal-account").value = goal.accountId;
+      this.shadowRoot.querySelector("#savings-goal-target").value = goal.targetAmount;
+      this.shadowRoot.querySelector("#savings-goal-contribution").value = goal.plannedMonthlyContribution;
+      this.shadowRoot.querySelector("#savings-goal-submit").textContent = "Enregistrer";
+      this.shadowRoot.querySelector("#savings-goal-cancel").hidden = false;
+      this.shadowRoot.querySelector("#savings-goal-name").focus();
+      return;
+    }
+
+    const deleteButton = event.target.closest("[data-delete-savings-goal]");
+    if (deleteButton) {
+      await this.planningRequest(
+        `/api/savings-goals/${deleteButton.dataset.deleteSavingsGoal}`,
+        "DELETE",
+        null,
+        "Objectif d’épargne désactivé."
+      );
+    }
+  }
+
+  resetSavingsGoalForm() {
+    this.editingSavingsGoalId = null;
+    this.shadowRoot.querySelector("#savings-goal-form").reset();
+    this.shadowRoot.querySelector("#savings-goal-submit").textContent = "Créer l’objectif";
+    this.shadowRoot.querySelector("#savings-goal-cancel").hidden = true;
   }
 
   async handleForecastAction(event) {
@@ -529,10 +663,12 @@ class KontaApp extends HTMLElement {
       feedback.className = "feedback success";
       feedback.textContent = successMessage;
       feedback.hidden = false;
+      return true;
     } catch (exception) {
       feedback.className = "feedback error";
       feedback.textContent = exception.message;
       feedback.hidden = false;
+      return false;
     }
   }
 
@@ -1067,12 +1203,19 @@ class KontaApp extends HTMLElement {
       const response = await fetch("/api/imports/commit", { method: "POST", body: formData });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "L'import a échoué.");
+      const commitMessage = `${result.importedCount} opération${result.importedCount === 1 ? "" : "s"} ajoutée${result.importedCount === 1 ? "" : "s"}, ${result.excludedCount} exclue${result.excludedCount === 1 ? "" : "s"}, ${result.duplicateCount} doublon${result.duplicateCount === 1 ? "" : "s"} ignoré${result.duplicateCount === 1 ? "" : "s"}, ${result.errors.length} erreur${result.errors.length === 1 ? "" : "s"}.`;
       feedback.className = "feedback success";
-      feedback.textContent = `${result.importedCount} opération${result.importedCount === 1 ? "" : "s"} ajoutée${result.importedCount === 1 ? "" : "s"}, ${result.excludedCount} exclue${result.excludedCount === 1 ? "" : "s"}, ${result.duplicateCount} doublon${result.duplicateCount === 1 ? "" : "s"} ignoré${result.duplicateCount === 1 ? "" : "s"}, ${result.errors.length} erreur${result.errors.length === 1 ? "" : "s"}.`;
+      feedback.textContent = commitMessage;
       feedback.hidden = false;
       await this.loadTransactions();
       await this.loadSummary();
+      await this.loadPlanningData();
       await this.requestPreview(this.selectedFile);
+      if (!feedback.classList.contains("error")) {
+        feedback.className = "feedback success";
+        feedback.textContent = commitMessage;
+        feedback.hidden = false;
+      }
     } catch (exception) {
       feedback.className = "feedback error";
       feedback.textContent = exception.message;
@@ -1102,6 +1245,13 @@ class KontaApp extends HTMLElement {
         : null,
       forecastDate: row.querySelector("[data-forecast-match]")?.value
         ? JSON.parse(row.querySelector("[data-forecast-match]").value).scheduledDate
+        : null,
+      confirmTransferMatch: Boolean(row.querySelector("[data-transfer-match]")?.value),
+      transferTransactionId: row.querySelector("[data-transfer-match]")?.value
+        ? JSON.parse(row.querySelector("[data-transfer-match]").value).transactionId
+        : null,
+      transferRowNumber: row.querySelector("[data-transfer-match]")?.value
+        ? JSON.parse(row.querySelector("[data-transfer-match]").value).rowNumber
         : null
     }));
   }
@@ -1112,7 +1262,7 @@ class KontaApp extends HTMLElement {
       this.cell(this.formatDate(transaction.date), "date"),
       this.cell(transaction.label),
       this.cell(transaction.accountName ?? transaction.accountLabel ?? "—"),
-      this.typeCell(transaction.type),
+      this.typeCell(transaction.type, transaction.isTransfer),
       this.cell(this.formatAmount(transaction.amount, transaction.type), "amount")
     );
     return row;
@@ -1210,6 +1360,30 @@ class KontaApp extends HTMLElement {
         : `Même compte et libellé proche; écart de montant : ${this.formatCurrency(firstCandidate.amountDifference)}. Confirmez pour marquer l'échéance réalisée.`;
       categoryContent.append(forecastSelect, matchNote);
     }
+    const transferCandidates = (transaction.transferMatchCandidates ?? []).filter(candidate =>
+      candidate.rowNumber === null
+      || !this.preview.transactions.find(item => item.rowNumber === candidate.rowNumber)?.isDuplicate
+    );
+    if (!transaction.isDuplicate && transferCandidates.length > 0) {
+      const transferSelect = document.createElement("select");
+      transferSelect.dataset.transferMatch = "";
+      transferSelect.setAttribute("aria-label", `Rapprochement de transfert, ligne ${transaction.rowNumber}`);
+      transferSelect.append(this.option("", "Transfert éventuel ?"));
+      for (const candidate of transferCandidates) {
+        const otherRow = candidate.rowNumber ? ` · ligne ${candidate.rowNumber}` : "";
+        const option = this.option(JSON.stringify({
+          transactionId: candidate.transactionId,
+          rowNumber: candidate.rowNumber
+        }), `${candidate.accountName} · ${candidate.label} · ${this.formatDate(candidate.date)}${otherRow}`);
+        transferSelect.append(option);
+      }
+      const matchNote = document.createElement("small");
+      matchNote.className = "transfer-suggestion";
+      matchNote.textContent = transferCandidates[0].isAmbiguous
+        ? "Plusieurs mouvements opposés de même montant et proches en date : confirmez le bon transfert."
+        : "Montant identique, compte différent et date proche. Confirmez uniquement s’il s’agit du même transfert.";
+      categoryContent.append(transferSelect, matchNote);
+    }
     row.append(
       this.controlCell(dateInput, "date"),
       this.controlCell(labelInput, "review-label"),
@@ -1236,12 +1410,12 @@ class KontaApp extends HTMLElement {
     return cell;
   }
 
-  typeCell(type) {
+  typeCell(type, isTransfer = false) {
     const cell = document.createElement("td");
     const badge = document.createElement("span");
     const isExpense = type === 0 || type === "Expense";
-    badge.className = `type ${isExpense ? "expense" : "income"}`;
-    badge.textContent = isExpense ? "Dépense" : "Revenu";
+    badge.className = `type ${isTransfer ? "transfer" : isExpense ? "expense" : "income"}`;
+    badge.textContent = isTransfer ? "Transfert" : isExpense ? "Dépense" : "Revenu";
     cell.append(badge);
     return cell;
   }
@@ -1258,6 +1432,10 @@ class KontaApp extends HTMLElement {
 
   formatCurrency(amount) {
     return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
+  }
+
+  formatPercent(value) {
+    return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(value);
   }
 }
 
