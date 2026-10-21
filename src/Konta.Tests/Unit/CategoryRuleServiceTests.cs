@@ -32,6 +32,7 @@ public sealed class CategoryRuleServiceTests
             rule.Name,
             rule.Pattern,
             newCategory.Id,
+            null,
             CancellationToken.None);
 
         // Assert
@@ -68,5 +69,29 @@ public sealed class CategoryRuleServiceTests
         Assert.NotNull(result);
         Assert.Equal("Restaurants", result!.CategoryName);
         Assert.Equal("CARTE VISA", result.Pattern);
+    }
+
+    [Fact]
+    public async Task FindBestMatchAsync_ReturnsRuleSubcategory()
+    {
+        // Arrange
+        var fixture = new Fixture().Customize(new AutoMoqCustomization());
+        var categoryRepository = fixture.Freeze<Mock<ICategoryRepository>>();
+        var repository = fixture.Freeze<Mock<ICategoryRuleRepository>>();
+        var category = new Category("Vie quotidienne");
+        var rule = new CategoryRule("Machine à café", "CARTE X9734", category.Id, "Machine à café");
+        repository.Setup(item => item.FindMatchingAsync("CARTE X9734 24/09", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([rule]);
+        categoryRepository.Setup(item => item.GetAsync(category.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(category);
+        var service = fixture.Create<CategoryRuleService>();
+
+        // Act
+        var result = await service.FindBestMatchAsync("CARTE X9734 24/09", CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Machine à café", result!.SubcategoryName);
+        Assert.Equal("Vie quotidienne", result.CategoryName);
     }
 }

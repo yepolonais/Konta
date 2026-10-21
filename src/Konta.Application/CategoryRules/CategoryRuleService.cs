@@ -23,6 +23,7 @@ public sealed class CategoryRuleService(
         string name,
         string pattern,
         Guid categoryId,
+        string? subcategoryName,
         CancellationToken cancellationToken)
     {
         var normalizedName = NormalizeName(name);
@@ -38,7 +39,7 @@ public sealed class CategoryRuleService(
         }
 
         await EnsureCategoryExistsAsync(categoryId, cancellationToken);
-        var rule = new CategoryRule(normalizedName, normalizedPattern, categoryId);
+        var rule = new CategoryRule(normalizedName, normalizedPattern, categoryId, subcategoryName);
         await repository.AddAsync(rule, cancellationToken);
         return ToListItem(rule);
     }
@@ -48,6 +49,7 @@ public sealed class CategoryRuleService(
         string name,
         string pattern,
         Guid categoryId,
+        string? subcategoryName,
         CancellationToken cancellationToken)
     {
         var rule = await repository.GetAsync(id, cancellationToken);
@@ -71,7 +73,7 @@ public sealed class CategoryRuleService(
         }
 
         await EnsureCategoryExistsAsync(categoryId, cancellationToken);
-        rule.Update(normalizedName, normalizedPattern, categoryId);
+        rule.Update(normalizedName, normalizedPattern, categoryId, subcategoryName);
         rule.SetActive(true);
         await repository.UpdateAsync(rule, cancellationToken);
         return ToListItem(rule);
@@ -120,7 +122,8 @@ public sealed class CategoryRuleService(
             bestMatch.CategoryId,
             category.Name,
             bestMatch.Name,
-            bestMatch.Pattern);
+            bestMatch.Pattern,
+            bestMatch.SubcategoryName);
     }
 
     private async Task EnsureCategoryExistsAsync(Guid categoryId, CancellationToken cancellationToken)
@@ -159,5 +162,6 @@ public sealed class CategoryRuleService(
         rule.Name,
         rule.Pattern,
         rule.CategoryId,
-        rule.IsActive);
+        rule.IsActive,
+        rule.SubcategoryName);
 }

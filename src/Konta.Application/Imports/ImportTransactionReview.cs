@@ -18,4 +18,5 @@ public sealed record ImportTransactionReview(
     DateOnly? ForecastDate = null,
     bool ConfirmTransferMatch = false,
     Guid? TransferTransactionId = null,
-    int? TransferRowNumber = null);
+    int? TransferRowNumber = null,
+    bool CreateSubcategoryRule = false);

@@ -159,8 +159,8 @@ class KontaApp extends HTMLElement {
           <section class="panel preview" id="preview-panel" data-page="import" aria-labelledby="preview-title" hidden>
             <div class="panel-head"><h2 id="preview-title">Aperçu du fichier</h2><span class="count" id="preview-count"></span></div>
             <p class="preview-summary" id="preview-summary"></p>
-            <div class="table-wrap"><table>
-              <thead><tr><th>Date</th><th>Libellé corrigible</th><th>Compte Konta</th><th>Catégorie / suggestion</th><th>Type</th><th style="text-align:right">Montant (€)</th><th>Inclure</th></tr></thead>
+            <div class="table-wrap"><table class="preview-table">
+              <thead><tr><th>Date</th><th>Libellé</th><th>Compte Konta</th><th>Catégorie / suggestion</th><th style="text-align:right">Montant (€)</th><th>Inclure</th></tr></thead>
               <tbody id="preview-body"></tbody>
             </table></div>
             <div class="account-setup" id="account-setup" hidden></div>
@@ -174,6 +174,7 @@ class KontaApp extends HTMLElement {
               <label>Nom de la règle<input id="rule-name" name="name" maxlength="100" required></label>
               <label>Motif à rechercher<input id="rule-pattern" name="pattern" maxlength="200" required></label>
               <label>Catégorie<select id="rule-category" name="categoryId" required></select></label>
+              <label>Sous-catégorie (facultatif)<input id="rule-subcategory" name="subcategoryName" maxlength="200"></label>
               <div class="rule-form-actions"><button id="rule-submit" type="submit">Créer la règle</button><button id="rule-cancel" type="button" class="secondary-button" hidden>Annuler</button></div>
             </form>
             <form class="category-form" id="category-form">
@@ -236,9 +237,27 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#summary-year").addEventListener("change", () => this.loadPlanningData());
     this.shadowRoot.querySelector("#summary-month").addEventListener("change", () => this.loadPlanningData());
     this.shadowRoot.querySelector("#preview-body").addEventListener("change", event => {
+      if (event.target.matches("[data-category]")) {
+        this.updateReviewCategory(event.target);
+        const row = event.target.closest("tr");
+        if (row.querySelector("[data-subcategory]").value.trim()) {
+          row.dataset.createSubcategoryRule = "true";
+        }
+        this.syncMatchingReviewRows(row);
+      }
       if (event.target.matches("[data-forecast-match]")) {
         const row = event.target.closest("tr");
         row.dataset.confirmForecast = event.target.value;
+      }
+    });
+    this.shadowRoot.querySelector("#preview-body").addEventListener("input", event => {
+      if (event.target.matches("[data-amount]")) this.updateReviewAmount(event.target);
+      if (event.target.matches("[data-subcategory], [data-new-category]")) {
+        const row = event.target.closest("tr");
+        if (event.target.matches("[data-subcategory]")) {
+          row.dataset.createSubcategoryRule = event.target.value.trim() ? "true" : "false";
+        }
+        this.syncMatchingReviewRows(row);
       }
     });
 
@@ -800,7 +819,8 @@ class KontaApp extends HTMLElement {
       name.textContent = rule.name;
       const details = document.createElement("span");
       const category = this.categories.find(item => item.id === rule.categoryId)?.name ?? "Catégorie indisponible";
-      details.textContent = `Motif « ${rule.pattern} » · ${category}`;
+      const subcategory = rule.subcategoryName ? ` · Sous-catégorie : ${rule.subcategoryName}` : "";
+      details.textContent = `Motif « ${rule.pattern} » · ${category}${subcategory}`;
       description.append(name, details);
       const actions = document.createElement("div");
       actions.className = "rule-actions";
@@ -859,7 +879,8 @@ class KontaApp extends HTMLElement {
       const rule = {
         name: this.shadowRoot.querySelector("#rule-name").value.trim(),
         pattern: this.shadowRoot.querySelector("#rule-pattern").value.trim(),
-        categoryId: this.shadowRoot.querySelector("#rule-category").value
+        categoryId: this.shadowRoot.querySelector("#rule-category").value,
+        subcategoryName: this.shadowRoot.querySelector("#rule-subcategory").value.trim() || null
       };
       const isEditing = Boolean(this.editingRuleId);
       const response = await fetch(
@@ -902,6 +923,7 @@ class KontaApp extends HTMLElement {
       this.shadowRoot.querySelector("#rule-name").value = rule.name;
       this.shadowRoot.querySelector("#rule-pattern").value = rule.pattern;
       this.shadowRoot.querySelector("#rule-category").value = rule.categoryId;
+      this.shadowRoot.querySelector("#rule-subcategory").value = rule.subcategoryName ?? "";
       this.shadowRoot.querySelector("#rule-submit").textContent = "Enregistrer";
       this.shadowRoot.querySelector("#rule-cancel").hidden = false;
       this.shadowRoot.querySelector("#rule-name").focus();
@@ -1162,7 +1184,7 @@ class KontaApp extends HTMLElement {
 
     this.shadowRoot.querySelector("#preview-count").textContent = `${preview.transactions.length} ligne${preview.transactions.length === 1 ? "" : "s"} valide${preview.transactions.length === 1 ? "" : "s"}`;
     const duplicateCount = preview.transactions.filter(transaction => transaction.isDuplicate).length;
-    this.shadowRoot.querySelector("#preview-summary").textContent = `${preview.errors.length} erreur${preview.errors.length === 1 ? "" : "s"} · ${duplicateCount} doublon${duplicateCount === 1 ? "" : "s"} détecté${duplicateCount === 1 ? "" : "s"}. Vous pouvez exclure une ligne ou corriger sa date, son libellé, sa catégorie, son type et son montant avant l'import.`;
+    this.shadowRoot.querySelector("#preview-summary").textContent = `${preview.errors.length} erreur${preview.errors.length === 1 ? "" : "s"} · ${duplicateCount} doublon${duplicateCount === 1 ? "" : "s"} détecté${duplicateCount === 1 ? "" : "s"}. Vous pouvez exclure une ligne ou corriger sa catégorie et son montant avant l'import.`;
     this.renderAccountSetup(preview.unmappedAccounts);
     const commitButton = this.shadowRoot.querySelector("#commit-button");
     commitButton.disabled = preview.transactions.length === 0 || preview.unmappedAccounts.length > 0;
@@ -1304,7 +1326,8 @@ class KontaApp extends HTMLElement {
       feedback.textContent = commitMessage;
       feedback.hidden = false;
       await this.loadTransactions();
-      await this.loadSummary();
+      this.phase2DataPromise = this.loadPhase2Data();
+      await this.phase2DataPromise;
       await this.loadPlanningData();
       await this.requestPreview(this.selectedFile);
       if (!feedback.classList.contains("error")) {
@@ -1327,36 +1350,52 @@ class KontaApp extends HTMLElement {
   }
 
   getImportReview() {
-    return [...this.shadowRoot.querySelectorAll("#preview-body tr")].map(row => ({
-      rowNumber: Number(row.dataset.rowNumber),
-      include: row.querySelector("[data-include]").checked,
-      transactionDate: row.querySelector("[data-date]").value,
-      label: row.querySelector("[data-label]").value,
-      amount: Number(row.querySelector("[data-amount]").value),
-      type: row.querySelector("[data-type]").value,
-      categoryName: row.querySelector("[data-category]").value,
-      confirmForecastMatch: Boolean(row.querySelector("[data-forecast-match]")?.value),
-      forecastId: row.querySelector("[data-forecast-match]")?.value
-        ? JSON.parse(row.querySelector("[data-forecast-match]").value).forecastId
-        : null,
-      forecastDate: row.querySelector("[data-forecast-match]")?.value
-        ? JSON.parse(row.querySelector("[data-forecast-match]").value).scheduledDate
-        : null,
-      confirmTransferMatch: Boolean(row.querySelector("[data-transfer-match]")?.value),
-      transferTransactionId: row.querySelector("[data-transfer-match]")?.value
-        ? JSON.parse(row.querySelector("[data-transfer-match]").value).transactionId
-        : null,
-      transferRowNumber: row.querySelector("[data-transfer-match]")?.value
-        ? JSON.parse(row.querySelector("[data-transfer-match]").value).rowNumber
-        : null
-    }));
+    return [...this.shadowRoot.querySelectorAll("#preview-body tr")].map(row => {
+      const categorySelect = row.querySelector("[data-category]");
+      const newCategoryInput = row.querySelector("[data-new-category]");
+      const forecastMatch = row.querySelector("[data-forecast-match]")?.value;
+      const transferMatch = row.querySelector("[data-transfer-match]")?.value;
+      const amount = Number(row.querySelector("[data-amount]").value.replace(",", "."));
+      const subcategoryName = row.querySelector("[data-subcategory]").value.trim();
+      return {
+        rowNumber: Number(row.dataset.rowNumber),
+        include: row.querySelector("[data-include]").checked,
+        transactionDate: row.dataset.transactionDate,
+        label: row.dataset.label,
+        amount: Math.abs(amount),
+        type: amount < 0 ? "Expense" : "Income",
+        categoryName: newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim(),
+        subcategoryName,
+        createSubcategoryRule: row.dataset.createSubcategoryRule === "true" && Boolean(subcategoryName),
+        confirmForecastMatch: Boolean(forecastMatch),
+        forecastId: forecastMatch ? JSON.parse(forecastMatch).forecastId : null,
+        forecastDate: forecastMatch ? JSON.parse(forecastMatch).scheduledDate : null,
+        confirmTransferMatch: Boolean(transferMatch),
+        transferTransactionId: transferMatch ? JSON.parse(transferMatch).transactionId : null,
+        transferRowNumber: transferMatch ? JSON.parse(transferMatch).rowNumber : null
+      };
+    });
+  }
+
+  transactionLabelCell(transaction) {
+    const cell = document.createElement("td");
+    const label = document.createElement("span");
+    label.textContent = transaction.label;
+    cell.append(label);
+    if (transaction.subcategoryName) {
+      const subcategory = document.createElement("small");
+      subcategory.className = "transaction-subcategory";
+      subcategory.textContent = transaction.subcategoryName;
+      cell.append(subcategory);
+    }
+    return cell;
   }
 
   transactionRow(transaction) {
     const row = document.createElement("tr");
     row.append(
       this.cell(this.formatDate(transaction.date), "date"),
-      this.cell(transaction.label),
+      this.transactionLabelCell(transaction),
       this.cell(transaction.accountName ?? transaction.accountLabel ?? "—"),
       this.typeCell(transaction.type, transaction.isTransfer),
       this.cell(this.formatAmount(transaction.amount, transaction.type), "amount")
@@ -1367,39 +1406,18 @@ class KontaApp extends HTMLElement {
   previewRow(transaction) {
     const row = document.createElement("tr");
     row.dataset.rowNumber = transaction.rowNumber;
+    row.dataset.transactionDate = transaction.transactionDate;
+    row.dataset.label = transaction.label;
     if (transaction.isDuplicate) row.className = "duplicate-row";
     const accountName = transaction.accountName ?? `À associer · ${transaction.accountLabel}`;
-    const dateInput = document.createElement("input");
-    dateInput.type = "date";
-    dateInput.value = transaction.transactionDate;
-    dateInput.required = true;
-    dateInput.dataset.date = "";
-    dateInput.setAttribute("aria-label", `Date de l'opération, ligne ${transaction.rowNumber}`);
-    const labelInput = document.createElement("input");
-    labelInput.type = "text";
-    labelInput.value = transaction.label;
-    labelInput.required = true;
-    labelInput.maxLength = 500;
-    labelInput.dataset.label = "";
-    labelInput.setAttribute("aria-label", `Libellé de l'opération, ligne ${transaction.rowNumber}`);
-    const typeSelect = document.createElement("select");
-    typeSelect.dataset.type = "";
-    typeSelect.setAttribute("aria-label", `Type de l'opération, ligne ${transaction.rowNumber}`);
-    for (const [value, label] of [["Expense", "Dépense"], ["Income", "Revenu"]]) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = label;
-      typeSelect.append(option);
-    }
-    typeSelect.value = transaction.type === 0 || transaction.type === "Expense" ? "Expense" : "Income";
     const amountInput = document.createElement("input");
-    amountInput.type = "number";
-    amountInput.min = "0.01";
-    amountInput.step = "0.01";
-    amountInput.value = transaction.amount;
+    amountInput.type = "text";
+    amountInput.inputMode = "decimal";
+    amountInput.value = this.formatReviewAmount(transaction.amount, transaction.type);
     amountInput.required = true;
     amountInput.dataset.amount = "";
     amountInput.setAttribute("aria-label", `Montant en euros, ligne ${transaction.rowNumber}`);
+    this.updateReviewAmount(amountInput);
     const includeInput = document.createElement("input");
     includeInput.type = "checkbox";
     includeInput.checked = true;
@@ -1421,14 +1439,32 @@ class KontaApp extends HTMLElement {
     for (const categoryOption of this.categories.filter(item => item.isActive)) {
       categorySelect.append(this.option(categoryOption.name, categoryOption.name));
     }
-    const currentCategory = transaction.categoryName ?? transaction.subcategoryName ?? "";
+    const addCategoryOption = this.option("__add_category__", "＋ Créer une catégorie…");
+    addCategoryOption.dataset.addCategory = "";
+    categorySelect.append(addCategoryOption);
+    const currentCategory = transaction.categoryName ?? "";
     if (currentCategory && ![...categorySelect.options].some(option => option.value === currentCategory)) {
       categorySelect.append(this.option(currentCategory, currentCategory));
     }
     categorySelect.value = currentCategory;
+    const newCategoryInput = document.createElement("input");
+    newCategoryInput.type = "text";
+    newCategoryInput.maxLength = 100;
+    newCategoryInput.placeholder = "Nom de la nouvelle catégorie";
+    newCategoryInput.required = false;
+    newCategoryInput.hidden = true;
+    newCategoryInput.dataset.newCategory = "";
+    newCategoryInput.setAttribute("aria-label", `Nouvelle catégorie de l'opération, ligne ${transaction.rowNumber}`);
+    const subcategoryInput = document.createElement("input");
+    subcategoryInput.type = "text";
+    subcategoryInput.maxLength = 200;
+    subcategoryInput.placeholder = "Sous-catégorie (facultatif)";
+    subcategoryInput.value = transaction.subcategoryName ?? "";
+    subcategoryInput.dataset.subcategory = "";
+    subcategoryInput.setAttribute("aria-label", `Sous-catégorie de l'opération, ligne ${transaction.rowNumber}`);
     const categoryContent = document.createElement("div");
     categoryContent.className = "preview-category";
-    categoryContent.append(categorySelect);
+    categoryContent.append(categorySelect, newCategoryInput, subcategoryInput);
     if (transaction.categorySuggestion) {
       const suggestion = document.createElement("small");
       suggestion.className = "category-suggestion";
@@ -1481,15 +1517,73 @@ class KontaApp extends HTMLElement {
       categoryContent.append(transferSelect, matchNote);
     }
     row.append(
-      this.controlCell(dateInput, "date"),
-      this.controlCell(labelInput, "review-label"),
+      this.cell(this.formatDate(transaction.transactionDate), "date"),
+      this.cell(transaction.label, "preview-label"),
       this.cell(`${accountName} · ${transaction.accountNumber}`),
       this.controlCell(categoryContent, "category"),
-      this.controlCell(typeSelect, "review-type"),
       this.controlCell(amountInput, "review-amount"),
       this.controlCell(includeControl, "review-include")
     );
     return row;
+  }
+
+  updateReviewCategory(select) {
+    const newCategoryInput = select.closest("tr").querySelector("[data-new-category]");
+    const isCreating = select.selectedOptions[0]?.hasAttribute("data-add-category") ?? false;
+    newCategoryInput.hidden = !isCreating;
+    newCategoryInput.required = isCreating;
+    if (isCreating) newCategoryInput.focus();
+    else newCategoryInput.value = "";
+  }
+
+  syncMatchingReviewRows(sourceRow) {
+    if (this.syncingPreviewRows) return;
+    const label = sourceRow.dataset.label.trim();
+    if (!label) return;
+
+    const normalizedLabel = label.toLocaleLowerCase("fr-FR");
+    const categorySelect = sourceRow.querySelector("[data-category]");
+    const newCategoryInput = sourceRow.querySelector("[data-new-category]");
+    const categoryName = newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim();
+    const subcategoryName = sourceRow.querySelector("[data-subcategory]").value.trim();
+    const createSubcategoryRule = sourceRow.dataset.createSubcategoryRule === "true";
+    this.syncingPreviewRows = true;
+    try {
+      for (const row of this.shadowRoot.querySelectorAll("#preview-body tr")) {
+        if (row === sourceRow
+            || row.dataset.label.trim().toLocaleLowerCase("fr-FR") !== normalizedLabel) {
+          continue;
+        }
+
+        const targetCategory = row.querySelector("[data-category]");
+        const targetNewCategory = row.querySelector("[data-new-category]");
+        targetNewCategory.hidden = true;
+        targetNewCategory.required = false;
+        targetNewCategory.value = "";
+        if (categoryName && ![...targetCategory.options].some(option => option.value === categoryName)) {
+          targetCategory.insertBefore(this.option(categoryName, categoryName), targetCategory.querySelector("[data-add-category]"));
+        }
+        targetCategory.value = categoryName;
+        row.querySelector("[data-subcategory]").value = subcategoryName;
+        row.dataset.createSubcategoryRule = createSubcategoryRule && subcategoryName ? "true" : "false";
+      }
+    } finally {
+      this.syncingPreviewRows = false;
+    }
+  }
+
+  formatReviewAmount(amount, type) {
+    const sign = type === 0 || type === "Expense" ? "-" : "+";
+    return `${sign}${new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
+  }
+
+  updateReviewAmount(input) {
+    const value = input.value.trim().replace(",", ".");
+    const amount = Number(value);
+    const isValid = /^[+-]?(?:\d+|\d*\.\d{1,2})$/.test(value) && Number.isFinite(amount) && amount !== 0;
+    input.setCustomValidity(isValid || input.value === "" ? "" : "Saisissez un montant signé non nul, avec au plus deux décimales.");
+    input.classList.toggle("expense-amount", isValid && amount < 0);
+    input.classList.toggle("income-amount", isValid && amount > 0);
   }
 
   controlCell(control, className = "") {

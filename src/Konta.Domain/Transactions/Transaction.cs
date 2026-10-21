@@ -20,7 +20,8 @@ public sealed class Transaction
         TransactionSource source = TransactionSource.Manual,
         Guid? accountId = null,
         string? importFingerprint = null,
-        int? importOccurrence = null)
+        int? importOccurrence = null,
+        string? subcategoryName = null)
     {
         if (string.IsNullOrWhiteSpace(label))
         {
@@ -30,6 +31,11 @@ public sealed class Transaction
         if (amount <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(amount), "The amount must be positive.");
+        }
+
+        if (subcategoryName?.Length > 200)
+        {
+            throw new ArgumentOutOfRangeException(nameof(subcategoryName), "The subcategory cannot exceed 200 characters.");
         }
 
         Id = Guid.NewGuid();
@@ -43,6 +49,7 @@ public sealed class Transaction
         ImportFingerprint = importFingerprint;
         ImportOccurrence = importOccurrence;
         CategoryId = categoryId;
+        SubcategoryName = string.IsNullOrWhiteSpace(subcategoryName) ? null : subcategoryName.Trim();
         Source = source;
         CreatedAt = DateTimeOffset.UtcNow;
         UpdatedAt = CreatedAt;
@@ -61,6 +68,7 @@ public sealed class Transaction
     public int? ImportOccurrence { get; private set; }
     public Guid? CategoryId { get; private set; }
     public Category? Category { get; private set; }
+    public string? SubcategoryName { get; private set; }
     public TransactionSource Source { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }

@@ -29,6 +29,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
         {
             entity.HasKey(transaction => transaction.Id);
             entity.Property(transaction => transaction.Label).HasMaxLength(500).IsRequired();
+            entity.Property(transaction => transaction.SubcategoryName).HasMaxLength(200);
             entity.Property(transaction => transaction.Amount).HasPrecision(18, 2);
             entity.Property(transaction => transaction.Type).HasConversion<string>().HasMaxLength(16);
             entity.Property(transaction => transaction.Source).HasConversion<string>().HasMaxLength(16);
@@ -74,6 +75,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.HasKey(rule => rule.Id);
             entity.Property(rule => rule.Name).HasMaxLength(100).IsRequired();
             entity.Property(rule => rule.Pattern).HasMaxLength(200).IsRequired();
+            entity.Property(rule => rule.SubcategoryName).HasMaxLength(200);
             entity.Property(rule => rule.CategoryId).IsRequired();
             entity.HasIndex(rule => rule.Pattern).IsUnique();
             entity.HasIndex(rule => rule.Name).IsUnique();

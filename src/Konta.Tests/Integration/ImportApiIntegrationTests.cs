@@ -70,6 +70,13 @@ public sealed class ImportApiIntegrationTests
         using var transactions = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
         var transaction = Assert.Single(transactions.RootElement.EnumerateArray());
         Assert.Equal("Compte cible", transaction.GetProperty("accountName").GetString());
+        Assert.Equal("Courses", transaction.GetProperty("categoryName").GetString());
+        Assert.Equal("Restaurants", transaction.GetProperty("subcategoryName").GetString());
+
+        using var categoriesResponse = await client.GetAsync("/api/categories");
+        using var categories = JsonDocument.Parse(await categoriesResponse.Content.ReadAsStringAsync());
+        Assert.Contains(categories.RootElement.EnumerateArray(), category =>
+            category.GetProperty("name").GetString() == "Courses");
     }
 
     [Fact]
@@ -133,6 +140,46 @@ public sealed class ImportApiIntegrationTests
         Assert.Equal("Achat corrigé", transaction.GetProperty("label").GetString());
         Assert.Equal(15.5m, transaction.GetProperty("amount").GetDecimal());
         Assert.Equal("Income", transaction.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task Commit_CreatesSubcategoryRule_AndAppliesItToFutureMatchingImports()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "0001", "Compte Commun", "Current");
+        const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
+            + "25/09/2026;25/09/2026;0001;Compte Commun;CARTE X9734 MACHINE;CARTE X9734 MACHINE;;;-0,35;Non\n";
+        using var content = CsvContent(csv);
+        content.Add(new StringContent("""
+            [{
+              "rowNumber": 2,
+              "include": true,
+              "categoryName": "Vie quotidienne",
+              "subcategoryName": "Machine à café",
+              "createSubcategoryRule": true
+            }]
+            """), "review");
+
+        // Act
+        using var commitResponse = await client.PostAsync("/api/imports/commit", content);
+
+        // Assert
+        commitResponse.EnsureSuccessStatusCode();
+        using var rulesResponse = await client.GetAsync("/api/category-rules");
+        using var rules = JsonDocument.Parse(await rulesResponse.Content.ReadAsStringAsync());
+        var rule = Assert.Single(rules.RootElement.EnumerateArray());
+        Assert.Equal("CARTE X9734 MACHINE", rule.GetProperty("pattern").GetString());
+        Assert.Equal("Machine à café", rule.GetProperty("subcategoryName").GetString());
+
+        using var previewResponse = await PostCsvAsync(client, "/api/imports/preview", csv);
+        previewResponse.EnsureSuccessStatusCode();
+        using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
+        var transaction = preview.RootElement.GetProperty("transactions")[0];
+        Assert.Equal("Vie quotidienne", transaction.GetProperty("categoryName").GetString());
+        Assert.Equal("Machine à café", transaction.GetProperty("subcategoryName").GetString());
     }
 
     [Fact]

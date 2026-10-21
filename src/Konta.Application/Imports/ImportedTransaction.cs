@@ -23,4 +23,5 @@ public sealed record ImportedTransaction(
     IReadOnlyList<Konta.Application.Planning.ForecastMatchCandidate>? ForecastMatchCandidates = null,
     ForecastMatchConfirmation? ForecastMatchConfirmation = null,
     IReadOnlyList<TransferMatchCandidate>? TransferMatchCandidates = null,
-    TransferMatchConfirmation? TransferMatchConfirmation = null);
+    TransferMatchConfirmation? TransferMatchConfirmation = null,
+    bool CreateSubcategoryRule = false);

@@ -34,7 +34,12 @@ public sealed class CategoryRulesController(ICategoryRuleService categoryRuleSer
     {
         try
         {
-            var rule = await categoryRuleService.CreateAsync(request.Name, request.Pattern, request.CategoryId, cancellationToken);
+            var rule = await categoryRuleService.CreateAsync(
+                request.Name,
+                request.Pattern,
+                request.CategoryId,
+                request.SubcategoryName,
+                cancellationToken);
             return CreatedAtAction(nameof(GetById), new { id = rule.Id }, rule);
         }
         catch (DuplicateCategoryRuleException exception)
@@ -69,7 +74,13 @@ public sealed class CategoryRulesController(ICategoryRuleService categoryRuleSer
     {
         try
         {
-            var rule = await categoryRuleService.UpdateAsync(id, request.Name, request.Pattern, request.CategoryId, cancellationToken);
+            var rule = await categoryRuleService.UpdateAsync(
+                id,
+                request.Name,
+                request.Pattern,
+                request.CategoryId,
+                request.SubcategoryName,
+                cancellationToken);
             return rule is null ? NotFound() : Ok(rule);
         }
         catch (DuplicateCategoryRuleException exception)
@@ -112,6 +123,9 @@ public sealed record CreateCategoryRuleRequest
 
     [Required]
     public required Guid CategoryId { get; init; }
+
+    [StringLength(200)]
+    public string? SubcategoryName { get; init; }
 }
 
 public sealed record UpdateCategoryRuleRequest
@@ -124,4 +138,7 @@ public sealed record UpdateCategoryRuleRequest
 
     [Required]
     public required Guid CategoryId { get; init; }
+
+    [StringLength(200)]
+    public string? SubcategoryName { get; init; }
 }

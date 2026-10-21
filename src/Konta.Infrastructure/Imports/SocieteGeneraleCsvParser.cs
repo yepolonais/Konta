@@ -94,7 +94,7 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
                     amount < 0 ? TransactionType.Expense : TransactionType.Income,
                     string.Equals(GetField(csv, headerIndexes, "pointee"), "oui", StringComparison.OrdinalIgnoreCase)));
             }
-            catch (Exception exception) when (exception is FormatException or CsvHelperException or IndexOutOfRangeException)
+            catch (Exception exception) when (exception is FormatException or CsvHelperException or IndexOutOfRangeException or ArgumentException)
             {
                 errors.Add(new CsvRowError(csv.Context.Parser?.Row ?? 0, exception.Message));
             }

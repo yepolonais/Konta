@@ -261,21 +261,24 @@ public sealed class ImportPreviewService(
         foreach (var transaction in preview.Transactions)
         {
             var categoryName = transaction.CategoryName;
-            if (string.IsNullOrWhiteSpace(categoryName))
+            var match = await categoryRuleService.FindBestMatchAsync(transaction.Label, cancellationToken);
+            var subcategoryName = string.IsNullOrWhiteSpace(transaction.SubcategoryName)
+                ? match?.SubcategoryName
+                : transaction.SubcategoryName;
+            if (match is not null
+                && (string.IsNullOrWhiteSpace(categoryName) || !string.IsNullOrWhiteSpace(match.SubcategoryName)))
             {
-                var match = await categoryRuleService.FindBestMatchAsync(transaction.Label, cancellationToken);
-                categoryName = match?.CategoryName;
-                transactions.Add(transaction with
-                {
-                    CategoryName = categoryName,
-                    CategorySuggestion = match is null
-                        ? null
-                        : new CategoryRuleSuggestion(match.RuleId, match.RuleName, match.CategoryName, match.Pattern)
-                });
-                continue;
+                categoryName = match.CategoryName;
             }
 
-            transactions.Add(transaction);
+            transactions.Add(transaction with
+            {
+                CategoryName = categoryName,
+                SubcategoryName = subcategoryName,
+                CategorySuggestion = match is null
+                    ? transaction.CategorySuggestion
+                    : new CategoryRuleSuggestion(match.RuleId, match.RuleName, match.CategoryName, match.Pattern)
+            });
         }
 
         return preview with { Transactions = transactions.ToArray() };
@@ -373,6 +376,34 @@ public sealed class ImportPreviewService(
                 errors.Add($"Le libellé de la ligne {transaction.RowNumber} dépasse 500 caractères.");
             }
 
+            if (decision.CategoryName?.Length > 100)
+            {
+                errors.Add($"La catégorie de la ligne {transaction.RowNumber} dépasse 100 caractères.");
+            }
+
+            if (decision.CreateSubcategoryRule)
+            {
+                if (string.IsNullOrWhiteSpace(decision.CategoryName))
+                {
+                    errors.Add($"La ligne {transaction.RowNumber} doit avoir une catégorie pour mémoriser sa sous-catégorie.");
+                }
+
+                if (string.IsNullOrWhiteSpace(decision.SubcategoryName))
+                {
+                    errors.Add($"La ligne {transaction.RowNumber} doit avoir une sous-catégorie pour créer une règle.");
+                }
+
+                if (decision.Label?.Length > 200)
+                {
+                    errors.Add($"Le libellé de la ligne {transaction.RowNumber} dépasse 200 caractères et ne peut pas servir de motif.");
+                }
+            }
+
+            if (decision.SubcategoryName?.Length > 200)
+            {
+                errors.Add($"La sous-catégorie de la ligne {transaction.RowNumber} dépasse 200 caractères.");
+            }
+
             if (decision.Type.HasValue && !Enum.IsDefined(decision.Type.Value))
             {
                 errors.Add($"Le type de la ligne {transaction.RowNumber} est invalide.");
@@ -402,8 +433,13 @@ public sealed class ImportPreviewService(
                 Amount = decision.Amount ?? transaction.Amount,
                 Type = decision.Type ?? transaction.Type,
                 AccountName = decision.AccountName?.Trim() ?? transaction.AccountName,
-                CategoryName = decision.CategoryName ?? transaction.CategoryName,
-                SubcategoryName = decision.SubcategoryName ?? transaction.SubcategoryName,
+                CategoryName = decision.CategoryName is null
+                    ? transaction.CategoryName
+                    : string.IsNullOrWhiteSpace(decision.CategoryName) ? null : decision.CategoryName.Trim(),
+                SubcategoryName = decision.SubcategoryName is null
+                    ? transaction.SubcategoryName
+                    : string.IsNullOrWhiteSpace(decision.SubcategoryName) ? null : decision.SubcategoryName.Trim(),
+                CreateSubcategoryRule = decision.CreateSubcategoryRule,
                 ForecastMatchConfirmation = decision.ConfirmForecastMatch && decision.ForecastId.HasValue && decision.ForecastDate.HasValue
                     ? new ForecastMatchConfirmation(decision.ForecastId.Value, decision.ForecastDate.Value)
                     : null,
