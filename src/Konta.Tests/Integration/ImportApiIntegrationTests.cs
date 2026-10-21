@@ -41,6 +41,31 @@ public sealed class ImportApiIntegrationTests
     }
 
     [Fact]
+    public async Task Preview_ExposesExtractedMotif_WithoutReplacingOperationLabel()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
+            + "25/09/2026;25/09/2026;0001;Compte Commun;Virement reçu;VIR RECU DE: MHP PRESTATIONS SANTE PLEIADE MOTIF: CRONIER-FLURA JENNIFER(N262611D68B) REF: 626104308255 PRESTATIONS;;;7,95;Non\n";
+        using var content = new MultipartFormDataContent();
+        using var csvContent = new ByteArrayContent(Encoding.Latin1.GetBytes(csv));
+        csvContent.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
+        content.Add(csvContent, "file", "transactions.csv");
+
+        // Act
+        using var response = await client.PostAsync("/api/imports/preview", content);
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var transaction = payload.RootElement.GetProperty("transactions")[0];
+        Assert.Equal("Virement reçu", transaction.GetProperty("label").GetString());
+        Assert.Equal("CRONIER-FLURA JENNIFER(N262611D68B)", transaction.GetProperty("motif").GetString());
+    }
+
+    [Fact]
     public async Task Commit_UsesReviewAccountOverride_WhenProvided()
     {
         // Arrange

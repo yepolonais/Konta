@@ -160,7 +160,7 @@ class KontaApp extends HTMLElement {
             <div class="panel-head"><h2 id="preview-title">Aperçu du fichier</h2><span class="count" id="preview-count"></span></div>
             <p class="preview-summary" id="preview-summary"></p>
             <div class="table-wrap"><table class="preview-table">
-              <thead><tr><th>Date</th><th>Libellé</th><th>Compte Konta</th><th>Catégorie / suggestion</th><th style="text-align:right">Montant (€)</th><th>Inclure</th></tr></thead>
+              <thead><tr><th>Date</th><th>Libellé</th><th>Motif</th><th>Compte Konta</th><th>Catégorie / suggestion</th><th style="text-align:right">Montant (€)</th><th>Inclure</th></tr></thead>
               <tbody id="preview-body"></tbody>
             </table></div>
             <div class="account-setup" id="account-setup" hidden></div>
@@ -1519,6 +1519,7 @@ class KontaApp extends HTMLElement {
     row.append(
       this.cell(this.formatDate(transaction.transactionDate), "date"),
       this.cell(transaction.label, "preview-label"),
+      this.cell(transaction.motif ?? "", "preview-motif"),
       this.cell(`${accountName} · ${transaction.accountNumber}`),
       this.controlCell(categoryContent, "category"),
       this.controlCell(amountInput, "review-amount"),

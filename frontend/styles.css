@@ -76,12 +76,13 @@ th { color: var(--muted); font-family: "DM Mono", monospace; font-size: 10px; fo
 td { border-top: 1px solid var(--line-soft); font-size: 12px; padding: 13px 16px; vertical-align: top; }
 .preview-table { min-width: 0; table-layout: fixed; }
 .preview-table th, .preview-table td { padding-left: 8px; padding-right: 8px; }
-.preview-table th:nth-child(1) { width: 12%; }
-.preview-table th:nth-child(2) { width: 22%; }
-.preview-table th:nth-child(3) { width: 17%; }
-.preview-table th:nth-child(4) { width: 23%; }
-.preview-table th:nth-child(5) { width: 16%; }
-.preview-table th:nth-child(6) { width: 10%; }
+.preview-table th:nth-child(1) { width: 9%; }
+.preview-table th:nth-child(2) { width: 16%; }
+.preview-table th:nth-child(3) { width: 16%; }
+.preview-table th:nth-child(4) { width: 15%; }
+.preview-table th:nth-child(5) { width: 25%; }
+.preview-table th:nth-child(6) { width: 11%; }
+.preview-table th:nth-child(7) { width: 8%; }
 .preview-table td { overflow-wrap: anywhere; }
 .preview-table .review-amount, .preview-table .preview-category { min-width: 0; }
 .preview-table .review-amount input, .preview-table .preview-category select,

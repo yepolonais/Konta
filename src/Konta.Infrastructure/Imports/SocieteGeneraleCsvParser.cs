@@ -92,7 +92,8 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
                     EmptyAsNull(GetField(csv, headerIndexes, "souscategorie")),
                     Math.Abs(amount),
                     amount < 0 ? TransactionType.Expense : TransactionType.Income,
-                    string.Equals(GetField(csv, headerIndexes, "pointee"), "oui", StringComparison.OrdinalIgnoreCase)));
+                    string.Equals(GetField(csv, headerIndexes, "pointee"), "oui", StringComparison.OrdinalIgnoreCase),
+                    Motif: ExtractMotif(fullLabel)));
             }
             catch (Exception exception) when (exception is FormatException or CsvHelperException or IndexOutOfRangeException or ArgumentException)
             {
@@ -174,4 +175,20 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
     }
 
     private static string? EmptyAsNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static string? ExtractMotif(string fullLabel)
+    {
+        var motifStart = fullLabel.IndexOf("MOTIF:", StringComparison.OrdinalIgnoreCase);
+        if (motifStart < 0)
+        {
+            return null;
+        }
+
+        motifStart += "MOTIF:".Length;
+        var referenceStart = fullLabel.IndexOf("REF:", motifStart, StringComparison.OrdinalIgnoreCase);
+        var motif = (referenceStart < 0
+            ? fullLabel[motifStart..]
+            : fullLabel[motifStart..referenceStart]).Trim();
+        return string.IsNullOrEmpty(motif) ? null : motif;
+    }
 }

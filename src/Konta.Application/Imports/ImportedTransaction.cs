@@ -24,4 +24,5 @@ public sealed record ImportedTransaction(
     ForecastMatchConfirmation? ForecastMatchConfirmation = null,
     IReadOnlyList<TransferMatchCandidate>? TransferMatchCandidates = null,
     TransferMatchConfirmation? TransferMatchConfirmation = null,
-    bool CreateSubcategoryRule = false);
+    bool CreateSubcategoryRule = false,
+    string? Motif = null);
