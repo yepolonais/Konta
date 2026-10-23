@@ -1,57 +1,84 @@
+# Roadmap métier de Konta
 
-# Roadmap concise
+Cette roadmap organise la réalisation du besoin décrit dans [konta.md](./konta.md), qui est la source de vérité métier.
 
-Objectif: construire un POC web (API .NET 8 + frontend Web Components), puis transformer en PWA mobile et déployer sur Debian/Freebox.
+## Principe de réalisation
 
-Phases principales
+Le budget prévisionnel annuel est le cœur de Konta. L'import des opérations réelles est un socle déjà largement développé : les prochaines étapes doivent le réutiliser et le compléter seulement là où la comparaison prévu/réalisé l'exige. Elles ne consistent pas à reconstruire le parcours d'import.
 
-- [x] Phase 0 — Cadrage (1-2 jours)
-  - [x] Valider l'échantillon CSV (`sample/transactions-sample.csv`) et l'encodage.
-  - [x] Confirmer SDK .NET 8 installé et chemin de la DB SQLite.
+Les phases ci-dessous sont une proposition de travail. Les décisions métier signalées comme ouvertes devront être confirmées avant de figer les règles concernées.
 
-- [x] Phase 1 — POC Web (1-2 semaines)
-  - [x] Créer la solution `Konta.sln` et les projets `Konta.Api`, `Konta.Application`, `Konta.Domain`, `Konta.Infrastructure`, `Konta.Tests` (`net8.0`) avec leurs références.
-  - [x] API: `Program.cs`, configuration et `GET /api/health` pour vérifier le démarrage.
-  - [x] Domaine: modèles `Transaction`, `Category` et enums nécessaires; montant positif, type revenu/dépense, compte source conservé.
-  - [x] Infrastructure: EF Core SQLite, `KontaDbContext`, configurations et première migration; chemin de la base configurable hors du dépôt.
-  - [x] Application: cas d'usage et contrats pour consulter les opérations et prévisualiser un import; API sans accès direct au `DbContext`.
-  - [x] Import CSV: parser le format observé (`;`, ISO-8859-1, dates `dd/MM/yyyy`, montants avec virgule); afficher les erreurs par ligne. Garder dates, compte (`Num Compte`, `Libellé Compte`), libellés et montant/type dans le modèle importé. Pas de persistance à l'étape preview.
-  - [x] API: `POST /api/imports/preview` reçoit un fichier, renvoie opérations interprétées et erreurs, sans enregistrer les transactions.
-  - [x] Frontend `frontend/`: HTML, CSS et JavaScript natif avec Web Components; liste des opérations et formulaire d'import/preview utilisant `fetch`.
-  - [x] Tests: parser sur `sample/transactions-sample.csv` (encodage, séparateur, montants, compte) et tests API; `dotnet build` et `dotnet test` doivent réussir.
-  - [x] Validation de fin: démarrer l'API et le frontend, prévisualiser l'échantillon, confirmer qu'aucune transaction n'est persistée avant une future étape de commit.
+## Socle existant — import et suivi des opérations
 
-- [x] Phase 2 — Import opérationnel et comptes multiples
-  - [x] Modéliser les comptes du foyer (compte commun, personnel et épargne) et associer chaque compte SG à un compte Konta à partir de `Num Compte`; demander confirmation pour un compte inconnu.
-  - [x] Étendre l'aperçu CSV à la sélection, l'exclusion et la correction des opérations avant validation; conserver l'affectation au compte correspondant.
-    - [x] Sélectionner ou exclure chaque opération dans l'aperçu; corriger sa date, son libellé, son type et son montant avant le commit.
-    - [x] Corriger l'affectation du compte et la catégorie d'une opération directement dans l'aperçu.
-  - [x] Détecter les doublons, enregistrer l'import de façon atomique et conserver son historique. Ne pas fusionner aveuglément des opérations identiques légitimes.
-  - [x] Ajouter le CRUD des catégories et leur association aux opérations importées; permettre de revoir rapidement les opérations non catégorisées.
-  - [x] Ajouter le CRUD API et l'interface de gestion des règles de catégorisation avec validation, détection des doublons et désactivation.
-  - [x] Appliquer à l'aperçu et au commit la règle active la plus spécifique pour catégoriser les opérations sans catégorie; afficher la suggestion et permettre la correction manuelle.
-  - [x] Ajouter les vues mensuelle et annuelle calculées depuis les opérations, avec filtres par compte/catégorie et accès aux opérations composant les totaux.
-  - [x] Tester l'import couvrant plusieurs comptes, l'affectation, les doublons, les suggestions de catégorie et les calculs par période.
+Déjà présent dans l'application : import CSV Société Générale avec prévisualisation et validation, comptes, détection des doublons, catégorisation et règles, synthèses par période, budgets mensuels, échéances et suivi de soldes.
 
-- [x] Phase 3 — Budgets, prévisions et soldes
-  - [x] Gérer les budgets mensuels récurrents et leurs dérogations ponctuelles.
-  - [x] Créer des prévisions d'échéances récurrentes séparées des transactions réelles; les prévisions ne modifient pas les dépenses ni les soldes constatés.
-  - [x] À l'import, proposer le rapprochement entre une prévision et une opération réelle du même compte. Après confirmation, marquer l'échéance comme réalisée et utiliser les données de l'opération importée; signaler les écarts et laisser les cas ambigus à confirmer.
-  - [x] Permettre de définir, pour chaque compte, un solde de référence associé à une opération. Ce solde correspond au compte juste après cette opération; calculer le solde constaté en ajoutant les mouvements ultérieurs, sans compter deux fois l'opération de référence.
-  - [x] Afficher séparément le solde constaté et le solde prévisionnel; inclure les échéances futures uniquement dans ce dernier.
-  - [x] Tester les rapprochements, les échéances manquantes ou inattendues, les écarts de montant et le calcul des soldes à partir de la référence.
+Avant de s'appuyer dessus pour le budget annuel, vérifier que les parcours et données existants permettent bien :
 
-- [x] Phase 4 — Transferts et objectifs d'épargne
-  - [x] Représenter les transferts entre comptes comme des mouvements liés, neutres dans les totaux de dépenses et de revenus du foyer.
-  - [x] Repérer les transferts potentiels entre comptes à l'import et demander confirmation lorsque la correspondance est incertaine.
-  - [x] Gérer les objectifs d'épargne (compte associé, montant cible et contribution prévue) et comparer contributions prévues et réalisées à partir des transferts enregistrés.
-  - [x] Tester qu'un transfert ne crée ni dépense ni revenu et que les contributions d'épargne ne sont pas comptées deux fois.
+- [ ] D'importer et consulter les opérations nécessaires au suivi du foyer sans reconstruire le flux.
+- [ ] De rattacher les opérations aux postes utilisés par le budget, ou d'identifier les adaptations nécessaires.
+- [ ] De corriger le classement d'une opération importée et de garder les totaux cohérents.
+- [ ] De vérifier que les transferts entre comptes et les mouvements d'épargne ne gonflent pas artificiellement les revenus ou dépenses du foyer.
+- [ ] De documenter les limites fonctionnelles actuelles de l'import et du classement.
 
-- [ ] Phase 5 — PWA / Mobile (1 semaine)
-  - [ ] Rendre le frontend PWA (manifest, service-worker), responsive et installable.
+## Phase 1 — Définir le budget annuel et ses enveloppes
 
-- [ ] Phase 6 — Déploiement sur Debian/Freebox (1 semaine)
-  - [ ] Option Docker Compose (recommandé) ou service `systemd`.
-  - [ ] `nginx` reverse-proxy, volume persistant pour la DB, sauvegardes et HTTPS si exposition externe.
+Permettre de créer un plan pour une année, distinct des transactions bancaires.
 
-État au 18/10/2026: Phases 0 à 4 terminées. L'import multi-comptes permet de revoir/corriger les opérations, de détecter les doublons et d'associer les catégories. Les catégories et règles sont gérables depuis l'interface. Les règles proposent une catégorie pendant l'aperçu (motif le plus spécifique prioritaire), avec possibilité de correction avant commit. Les synthèses mensuelles et annuelles incluent des filtres par compte/catégorie et le détail des opérations composant chaque total. La phase 3 ajoute les budgets mensuels et dérogations, les prévisions récurrentes (mensuelles ou annuelles), leur rapprochement explicite à l'import, et les soldes constatés/prévisionnels à partir d'une opération de référence. La phase 4 ajoute la détection des virements inter-comptes lors de l'import, leur confirmation par l'utilisateur, leur neutralisation dans les totaux du foyer et le suivi des objectifs d'épargne. Un seul objectif actif est autorisé par compte d'épargne afin que chaque virement entrant ne soit attribué qu'une fois. La validation complète compte 43 tests réussis; les parcours navigateur de transfert et d'objectif d'épargne ont été vérifiés en grand écran et sur mobile. La phase 5 PWA peut commencer.
+- [ ] Définir les postes budgétaires configurables, chacun de type revenu ou dépense.
+- [ ] Définir les enveloppes d'épargne planifiées comme une affectation distincte des dépenses de consommation.
+- [ ] Définir le modèle de montants prévisionnels mensuels par poste, y compris les mois sans prévision et les montants explicitement nuls.
+- [ ] Permettre de créer, renommer et désactiver les postes sans perdre les données historiques.
+- [ ] Prévoir une saisie ou une édition pratique des montants sur une grille annuelle (postes en lignes, mois en colonnes).
+- [ ] Calculer et afficher les totaux mensuels et annuels des revenus, des dépenses de consommation, des contributions d'épargne planifiées et du disponible prévisionnel.
+- [ ] Tester les calculs, les changements d'année et la persistance après redémarrage.
+
+**Résultat attendu :** le foyer peut bâtir et consulter son budget annuel, y compris ce qu'il prévoit de mettre de côté, sans devoir créer de fausses opérations réelles.
+
+## Phase 2 — Comparer le prévu au réalisé
+
+Relier les opérations importées au plan budgétaire et rendre les écarts visibles.
+
+- [ ] Définir comment un poste budgétaire correspond aux catégories et sous-catégories des opérations existantes.
+- [ ] Afficher, pour chaque poste et chaque mois, le prévisionnel, le réalisé, l'écart et le restant ou dépassement.
+- [ ] Comparer les contributions d'épargne prévues aux transferts réellement effectués, sans les classer comme dépenses de consommation ni les compter deux fois.
+- [ ] Afficher séparément les totaux prévisionnels et réels de revenus, dépenses de consommation, épargne affectée et disponible.
+- [ ] Permettre d'ouvrir les opérations réelles qui composent un montant réalisé.
+- [ ] Signaler les opérations non classées ou non rapprochées au lieu de les omettre silencieusement.
+- [ ] Vérifier les calculs avec des données connues et des cas de mois sans budget, sans opération ou en dépassement.
+
+**Résultat attendu :** après import et classement des opérations, l'utilisateur peut vérifier si le plan du mois a été tenu, y compris pour les sommes prévues pour l'épargne.
+
+## Phase 3 — Ajuster le budget en cours d'année
+
+Permettre de réagir aux écarts sans effacer le plan passé.
+
+- [ ] Modifier les montants prévus d'un ou plusieurs mois futurs sans altérer les mois déjà écoulés.
+- [ ] Ajouter un extra ponctuel et l'afficher séparément des revenus réguliers.
+- [ ] Réduire, suspendre ou remettre à zéro un poste variable pour les mois futurs.
+- [ ] Réaffecter un montant entre postes et afficher clairement l'effet sur le résultat prévisionnel.
+- [ ] Distinguer le plan initial, le plan révisé et le réalisé selon la règle d'historique retenue.
+- [ ] Tester qu'une révision future ne réécrit pas les valeurs antérieures et que les totaux restent justes.
+
+**Décision métier à confirmer avant cette phase :** comment représenter un « extra » (revenu exceptionnel, apport au compte ou autre ajustement), et quel niveau d'historique conserver pour les versions successives du budget.
+
+## Phase 4 — Approfondir le suivi des enveloppes (évolution)
+
+Les contributions planifiées et leur comparaison au réalisé font partie des phases 1 et 2. Cette phase complémentaire concerne un suivi plus détaillé des objectifs ou des soldes détenus.
+
+- [ ] Décider s'il faut suivre le solde réel de chaque enveloppe ou seulement les contributions prévues et réalisées.
+- [ ] Si nécessaire, rapprocher les transferts, les soldes des comptes d'épargne et les dépenses finales associées aux objectifs.
+- [ ] Tester les rapprochements sans compter deux fois un transfert puis une dépense issue de cette épargne.
+
+Cette évolution ne doit pas retarder le budget annuel et la comparaison des contributions prévues avec les transferts réalisés.
+
+## Phase 5 — Stabiliser les parcours métier
+
+- [ ] Tester le parcours complet : création du budget annuel, import des opérations, comparaison mensuelle et ajustement des mois restants.
+- [ ] Vérifier les libellés, formats de date et montants français, ainsi que les états vides et les erreurs.
+- [ ] Vérifier que les opérations non classées, transferts et revenus exceptionnels sont présentés sans ambiguïté.
+- [ ] Mettre à jour la documentation de démarrage et les limites métier connues.
+- [ ] Confirmer que les critères essentiels de [konta.md](./konta.md) sont couverts par des tests automatisés ou des vérifications de parcours.
+
+## Hors de cette roadmap métier
+
+La PWA, l'installation mobile et le déploiement sur Debian/Freebox sont des chantiers techniques distincts. Ils ne doivent pas retarder la validation du budget annuel et de la comparaison prévu/réalisé.
