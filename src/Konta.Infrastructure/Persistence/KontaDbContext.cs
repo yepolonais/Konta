@@ -17,6 +17,9 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<MonthlyBudget> MonthlyBudgets => Set<MonthlyBudget>();
     public DbSet<BudgetOverride> BudgetOverrides => Set<BudgetOverride>();
+    public DbSet<AnnualBudgetPost> AnnualBudgetPosts => Set<AnnualBudgetPost>();
+    public DbSet<BudgetMonthlyAmount> BudgetMonthlyAmounts => Set<BudgetMonthlyAmount>();
+    public DbSet<BudgetPostCategoryMapping> BudgetPostCategoryMappings => Set<BudgetPostCategoryMapping>();
     public DbSet<RecurringForecast> RecurringForecasts => Set<RecurringForecast>();
     public DbSet<ForecastOccurrence> ForecastOccurrences => Set<ForecastOccurrence>();
     public DbSet<AccountBalanceReference> AccountBalanceReferences => Set<AccountBalanceReference>();
@@ -97,6 +100,37 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.HasIndex(item => new { item.BudgetId, item.Year, item.Month }).IsUnique();
             entity.HasOne<MonthlyBudget>().WithMany().HasForeignKey(item => item.BudgetId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AnnualBudgetPost>(entity =>
+        {
+            entity.HasKey(post => post.Id);
+            entity.Property(post => post.Name).HasMaxLength(100).IsRequired();
+            entity.Property(post => post.Type).HasConversion<string>().HasMaxLength(16);
+            entity.HasIndex(post => new { post.Year, post.Name }).IsUnique();
+            entity.HasMany(post => post.MonthlyAmounts)
+                .WithOne()
+                .HasForeignKey(amount => amount.AnnualBudgetPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BudgetMonthlyAmount>(entity =>
+        {
+            entity.HasKey(amount => amount.Id);
+            entity.Property(amount => amount.Amount).HasPrecision(18, 2);
+            entity.HasIndex(amount => new { amount.AnnualBudgetPostId, amount.Month }).IsUnique();
+        });
+
+        modelBuilder.Entity<BudgetPostCategoryMapping>(entity =>
+        {
+            entity.HasKey(mapping => mapping.Id);
+            entity.HasIndex(mapping => new { mapping.Year, mapping.CategoryId }).IsUnique();
+            entity.HasOne<AnnualBudgetPost>().WithMany(post => post.CategoryMappings)
+                .HasForeignKey(mapping => mapping.AnnualBudgetPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(mapping => mapping.Category).WithMany()
+                .HasForeignKey(mapping => mapping.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<RecurringForecast>(entity =>

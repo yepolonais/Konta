@@ -201,6 +201,112 @@ button:disabled { cursor: wait; opacity: .65; }
 .summary-total span { color: var(--muted); font-size: 11px; font-weight: 700; }
 .summary-total strong { font-family: "DM Mono", monospace; font-size: clamp(17px, 2vw, 23px); letter-spacing: -.04em; overflow-wrap: anywhere; }
 .summary-total small { color: var(--muted); font-size: 10px; }
+.annual-budget-panel { margin-bottom: 24px; overflow: hidden; }
+.annual-budget-heading { min-height: 82px; }
+.annual-budget-heading h2 { font-size: 19px; letter-spacing: -.03em; }
+.budget-year-label, .budget-month-label { align-items: center; color: var(--muted); display: flex; font-size: 11px; font-weight: 700; gap: 8px; }
+.budget-year-label input, .budget-month-label select {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  min-height: 38px;
+  padding: 0 8px;
+}
+.budget-year-label input { width: 96px; }
+.annual-budget-totals { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 18px 22px; }
+.annual-budget-total { background: var(--surface-soft); border: 1px solid var(--line); border-top: 3px solid #bbc8bd; border-radius: 5px; display: grid; gap: 6px; min-width: 0; padding: 12px; }
+.annual-budget-total span { color: var(--muted); font-size: 10px; font-weight: 700; }
+.annual-budget-total strong { font-family: "DM Mono", monospace; font-size: clamp(15px, 1.8vw, 20px); overflow-wrap: anywhere; }
+.annual-budget-total.income { border-top-color: var(--wine); }
+.annual-budget-total.expense { border-top-color: var(--coral); }
+.annual-budget-total.savings { border-top-color: #8b7aab; }
+.annual-budget-total.available { background: var(--surface-accent); border-top-color: var(--positive); }
+.annual-budget-form { align-items: end; background: var(--surface-subtle); border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: minmax(180px, 1fr) minmax(150px, .5fr) auto; padding: 16px 22px; }
+.annual-budget-form label { color: var(--muted); display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
+.annual-budget-form input, .annual-budget-form select {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 9px;
+  width: 100%;
+}
+.annual-budget-form button { min-height: 40px; width: auto; white-space: nowrap; }
+.annual-budget-toolbar { align-items: center; display: flex; justify-content: space-between; padding: 12px 22px; }
+.annual-budget-toolbar p { color: var(--muted); font-size: 11px; margin: 0; }
+.budget-month-label select { text-transform: capitalize; }
+main[data-current-page="budget"] { max-width: none; }
+.annual-budget-table { min-width: 1450px; }
+@media (min-width: 1800px) {
+  .annual-budget-table { min-width: 0; width: 100%; }
+}
+.annual-budget-table th { background: var(--surface-subtle); white-space: nowrap; }
+.annual-budget-table th:first-child { min-width: 210px; }
+.annual-budget-table td { padding: 7px 8px; }
+.annual-budget-table input, .annual-budget-table select {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  min-height: 34px;
+  min-width: 60px;
+  padding: 0 6px;
+  width: 100%;
+}
+.annual-budget-table input:disabled, .annual-budget-table select:disabled { background: transparent; border-color: transparent; }
+.annual-budget-table td:first-child { min-width: 210px; }
+.annual-budget-table td:first-child > input { font-weight: 700; }
+.budget-post-type { display: block; margin-top: 4px; }
+.annual-budget-table .budget-post-type select { color: var(--muted); font-size: 10px; min-height: 26px; max-width: 150px; }
+.budget-category-mappings { color: var(--muted); font-size: 10px; margin-top: 4px; position: relative; }
+.budget-category-mappings summary, .budget-transaction-details summary { color: var(--wine-dark); cursor: pointer; font-weight: 700; }
+.budget-category-mapping-list { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; display: grid; gap: 5px; left: 0; max-height: 220px; min-width: 200px; overflow-y: auto; padding: 8px; position: absolute; top: 20px; z-index: 3; }
+.budget-category-mapping-list label { align-items: center; display: flex; gap: 7px; }
+.budget-category-mapping-list input { min-height: 0; width: auto; }
+.budget-category-mapping-list p, .budget-mapping-note { color: var(--muted); font-size: 10px; line-height: 1.4; margin: 0; }
+.budget-monthly-review { border-top: 1px solid var(--line); margin-top: 22px; }
+.budget-monthly-heading { align-items: end; display: flex; justify-content: space-between; padding: 20px 22px 12px; }
+.budget-monthly-heading h3 { font-size: 16px; margin: 0; text-transform: capitalize; }
+.budget-monthly-heading > p { color: var(--muted); font-family: "DM Mono", monospace; font-size: 12px; margin: 0; text-transform: capitalize; }
+.budget-monthly-totals { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 22px 16px; }
+.budget-month-total { background: var(--surface-soft); border: 1px solid var(--line); border-top: 3px solid #bbc8bd; border-radius: 5px; display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; padding: 12px; }
+.budget-month-total.income { border-top-color: var(--wine); }
+.budget-month-total.expense { border-top-color: var(--coral); }
+.budget-month-total.savings { border-top-color: var(--positive); }
+.budget-month-total strong { font-size: 12px; }
+.budget-month-total span { color: var(--muted); font-family: "DM Mono", monospace; font-size: 11px; }
+.budget-monthly-table { min-width: 780px; }
+.budget-monthly-table th { background: var(--surface-subtle); }
+.budget-month-post-name { font-weight: 700; }
+.budget-unmapped { color: var(--muted); font-size: 11px; }
+.budget-variance-negative { color: var(--coral); font-weight: 800; }
+.budget-savings-note { color: var(--muted); font-size: 11px; margin: 0; padding: 0 22px 14px; }
+.budget-transaction-details { margin-top: 6px; }
+.budget-transaction-details summary { font-size: 10px; }
+.budget-transaction-details table { margin-top: 8px; min-width: 580px; }
+.budget-unassigned { background: var(--surface-subtle); border: 1px solid var(--line); border-radius: 5px; margin: 16px 22px 22px; padding: 12px; }
+.budget-unassigned-heading { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; }
+.budget-unassigned-heading strong { color: var(--coral); font-size: 12px; }
+.budget-unassigned-heading span, .budget-unassigned p { color: var(--muted); font-size: 11px; }
+.budget-unassigned p { margin: 8px 0 0; }
+.budget-section-row th { background: var(--surface-accent); color: var(--wine-dark); font-size: 10px; padding: 10px 12px; }
+.budget-section-row.archived th { background: var(--surface-subtle); color: var(--muted); }
+.budget-empty-row td { color: var(--muted); font-size: 11px; padding: 10px 12px; }
+.budget-archived-row { opacity: .7; }
+.budget-actions-cell { min-width: 88px; }
+.budget-actions-cell button { font-size: 10px; min-height: 30px; padding: 0 8px; width: auto; }
+.budget-actions-cell.muted { color: var(--muted); font-size: 10px; text-align: center; }
+.annual-budget-table tfoot th, .annual-budget-table tfoot td { background: var(--surface-subtle); font-weight: 800; }
+.annual-budget-table tfoot .budget-available-row th, .annual-budget-table tfoot .budget-available-row td { background: var(--surface-accent); color: var(--wine-dark); }
 .summary-table-heading { align-items: end; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; padding: 20px 22px 12px; }
 .summary-table-heading p { margin-top: 5px; }
 .summary-table { min-width: 680px; }
@@ -271,6 +377,10 @@ button:disabled { cursor: wait; opacity: .65; }
 :host([data-theme="dark"]) .type.transfer { background: #252e47; color: #b6c5ff; }
 :host([data-theme="dark"]) .summary-total { border-top-color: #7e6870; }
 :host([data-theme="dark"]) .summary-total.net.negative { background: #3a2523; }
+:host([data-theme="dark"]) .annual-budget-total.available { background: #263a2e; }
+:host([data-theme="dark"]) .annual-budget-table tfoot .budget-available-row th,
+:host([data-theme="dark"]) .annual-budget-table tfoot .budget-available-row td { background: #39242d; }
+:host([data-theme="dark"]) .budget-category-mapping-list { background: var(--paper); }
 :host([data-theme="dark"]) .preview-actions button:disabled { background: #63575c; }
 :host([data-theme="dark"]) .forecast-suggestion { color: #edc477; }
 :host([data-theme="dark"]) .transfer-suggestion { color: #b6c5ff; }
@@ -296,6 +406,17 @@ button:disabled { cursor: wait; opacity: .65; }
   .import-panel { order: -1; }
   .summary-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .summary-filters button { grid-column: 1 / -1; width: 100%; }
+  .annual-budget-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 16px; padding-right: 16px; }
+  .annual-budget-form { grid-template-columns: 1fr 1fr; padding-left: 16px; padding-right: 16px; }
+  .annual-budget-form button { grid-column: 1 / -1; width: 100%; }
+  .annual-budget-toolbar { align-items: start; flex-direction: column; gap: 10px; padding: 12px 16px; }
+  .annual-budget-table { min-width: 0; table-layout: fixed; }
+  .annual-budget-table th:first-child, .annual-budget-table td:first-child { min-width: 0; width: 40%; }
+  .annual-budget-table th:nth-child(2), .annual-budget-table td:nth-child(2) { width: 25%; }
+  .annual-budget-table th:nth-child(3), .annual-budget-table td:nth-child(3) { width: 25%; }
+  .annual-budget-table th:last-child, .annual-budget-table td:last-child { width: 10%; }
+  .annual-budget-table td:first-child { overflow-wrap: anywhere; }
+  .annual-budget-table input, .annual-budget-table select { min-width: 0; }
   .rule-form { grid-template-columns: 1fr 1fr; }
   .rule-form-actions { grid-column: 1 / -1; }
   .rule-form-actions button { flex: 1; }
@@ -321,6 +442,13 @@ button:disabled { cursor: wait; opacity: .65; }
   .panel-head { padding: 0 16px; }
   .account-setup, .preview-actions { padding-left: 16px; padding-right: 16px; }
   .summary-filters, .rule-form { padding-left: 16px; padding-right: 16px; }
+  .annual-budget-heading { align-items: center; gap: 8px; padding: 12px 16px; }
+  .annual-budget-total { padding: 10px; }
+  .annual-budget-toolbar p { line-height: 1.5; }
+  .budget-monthly-heading { align-items: start; flex-direction: column; gap: 8px; padding-left: 16px; padding-right: 16px; }
+  .budget-monthly-totals { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; }
+  .budget-savings-note { line-height: 1.5; padding-left: 16px; padding-right: 16px; }
+  .budget-unassigned { margin-left: 16px; margin-right: 16px; }
   .summary-totals { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; }
   .summary-total { padding: 11px 13px; }
   .rule-item { align-items: start; flex-direction: column; padding-left: 16px; padding-right: 16px; }
@@ -336,3 +464,7 @@ button:disabled { cursor: wait; opacity: .65; }
   .balance-form { grid-template-columns: 1fr; }
   .balance-form label:nth-child(2) { grid-column: auto; }
 }
+/* DM Mono n'est chargée qu'en 400/500 : éviter le faux gras flou sur les montants */
+.annual-budget-total strong, .summary-total strong, .budget-month-total strong,
+.annual-budget-table tfoot th, .annual-budget-table tfoot td,
+.section-kicker, td.amount { font-weight: 500; }

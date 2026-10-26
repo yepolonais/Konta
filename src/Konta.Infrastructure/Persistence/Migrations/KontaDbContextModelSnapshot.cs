@@ -80,6 +80,60 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.ToTable("AccountBalanceReferences");
                 });
 
+            modelBuilder.Entity("Konta.Domain.Budgets.AnnualBudgetPost", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Year", "Name")
+                        .IsUnique();
+
+                    b.ToTable("AnnualBudgetPosts");
+                });
+
+            modelBuilder.Entity("Konta.Domain.Budgets.BudgetMonthlyAmount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AnnualBudgetPostId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnnualBudgetPostId", "Month")
+                        .IsUnique();
+
+                    b.ToTable("BudgetMonthlyAmounts");
+                });
+
             modelBuilder.Entity("Konta.Domain.Budgets.BudgetOverride", b =>
                 {
                     b.Property<Guid>("Id")
@@ -105,6 +159,33 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("BudgetOverrides");
+                });
+
+            modelBuilder.Entity("Konta.Domain.Budgets.BudgetPostCategoryMapping", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AnnualBudgetPostId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnnualBudgetPostId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("Year", "CategoryId")
+                        .IsUnique();
+
+                    b.ToTable("BudgetPostCategoryMappings");
                 });
 
             modelBuilder.Entity("Konta.Domain.Budgets.MonthlyBudget", b =>
@@ -427,6 +508,15 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Konta.Domain.Budgets.BudgetMonthlyAmount", b =>
+                {
+                    b.HasOne("Konta.Domain.Budgets.AnnualBudgetPost", null)
+                        .WithMany("MonthlyAmounts")
+                        .HasForeignKey("AnnualBudgetPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Konta.Domain.Budgets.BudgetOverride", b =>
                 {
                     b.HasOne("Konta.Domain.Budgets.MonthlyBudget", null)
@@ -434,6 +524,23 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .HasForeignKey("BudgetId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Konta.Domain.Budgets.BudgetPostCategoryMapping", b =>
+                {
+                    b.HasOne("Konta.Domain.Budgets.AnnualBudgetPost", null)
+                        .WithMany("CategoryMappings")
+                        .HasForeignKey("AnnualBudgetPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Konta.Domain.Categories.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Category");
                 });
 
             modelBuilder.Entity("Konta.Domain.Budgets.MonthlyBudget", b =>
@@ -517,6 +624,13 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.Navigation("DestinationTransaction");
 
                     b.Navigation("SourceTransaction");
+                });
+
+            modelBuilder.Entity("Konta.Domain.Budgets.AnnualBudgetPost", b =>
+                {
+                    b.Navigation("CategoryMappings");
+
+                    b.Navigation("MonthlyAmounts");
                 });
 #pragma warning restore 612, 618
         }

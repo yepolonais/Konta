@@ -1,6 +1,6 @@
 # Konta
 
-Application de suivi des finances du foyer. La phase 1 fournit une API .NET 8, une base SQLite, une interface JavaScript avec Web Components et la prévisualisation des relevés CSV Société Générale.
+Application de suivi des finances du foyer. L'espace Budget permet de créer un budget prévisionnel annuel distinct des opérations réelles, avec des postes de revenus, de dépenses et d'épargne planifiée. L'application fournit une API .NET 8, une base SQLite et une interface JavaScript avec Web Components.
 
 ## Prérequis
 
@@ -27,8 +27,15 @@ dotnet test Konta.sln
 ## Fonctionnalités disponibles
 
 - `GET /api/health` : état de l'API.
-- `GET /api/transactions` : liste des opérations enregistrées (vide au premier démarrage).
-- `POST /api/imports/preview` : envoyer un CSV en multipart, champ `file`; analyse en mémoire uniquement, aucune transaction n'est enregistrée.
-- Interface web pour consulter les opérations et prévisualiser un CSV.
+- `GET /api/annual-budgets/{year}` : consulter les postes, montants mensuels et totaux prévisionnels d'une année.
+- `GET /api/annual-budgets/{year}/months/{month}` : comparer le prévu au réalisé pour un mois, avec le détail des opérations et les opérations non rapprochées.
+- `POST /api/annual-budgets/posts/{id}/months/{month}/copy-forward` : recopier le montant d'un mois sur les mois suivants.
+- `POST /api/annual-budgets/{year}/posts` : ajouter un poste de revenu, dépense ou épargne planifiée.
+- `PUT /api/annual-budgets/posts/{id}` et `DELETE /api/annual-budgets/posts/{id}` : modifier ou archiver un poste.
+- `PUT /api/annual-budgets/posts/{id}/months/{month}` et `DELETE /api/annual-budgets/posts/{id}/months/{month}` : définir ou effacer la prévision d'un mois. Un montant nul explicite est différent d'une prévision absente.
+- `PUT /api/annual-budgets/posts/{id}/categories` : associer une ou plusieurs catégories réelles à un poste de revenu ou dépense (une catégorie par poste actif et par année).
+- L'écran d'accueil propose une grille annuelle pour consulter et modifier les prévisions ainsi qu'un suivi mensuel des revenus et dépenses catégorisés. Les enveloppes d'épargne sont rapprochées comme les autres postes, via des catégories rattachées : seuls les versements sortants comptent, sans gonfler les dépenses.
+- Les opérations réelles restent distinctes du budget et sont consultables depuis les montants réalisés.
+- L'import CSV Société Générale prend en charge la prévisualisation, la validation, la catégorisation et la détection des doublons.
 
-Le parseur reconnaît l'export échantillon (`;`, ISO-8859-1, dates `jj/MM/aaaa`, montants à virgule). Les références de compte et les libellés complets sont conservés dans l'aperçu. Les erreurs sont retournées par ligne. L'import définitif n'est pas encore implémenté.
+Le parseur reconnaît l'export échantillon (`;`, ISO-8859-1, dates `jj/MM/aaaa`, montants à virgule). Les références de compte et les libellés complets sont conservés dans l'aperçu. Les erreurs sont retournées par ligne.

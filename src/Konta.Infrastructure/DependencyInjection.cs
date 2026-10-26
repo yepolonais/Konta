@@ -5,6 +5,7 @@ using Konta.Application.Planning;
 using Konta.Application.Savings;
 using Konta.Application.Accounts;
 using Konta.Application.Transactions;
+using Konta.Application.Budgets;
 using Konta.Infrastructure.Imports;
 using Konta.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IImportCommitRepository, ImportCommitRepository>();
         services.AddScoped<IPlanningRepository, PlanningRepository>();
         services.AddScoped<ISavingsGoalRepository, SavingsGoalRepository>();
+        services.AddScoped<IAnnualBudgetRepository, AnnualBudgetRepository>();
         services.AddSingleton<ITransactionCsvParser, SocieteGeneraleCsvParser>();
         return services;
     }

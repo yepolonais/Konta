@@ -15,17 +15,26 @@ class KontaApp extends HTMLElement {
     this.forecasts = [];
     this.savingsGoals = [];
     this.editingSavingsGoalId = null;
+    this.annualBudget = null;
+    this.annualBudgetCategories = [];
+    this.annualBudgetMonth = null;
+    this.selectedBudgetMonth = new Date().getMonth() + 1;
   }
 
   connectedCallback() {
     this.renderShell();
     this.setTheme(localStorage.getItem("konta-theme") === "dark" ? "dark" : "light");
     this.handlePageNavigation = () => {
-      this.showPage(window.location.hash.slice(1) || "transactions");
+      this.showPage(window.location.hash.slice(1) || "budget");
     };
     window.addEventListener("hashchange", this.handlePageNavigation);
     window.addEventListener("popstate", this.handlePageNavigation);
-    this.showPage(window.location.hash.slice(1) || "transactions");
+    this.handleBudgetResize = () => {
+      if (this.currentPage === "budget") this.renderAnnualBudget();
+    };
+    window.addEventListener("resize", this.handleBudgetResize);
+    this.showPage(window.location.hash.slice(1) || "budget");
+    this.loadAnnualBudget();
     this.loadTransactions();
     this.phase2DataPromise = this.loadPhase2Data();
     this.loadPlanningData();
@@ -34,6 +43,7 @@ class KontaApp extends HTMLElement {
   disconnectedCallback() {
     window.removeEventListener("hashchange", this.handlePageNavigation);
     window.removeEventListener("popstate", this.handlePageNavigation);
+    window.removeEventListener("resize", this.handleBudgetResize);
   }
 
   renderShell() {
@@ -43,7 +53,7 @@ class KontaApp extends HTMLElement {
         <header class="topbar">
           <a class="brand" href="/" aria-label="Konta, accueil"><span class="brand-mark">K</span>Konta</a>
           <nav class="nav" aria-label="Navigation principale">
-            <a href="#transactions" aria-current="page">Opérations</a>
+            <a href="#budget" aria-current="page">Budget</a>
             <a href="#summary">Synthèses</a>
             <a href="#category-rules">Règles</a>
             <a href="#planning">Planification</a>
@@ -55,8 +65,53 @@ class KontaApp extends HTMLElement {
         </header>
         <main>
           <div class="heading">
-            <div><div class="eyebrow">Espace finances · 01</div><h1>Opérations</h1><p class="intro">Consultez les mouvements et prévisualisez un relevé avant traitement.</p></div>
+            <div><div class="eyebrow">Espace finances · 01</div><h1>Budget</h1><p class="intro">Planifiez les revenus, dépenses et montants mis de côté sur l’année.</p></div>
           </div>
+          <section class="panel annual-budget-panel" id="budget" data-page="budget" aria-labelledby="annual-budget-title">
+            <div class="panel-head annual-budget-heading">
+              <div><span class="section-kicker">Prévision annuelle</span><h2 id="annual-budget-title">Budget du foyer</h2></div>
+              <label class="budget-year-label">Année<input id="annual-budget-year" type="number" min="1" max="9998" required></label>
+            </div>
+            <div class="annual-budget-totals" id="annual-budget-totals" aria-live="polite"></div>
+            <form class="annual-budget-form" id="annual-budget-form">
+              <label>Nom du poste<input id="annual-budget-post-name" maxlength="100" placeholder="Ex. Loyer, salaires, vacances" required></label>
+              <label>Type<select id="annual-budget-post-type">
+                <option value="Income">Revenu</option>
+                <option value="Expense">Dépense</option>
+                <option value="Savings">Épargne planifiée</option>
+              </select></label>
+              <button type="submit">Ajouter un poste</button>
+            </form>
+            <div class="annual-budget-toolbar">
+              <p>Les montants prévus sont séparés des opérations réellement importées.</p>
+              <label class="budget-month-label">Mois à suivre<select id="annual-budget-month"></select></label>
+            </div>
+            <p class="feedback" id="annual-budget-feedback" role="status" aria-live="polite" hidden></p>
+            <div class="table-wrap annual-budget-table-wrap">
+              <table class="annual-budget-table">
+                <thead id="annual-budget-head"></thead>
+                <tbody id="annual-budget-body"></tbody>
+                <tfoot id="annual-budget-foot"></tfoot>
+              </table>
+            </div>
+            <p class="empty" id="annual-budget-empty" hidden>Ajoutez vos premiers postes prévisionnels pour construire le budget de l’année.</p>
+            <section class="budget-monthly-review" aria-labelledby="budget-monthly-title">
+              <div class="budget-monthly-heading">
+                <div><span class="section-kicker">Suivi mensuel</span><h3 id="budget-monthly-title">Prévu et réalisé</h3></div>
+                <p id="budget-monthly-period"></p>
+              </div>
+              <div class="budget-monthly-totals" id="budget-monthly-totals"></div>
+              <p class="feedback error" id="budget-month-feedback" role="status" aria-live="polite" hidden></p>
+              <p class="budget-savings-note">Le réalisé d’une enveloppe d’épargne correspond aux versements sortants des catégories rattachées, y compris les virements entre vos comptes.</p>
+              <div class="table-wrap">
+                <table class="budget-monthly-table">
+                  <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th>Écart réalisé − prévu</th></tr></thead>
+                  <tbody id="budget-monthly-body"></tbody>
+                </table>
+              </div>
+              <div class="budget-unassigned" id="budget-unassigned" hidden></div>
+            </section>
+          </section>
           <section class="panel summary-panel" id="summary" data-page="summary" aria-labelledby="summary-title">
             <div class="panel-head"><div><span class="section-kicker">Analyse financière</span><h2 id="summary-title">Vue d’ensemble</h2></div><span class="count summary-count" id="summary-count"></span></div>
             <form class="summary-filters" id="summary-form">
@@ -215,6 +270,19 @@ class KontaApp extends HTMLElement {
       event.preventDefault();
       this.loadSummary();
     });
+    this.shadowRoot.querySelector("#annual-budget-form").addEventListener("submit", event => this.createAnnualBudgetPost(event));
+    this.shadowRoot.querySelector("#annual-budget-year").addEventListener("change", () => this.loadAnnualBudget());
+    this.shadowRoot.querySelector("#annual-budget-month").addEventListener("change", event => {
+      this.selectedBudgetMonth = Number(event.target.value);
+      this.renderAnnualBudget();
+      this.loadAnnualBudgetMonth();
+    });
+    this.shadowRoot.querySelector("#annual-budget-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
+    this.shadowRoot.querySelector("#annual-budget-body").addEventListener("focusin", event => {
+      const input = event.target.closest("[data-month-amount]");
+      if (input) input.closest("[data-post-id]").dataset.sourceMonth = input.dataset.month;
+    });
+    this.shadowRoot.querySelector("#annual-budget-body").addEventListener("click", event => this.handleAnnualBudgetAction(event));
     this.shadowRoot.querySelector("#category-rule-form").addEventListener("submit", event => this.saveCategoryRule(event));
     this.shadowRoot.querySelector("#rule-cancel").addEventListener("click", () => this.resetRuleForm());
     this.shadowRoot.querySelector("#category-form").addEventListener("submit", event => this.createCategory(event));
@@ -263,26 +331,34 @@ class KontaApp extends HTMLElement {
 
     const year = this.shadowRoot.querySelector("#summary-year");
     year.value = new Date().getFullYear();
+    const annualYear = this.shadowRoot.querySelector("#annual-budget-year");
+    annualYear.value = year.value;
     this.shadowRoot.querySelector("#forecast-start").value = new Date().toISOString().slice(0, 10);
     const month = this.shadowRoot.querySelector("#summary-month");
+    const budgetMonth = this.shadowRoot.querySelector("#annual-budget-month");
     for (let value = 1; value <= 12; value++) {
       const option = document.createElement("option");
       option.value = value;
-      option.textContent = new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(2026, value - 1, 1));
-      month.append(option);
+      const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(2026, value - 1, 1));
+      option.textContent = monthName;
+      month.append(option.cloneNode(true));
+      budgetMonth.append(option);
     }
+    budgetMonth.value = String(this.selectedBudgetMonth);
   }
 
   showPage(page) {
     const pages = {
+      budget: ["Budget", "Planifiez les revenus, dépenses et montants mis de côté sur l’année."],
       transactions: ["Opérations", "Consultez les mouvements enregistrés sur vos comptes."],
       summary: ["Synthèses", "Comparez les revenus et les dépenses par mois ou par année."],
       import: ["Import CSV", "Prévisualisez, vérifiez et confirmez l’import de vos relevés."],
       "category-rules": ["Règles", "Gérez vos catégories et les règles de catégorisation automatique."],
       planning: ["Planification", "Suivez vos budgets, échéances, soldes et objectifs d’épargne."]
     };
-    if (!Object.hasOwn(pages, page)) page = "transactions";
+    if (!Object.hasOwn(pages, page)) page = "budget";
     this.currentPage = page;
+    this.shadowRoot.querySelector("main").dataset.currentPage = page;
     for (const element of this.shadowRoot.querySelectorAll("[data-page]")) {
       element.hidden = element.dataset.page !== page || (element.id === "preview-panel" && !this.preview);
     }
@@ -318,6 +394,608 @@ class KontaApp extends HTMLElement {
     toggle.querySelector(".theme-toggle-label").textContent = isDark ? "Clair" : "Sombre";
     document.querySelector('meta[name="theme-color"]').content = isDark ? "#171416" : "#f4f5f1";
     if (persist) localStorage.setItem("konta-theme", theme);
+  }
+
+  async loadAnnualBudget() {
+    const yearInput = this.shadowRoot.querySelector("#annual-budget-year");
+    const year = Number(yearInput.value);
+    if (!Number.isInteger(year) || year < 1 || year > 9998) {
+      this.setAnnualBudgetFeedback("Saisissez une année valide comprise entre 1 et 9998.", true);
+      return;
+    }
+
+    this.setAnnualBudgetFeedback("Chargement du budget…");
+    try {
+      const [budgetResponse, categoriesResponse] = await Promise.all([
+        fetch(`/api/annual-budgets/${year}`),
+        fetch("/api/categories")
+      ]);
+      const [budget, categories] = await Promise.all([budgetResponse.json(), categoriesResponse.json()]);
+      if (!budgetResponse.ok) throw new Error(budget.detail ?? budget.title ?? "Impossible de charger le budget.");
+      if (!categoriesResponse.ok) throw new Error(categories.detail ?? categories.title ?? "Impossible de charger les catégories.");
+      this.annualBudget = budget;
+      this.annualBudgetCategories = categories.filter(category => category.isActive);
+      this.renderAnnualBudget();
+      this.setAnnualBudgetFeedback("");
+      await this.loadAnnualBudgetMonth();
+    } catch (exception) {
+      this.setAnnualBudgetFeedback(exception.message, true);
+    }
+  }
+
+  async loadAnnualBudgetMonth() {
+    const feedback = this.shadowRoot.querySelector("#budget-month-feedback");
+    const year = Number(this.shadowRoot.querySelector("#annual-budget-year").value);
+    const month = this.selectedBudgetMonth;
+    feedback.hidden = true;
+    try {
+      const response = await fetch(`/api/annual-budgets/${year}/months/${month}`);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de charger le suivi mensuel.");
+      this.annualBudgetMonth = result;
+      this.renderAnnualBudgetMonth();
+    } catch (exception) {
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+    }
+  }
+
+  renderAnnualBudget() {
+    if (!this.annualBudget) return;
+    const budget = this.annualBudget;
+    const groups = [
+      ["Income", "Revenus"],
+      ["Expense", "Dépenses"],
+      ["Savings", "Épargne planifiée"]
+    ];
+    const activePosts = budget.posts.filter(post => post.isActive);
+    const narrowLayout = window.matchMedia("(max-width: 800px)").matches;
+    const months = narrowLayout ? [this.selectedBudgetMonth] : Array.from({ length: 12 }, (_, index) => index + 1);
+    const monthNames = months.map(month => new Intl.DateTimeFormat("fr-FR", { month: narrowLayout ? "long" : "short" })
+      .format(new Date(budget.year, month - 1, 1)));
+    const head = this.shadowRoot.querySelector("#annual-budget-head");
+    head.replaceChildren();
+    const headerRow = document.createElement("tr");
+    headerRow.append(this.budgetCell("Poste", "th"));
+    months.forEach((month, index) => {
+      const cell = this.budgetCell(monthNames[index], "th");
+      cell.className = "budget-month-column";
+      headerRow.append(cell);
+    });
+    headerRow.append(this.budgetCell("Total annuel", "th"));
+    headerRow.append(this.budgetCell("", "th"));
+    head.append(headerRow);
+
+    const body = this.shadowRoot.querySelector("#annual-budget-body");
+    body.replaceChildren();
+    for (const [type, label] of groups) {
+      const sectionRow = document.createElement("tr");
+      sectionRow.className = "budget-section-row";
+      const sectionCell = this.budgetCell(label, "th");
+      sectionCell.colSpan = months.length + 3;
+      sectionRow.append(sectionCell);
+      body.append(sectionRow);
+
+      const groupPosts = activePosts.filter(post => post.type === type);
+      for (const post of groupPosts) body.append(this.annualBudgetPostRow(post, months));
+
+      if (groupPosts.length === 0) {
+        const emptyRow = document.createElement("tr");
+        emptyRow.className = "budget-empty-row";
+        const emptyCell = this.budgetCell(`Aucun poste de ${label.toLowerCase()}`, "td");
+        emptyCell.colSpan = months.length + 3;
+        emptyRow.append(emptyCell);
+        body.append(emptyRow);
+      }
+    }
+
+    const archivedPosts = budget.posts.filter(post => !post.isActive);
+    if (archivedPosts.length > 0) {
+      const sectionRow = document.createElement("tr");
+      sectionRow.className = "budget-section-row archived";
+      const sectionCell = this.budgetCell("Postes archivés", "th");
+      sectionCell.colSpan = months.length + 3;
+      sectionRow.append(sectionCell);
+      body.append(sectionRow);
+      for (const post of archivedPosts) body.append(this.annualBudgetPostRow(post, months));
+    }
+
+    this.renderAnnualBudgetTotals(months);
+    this.shadowRoot.querySelector("#annual-budget-empty").hidden = budget.posts.length > 0;
+    this.shadowRoot.querySelector(".annual-budget-table-wrap").hidden = budget.posts.length === 0;
+    this.shadowRoot.querySelector("#budget-monthly-title").textContent =
+      `Prévu et réalisé · ${new Intl.DateTimeFormat("fr-FR", { month: "long" })
+        .format(new Date(budget.year, this.selectedBudgetMonth - 1, 1))}`;
+    if (this.annualBudgetMonth?.year === budget.year && this.annualBudgetMonth?.month === this.selectedBudgetMonth) {
+      this.renderAnnualBudgetMonth();
+    }
+  }
+
+  annualBudgetPostRow(post, months) {
+    const row = document.createElement("tr");
+    row.dataset.postId = post.id;
+    if (!post.isActive) row.className = "budget-archived-row";
+
+    const nameCell = document.createElement("td");
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.maxLength = 100;
+    nameInput.value = post.name;
+    nameInput.disabled = !post.isActive;
+    nameInput.dataset.postName = "";
+    nameInput.setAttribute("aria-label", `Nom du poste, ${post.name}`);
+    nameCell.append(nameInput);
+
+    const typeCell = document.createElement("span");
+    typeCell.className = "budget-post-type";
+    const typeSelect = document.createElement("select");
+    typeSelect.dataset.postType = "";
+    typeSelect.disabled = !post.isActive;
+    for (const [value, label] of [["Income", "Revenu"], ["Expense", "Dépense"], ["Savings", "Épargne"]]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      typeSelect.append(option);
+    }
+    typeSelect.value = post.type;
+    typeSelect.setAttribute("aria-label", `Type du poste, ${post.name}`);
+    typeCell.append(typeSelect);
+    nameCell.append(typeCell);
+    nameCell.append(this.budgetCategoryMappings(post));
+    row.append(nameCell);
+
+    for (const month of months) {
+      const cell = document.createElement("td");
+      cell.className = "budget-month-column";
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "0";
+      input.step = "0.01";
+      input.inputMode = "decimal";
+      input.value = post.monthlyAmounts[month - 1] ?? "";
+      input.disabled = !post.isActive;
+      input.dataset.monthAmount = "";
+      input.dataset.month = month;
+      input.setAttribute("aria-label", `${post.name}, ${new Intl.DateTimeFormat("fr-FR", { month: "long" })
+        .format(new Date(post.year, month - 1, 1))}`);
+      cell.append(input);
+      row.append(cell);
+    }
+
+    const totalCell = document.createElement("td");
+    totalCell.className = "amount";
+    totalCell.dataset.postTotal = "";
+    totalCell.textContent = this.formatCurrency(post.annualTotal);
+    row.append(totalCell);
+
+    const actionCell = document.createElement("td");
+    actionCell.className = "budget-actions-cell";
+    if (post.isActive) {
+      const copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.className = "secondary-button";
+      copyButton.textContent = "Recopier";
+      copyButton.title = "Recopier le montant du dernier mois modifié sur les mois suivants";
+      copyButton.dataset.copyForward = "";
+      copyButton.setAttribute("aria-label", `Recopier le montant de ${post.name} sur les mois suivants`);
+      actionCell.append(copyButton);
+      const archiveButton = document.createElement("button");
+      archiveButton.type = "button";
+      archiveButton.className = "secondary-button";
+      archiveButton.textContent = "Archiver";
+      archiveButton.dataset.archivePost = "";
+      archiveButton.setAttribute("aria-label", `Archiver le poste ${post.name}`);
+      actionCell.append(archiveButton);
+    } else {
+      actionCell.textContent = "Archivé";
+      actionCell.classList.add("muted");
+    }
+    row.append(actionCell);
+    return row;
+  }
+
+  budgetCategoryMappings(post) {
+    const details = document.createElement("details");
+    details.className = "budget-category-mappings";
+    const summary = document.createElement("summary");
+    summary.textContent = `Catégories réelles (${post.categories.length})`;
+    details.append(summary);
+    const list = document.createElement("div");
+    list.className = "budget-category-mapping-list";
+    if (this.annualBudgetCategories.length === 0) {
+      const empty = document.createElement("p");
+      empty.textContent = "Aucune catégorie active. Créez-en depuis Règles.";
+      list.append(empty);
+    }
+    for (const category of this.annualBudgetCategories) {
+      const label = document.createElement("label");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = post.categories.some(mapped => mapped.id === category.id);
+      checkbox.dataset.categoryMapping = "";
+      checkbox.value = category.id;
+      checkbox.disabled = !post.isActive;
+      checkbox.setAttribute("aria-label", `Rattacher la catégorie ${category.name} au poste ${post.name}`);
+      const name = document.createElement("span");
+      name.textContent = category.name;
+      label.append(checkbox, name);
+      list.append(label);
+    }
+    details.append(list);
+    return details;
+  }
+
+  renderAnnualBudgetTotals(months) {
+    const incomeTotal = this.annualBudgetTypeTotal("Income");
+    const expenseTotal = this.annualBudgetTypeTotal("Expense");
+    const savingsTotal = this.annualBudgetTypeTotal("Savings");
+    const types = [
+      ["Income", "Total revenus"],
+      ["Expense", "Total dépenses"],
+      ["Savings", "Total épargne prévue"],
+      ["Available", "Disponible prévisionnel"]
+    ];
+    const foot = this.shadowRoot.querySelector("#annual-budget-foot");
+    foot.replaceChildren();
+    for (const [type, label] of types) {
+      const row = document.createElement("tr");
+      row.className = type === "Available" ? "budget-available-row" : "budget-total-row";
+      row.append(this.budgetCell(label, "th"));
+      for (const month of months) {
+        const cell = this.budgetCell(this.formatCurrency(this.monthlyBudgetTotal(type, month)), "td");
+        cell.className = "amount budget-month-column";
+        row.append(cell);
+      }
+      const annualTotal = type === "Available"
+        ? incomeTotal - expenseTotal - savingsTotal
+        : type === "Income"
+          ? incomeTotal
+          : type === "Expense"
+            ? expenseTotal
+            : savingsTotal;
+      row.append(this.budgetCell(this.formatCurrency(annualTotal), "td"));
+      row.lastChild.className = "amount";
+      row.append(this.budgetCell("", "td"));
+      foot.append(row);
+    }
+
+    const cards = this.shadowRoot.querySelector("#annual-budget-totals");
+    cards.replaceChildren();
+    for (const [label, amount, style] of [
+      ["Revenus prévus", incomeTotal, "income"],
+      ["Dépenses prévues", expenseTotal, "expense"],
+      ["Épargne prévue", savingsTotal, "savings"],
+      ["Disponible annuel", incomeTotal - expenseTotal - savingsTotal, "available"]
+    ]) {
+      const card = document.createElement("article");
+      card.className = `annual-budget-total ${style}`;
+      const title = document.createElement("span");
+      title.textContent = label;
+      const value = document.createElement("strong");
+      value.textContent = this.formatCurrency(amount);
+      card.append(title, value);
+      cards.append(card);
+    }
+  }
+
+  annualBudgetTypeTotal(type) {
+    return this.annualBudget.posts
+      .filter(post => post.isActive && post.type === type)
+      .reduce((total, post) => total + Math.round(post.annualTotal * 100), 0) / 100;
+  }
+
+  monthlyBudgetTotal(type, month) {
+    const totalFor = postType => this.annualBudget.posts
+      .filter(post => post.isActive && post.type === postType)
+      .reduce((total, post) => total + Math.round((post.monthlyAmounts[month - 1] ?? 0) * 100), 0);
+    const income = totalFor("Income");
+    const expense = totalFor("Expense");
+    const savings = totalFor("Savings");
+    const total = type === "Income" ? income
+      : type === "Expense" ? expense
+        : type === "Savings" ? savings
+          : income - expense - savings;
+    return total / 100;
+  }
+
+  renderAnnualBudgetMonth() {
+    if (!this.annualBudgetMonth) return;
+    const summary = this.annualBudgetMonth;
+    const period = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" })
+      .format(new Date(summary.year, summary.month - 1, 1));
+    this.shadowRoot.querySelector("#budget-monthly-period").textContent = period;
+    const totals = this.shadowRoot.querySelector("#budget-monthly-totals");
+    totals.replaceChildren();
+    for (const [label, planned, actual, style] of [
+      ["Revenus", summary.plannedIncomeTotal, summary.actualIncomeTotal, "income"],
+      ["Dépenses", summary.plannedExpenseTotal, summary.actualExpenseTotal, "expense"],
+      ["Épargne", summary.plannedSavingsTotal, summary.actualSavingsTotal, "savings"]
+    ]) {
+      const card = document.createElement("article");
+      card.className = `budget-month-total ${style}`;
+      const title = document.createElement("strong");
+      title.textContent = label;
+      const amounts = document.createElement("span");
+      amounts.textContent = `Prévu ${this.formatCurrency(planned)} · Réalisé ${this.formatCurrency(actual)}`;
+      card.append(title, amounts);
+      totals.append(card);
+    }
+
+    const body = this.shadowRoot.querySelector("#budget-monthly-body");
+    body.replaceChildren();
+    for (const [type, label, typeLabel] of [
+      ["Income", "Revenus", "Revenu"],
+      ["Expense", "Dépenses", "Dépense"],
+      ["Savings", "Épargne planifiée", "Épargne"]
+    ]) {
+      const sectionRow = document.createElement("tr");
+      sectionRow.className = "budget-section-row";
+      const sectionCell = this.budgetCell(label, "th");
+      sectionCell.colSpan = 5;
+      sectionRow.append(sectionCell);
+      body.append(sectionRow);
+
+      const posts = summary.posts.filter(post => post.type === type);
+      if (posts.length === 0) {
+        const row = document.createElement("tr");
+        const emptyCell = this.budgetCell(`Aucun poste de ${label.toLowerCase()}`, "td");
+        emptyCell.colSpan = 5;
+        row.append(emptyCell);
+        body.append(row);
+      }
+
+      for (const post of posts) {
+        const row = document.createElement("tr");
+        row.append(this.budgetCell(typeLabel, "td"), this.budgetCell(post.name, "td"));
+        row.lastChild.className = "budget-month-post-name";
+        row.append(this.budgetCell(
+          post.plannedAmount === null ? "—" : this.formatCurrency(post.plannedAmount),
+          "td"
+        ));
+        const actualCell = document.createElement("td");
+        if (post.actualAmount === null) {
+          actualCell.textContent = "À rapprocher";
+          actualCell.className = "budget-unmapped";
+        } else {
+          actualCell.textContent = this.formatCurrency(post.actualAmount);
+          if (post.transactionCount > 0) {
+            actualCell.append(this.budgetTransactionDetails(post.transactions, `${post.transactionCount} opération${post.transactionCount === 1 ? "" : "s"}`));
+          }
+        }
+        row.append(actualCell);
+        const varianceCell = document.createElement("td");
+        if (post.varianceAmount === null) {
+          varianceCell.textContent = "—";
+        } else {
+          varianceCell.textContent = this.formatSignedCurrency(post.varianceAmount);
+          if ((post.type === "Expense" && post.varianceAmount > 0)
+            || (post.type === "Income" && post.varianceAmount < 0)) {
+            varianceCell.className = "budget-variance-negative";
+          }
+        }
+        row.append(varianceCell);
+        body.append(row);
+      }
+    }
+
+    const unassigned = this.shadowRoot.querySelector("#budget-unassigned");
+    unassigned.replaceChildren();
+    unassigned.hidden = summary.unassignedTransactionCount === 0;
+    if (summary.unassignedTransactionCount > 0) {
+      const heading = document.createElement("div");
+      heading.className = "budget-unassigned-heading";
+      const title = document.createElement("strong");
+      title.textContent = `${summary.unassignedTransactionCount} opération${summary.unassignedTransactionCount === 1 ? "" : "s"} non rapprochée${summary.unassignedTransactionCount === 1 ? "" : "s"}`;
+      const amount = document.createElement("span");
+      amount.textContent = `Revenus ${this.formatCurrency(summary.unassignedIncomeTotal)} · Dépenses ${this.formatCurrency(summary.unassignedExpenseTotal)}`;
+      heading.append(title, amount);
+      unassigned.append(heading, this.budgetTransactionDetails(summary.unassignedTransactions, "Voir les opérations à rapprocher"));
+      const help = document.createElement("p");
+      help.textContent = "Rattachez leurs catégories au poste correspondant dans la grille annuelle pour les inclure dans les comparaisons.";
+      unassigned.append(help);
+    }
+  }
+
+  budgetTransactionDetails(transactions, summaryText) {
+    const details = document.createElement("details");
+    details.className = "budget-transaction-details";
+    const summary = document.createElement("summary");
+    summary.textContent = summaryText;
+    details.append(summary);
+    const table = document.createElement("table");
+    const head = document.createElement("thead");
+    const header = document.createElement("tr");
+    for (const label of ["Date", "Opération", "Compte", "Type", "Montant"]) {
+      header.append(this.budgetCell(label, "th"));
+    }
+    head.append(header);
+    const tableBody = document.createElement("tbody");
+    for (const transaction of transactions) tableBody.append(this.transactionRow(transaction));
+    table.append(head, tableBody);
+    details.append(table);
+    return details;
+  }
+
+  budgetCell(text, tagName) {
+    const cell = document.createElement(tagName);
+    cell.textContent = text;
+    return cell;
+  }
+
+  async createAnnualBudgetPost(event) {
+    event.preventDefault();
+    const nameInput = this.shadowRoot.querySelector("#annual-budget-post-name");
+    const type = this.shadowRoot.querySelector("#annual-budget-post-type").value;
+    const year = Number(this.shadowRoot.querySelector("#annual-budget-year").value);
+    try {
+      const response = await fetch(`/api/annual-budgets/${year}/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nameInput.value.trim(), type })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’ajouter le poste.");
+      nameInput.value = "";
+      await this.loadAnnualBudget();
+      this.setAnnualBudgetFeedback(`Poste « ${result.name} » ajouté.`);
+      nameInput.focus();
+    } catch (exception) {
+      this.setAnnualBudgetFeedback(exception.message, true);
+    }
+  }
+
+  async handleAnnualBudgetChange(event) {
+    const input = event.target;
+    const row = input.closest("[data-post-id]");
+    if (!row) return;
+    const post = this.annualBudget?.posts.find(item => item.id === row.dataset.postId);
+    if (!post) return;
+    if (input.matches("[data-category-mapping]")) {
+      await this.handleBudgetCategoryMappingChange(row, post);
+      return;
+    }
+
+    try {
+      let response;
+      if (input.matches("[data-post-name], [data-post-type]")) {
+        response = await fetch(`/api/annual-budgets/posts/${post.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: row.querySelector("[data-post-name]").value.trim(),
+            type: row.querySelector("[data-post-type]").value
+          })
+        });
+      } else if (input.matches("[data-month-amount]")) {
+        const month = input.dataset.month;
+        response = input.value === ""
+          ? await fetch(`/api/annual-budgets/posts/${post.id}/months/${month}`, { method: "DELETE" })
+          : await fetch(`/api/annual-budgets/posts/${post.id}/months/${month}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ amount: Number(input.value) })
+          });
+      } else {
+        return;
+      }
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’enregistrer cette modification.");
+      if (input.matches("[data-post-type]")) {
+        await this.loadAnnualBudget();
+        this.setAnnualBudgetFeedback("Type de poste modifié.");
+        return;
+      }
+      const index = this.annualBudget.posts.findIndex(item => item.id === result.id);
+      if (index < 0) throw new Error("Le poste modifié est absent du budget affiché.");
+      this.annualBudget.posts[index] = result;
+      row.querySelector("[data-post-total]").textContent = this.formatCurrency(result.annualTotal);
+      this.renderAnnualBudgetTotals(
+        window.matchMedia("(max-width: 800px)").matches
+          ? [this.selectedBudgetMonth]
+          : Array.from({ length: 12 }, (_, monthIndex) => monthIndex + 1)
+      );
+      this.setAnnualBudgetFeedback("Modification enregistrée.");
+      await this.loadAnnualBudgetMonth();
+    } catch (exception) {
+      this.setAnnualBudgetFeedback(exception.message, true);
+      await this.loadAnnualBudget();
+    }
+  }
+
+  async handleBudgetCategoryMappingChange(row, post) {
+    const categoryIds = [...row.querySelectorAll("[data-category-mapping]:checked")]
+      .map(checkbox => checkbox.value);
+    try {
+      const response = await fetch(`/api/annual-budgets/posts/${post.id}/categories`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryIds })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’enregistrer le rapprochement.");
+      const index = this.annualBudget.posts.findIndex(item => item.id === result.id);
+      if (index < 0) throw new Error("Le poste rapproché est absent du budget affiché.");
+      this.annualBudget.posts[index] = result;
+      this.renderAnnualBudget();
+      await this.loadAnnualBudgetMonth();
+      this.setAnnualBudgetFeedback("Rapprochement des catégories enregistré.");
+    } catch (exception) {
+      this.setAnnualBudgetFeedback(exception.message, true);
+      await this.loadAnnualBudget();
+    }
+  }
+
+  async handleAnnualBudgetAction(event) {
+    const copyButton = event.target.closest("[data-copy-forward]");
+    if (copyButton) {
+      await this.copyBudgetAmountForward(copyButton);
+      return;
+    }
+
+    const button = event.target.closest("[data-archive-post]");
+    if (!button) return;
+    const row = button.closest("[data-post-id]");
+    const post = this.annualBudget?.posts.find(item => item.id === row?.dataset.postId);
+    if (!post || !window.confirm(`Archiver « ${post.name} » ? Les montants déjà prévus seront conservés.`)) return;
+    button.disabled = true;
+    try {
+      const response = await fetch(`/api/annual-budgets/posts/${post.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.detail ?? result.title ?? "Impossible d’archiver le poste.");
+      }
+      await this.loadAnnualBudget();
+      this.setAnnualBudgetFeedback(`Poste « ${post.name} » archivé. Ses montants sont conservés.`);
+    } catch (exception) {
+      this.setAnnualBudgetFeedback(exception.message, true);
+      button.disabled = false;
+    }
+  }
+
+  async copyBudgetAmountForward(button) {
+    const row = button.closest("[data-post-id]");
+    const post = this.annualBudget?.posts.find(item => item.id === row?.dataset.postId);
+    if (!post) return;
+    const inputs = [...row.querySelectorAll("[data-month-amount]")];
+    const source = inputs.find(input => input.dataset.month === row.dataset.sourceMonth && input.value !== "")
+      ?? inputs.find(input => input.value !== "");
+    if (!source) {
+      this.setAnnualBudgetFeedback("Saisissez d’abord un montant à recopier.", true);
+      return;
+    }
+    if (source.dataset.month === "12") {
+      this.setAnnualBudgetFeedback("Décembre est le dernier mois : il n’y a rien à recopier.", true);
+      return;
+    }
+
+    button.disabled = true;
+    try {
+      const base = `/api/annual-budgets/posts/${post.id}/months/${source.dataset.month}`;
+      const saved = await fetch(base, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: Number(source.value) })
+      });
+      if (!saved.ok) throw new Error((await saved.json()).detail ?? "Impossible d’enregistrer le montant à recopier.");
+      const response = await fetch(`${base}/copy-forward`, { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de recopier le montant.");
+      await this.loadAnnualBudget();
+      const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" })
+        .format(new Date(post.year, Number(source.dataset.month) - 1, 1));
+      this.setAnnualBudgetFeedback(`Montant de ${monthName} recopié sur les mois suivants pour « ${post.name} ».`);
+    } catch (exception) {
+      this.setAnnualBudgetFeedback(exception.message, true);
+      button.disabled = false;
+    }
+  }
+
+  setAnnualBudgetFeedback(message, isError = false) {
+    const feedback = this.shadowRoot.querySelector("#annual-budget-feedback");
+    feedback.textContent = message;
+    feedback.className = `feedback${isError ? " error" : ""}`;
+    feedback.hidden = !message;
   }
 
   async loadTransactions() {
@@ -357,8 +1035,13 @@ class KontaApp extends HTMLElement {
         accountsResponse.json(),
         rulesResponse.json()
       ]);
+      this.annualBudgetCategories = this.categories.filter(category => category.isActive);
       this.renderPhase2Data();
       await this.loadSummary();
+      if (this.annualBudget) {
+        this.renderAnnualBudget();
+        await this.loadAnnualBudgetMonth();
+      }
     } catch (exception) {
       feedback.className = "feedback error";
       feedback.textContent = exception.message;
@@ -1623,6 +2306,10 @@ class KontaApp extends HTMLElement {
 
   formatCurrency(amount) {
     return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
+  }
+
+  formatSignedCurrency(amount) {
+    return amount > 0 ? `+${this.formatCurrency(amount)}` : this.formatCurrency(amount);
   }
 
   formatPercent(value) {
