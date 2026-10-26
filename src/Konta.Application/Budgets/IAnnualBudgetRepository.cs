@@ -9,6 +9,7 @@ public interface IAnnualBudgetRepository
     Task<bool> ExistsByNameAsync(int year, string name, Guid? excludedId, CancellationToken cancellationToken);
     Task AddPostAsync(AnnualBudgetPost post, CancellationToken cancellationToken);
     Task UpdatePostAsync(AnnualBudgetPost post, CancellationToken cancellationToken);
+    Task DeletePostAsync(AnnualBudgetPost post, CancellationToken cancellationToken);
     Task SetMonthlyAmountAsync(Guid postId, int month, decimal? amount, CancellationToken cancellationToken);
     Task SetCategoryMappingsAsync(
         Guid postId,

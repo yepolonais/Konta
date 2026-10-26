@@ -45,7 +45,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
-    public async Task DeletePost_PreservesHistoricalAmounts_AndExcludesPostFromTotals()
+    public async Task DeletePost_RemovesPostAndItsAmounts()
     {
         // Arrange
         using var dataDirectory = new TemporaryDirectory();
@@ -62,9 +62,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
         summaryResponse.EnsureSuccessStatusCode();
         using var payload = JsonDocument.Parse(await summaryResponse.Content.ReadAsStringAsync());
-        var post = Assert.Single(payload.RootElement.GetProperty("posts").EnumerateArray());
-        Assert.False(post.GetProperty("isActive").GetBoolean());
-        Assert.Equal(150m, post.GetProperty("annualTotal").GetDecimal());
+        Assert.Empty(payload.RootElement.GetProperty("posts").EnumerateArray());
         Assert.Equal(0m, payload.RootElement.GetProperty("expenseTotal").GetDecimal());
     }
 
@@ -200,28 +198,28 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
-    public async Task DeletePost_AllowsCategoryReassignment_WhenPostIsArchived()
+    public async Task DeletePost_AllowsCategoryReassignment()
     {
         // Arrange
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
         var categoryId = await CreateCategoryAsync(client, "Courses");
-        var archivedPostId = await CreatePostAsync(client, 2026, "Anciennes courses", "Expense");
+        var deletedPostId = await CreatePostAsync(client, 2026, "Anciennes courses", "Expense");
         var activePostId = await CreatePostAsync(client, 2026, "Courses", "Expense");
         using var initialMapping = await client.PutAsync(
-            $"/api/annual-budgets/posts/{archivedPostId}/categories",
+            $"/api/annual-budgets/posts/{deletedPostId}/categories",
             JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
         initialMapping.EnsureSuccessStatusCode();
 
         // Act
-        using var archiveResponse = await client.DeleteAsync($"/api/annual-budgets/posts/{archivedPostId}");
+        using var deleteResponse = await client.DeleteAsync($"/api/annual-budgets/posts/{deletedPostId}");
         using var reassignmentResponse = await client.PutAsync(
             $"/api/annual-budgets/posts/{activePostId}/categories",
             JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
 
         // Assert
-        Assert.Equal(HttpStatusCode.NoContent, archiveResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
         reassignmentResponse.EnsureSuccessStatusCode();
     }
 

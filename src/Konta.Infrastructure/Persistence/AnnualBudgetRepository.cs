@@ -61,6 +61,12 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task DeletePostAsync(AnnualBudgetPost post, CancellationToken cancellationToken)
+    {
+        dbContext.AnnualBudgetPosts.Remove(post);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task SetMonthlyAmountAsync(
         Guid postId,
         int month,

@@ -184,9 +184,7 @@ public sealed class AnnualBudgetService(
             return false;
         }
 
-        post.CategoryMappings.Clear();
-        post.SetActive(false);
-        await repository.UpdatePostAsync(post, cancellationToken);
+        await repository.DeletePostAsync(post, cancellationToken);
         return true;
     }
 

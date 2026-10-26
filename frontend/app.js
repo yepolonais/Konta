@@ -282,6 +282,10 @@ class KontaApp extends HTMLElement {
       const input = event.target.closest("[data-month-amount]");
       if (input) input.closest("[data-post-id]").dataset.sourceMonth = input.dataset.month;
     });
+    // Garde le focus sur le champ pour que la flèche reste visible et que la valeur saisie soit recopiée.
+    this.shadowRoot.querySelector("#annual-budget-body").addEventListener("mousedown", event => {
+      if (event.target.closest(".budget-inline-copy")) event.preventDefault();
+    });
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("click", event => this.handleAnnualBudgetAction(event));
     this.shadowRoot.querySelector("#category-rule-form").addEventListener("submit", event => this.saveCategoryRule(event));
     this.shadowRoot.querySelector("#rule-cancel").addEventListener("click", () => this.resetRuleForm());
@@ -464,6 +468,7 @@ class KontaApp extends HTMLElement {
     });
     headerRow.append(this.budgetCell("Total annuel", "th"));
     headerRow.append(this.budgetCell("", "th"));
+    headerRow.append(this.budgetCell("Catégories réelles", "th"));
     head.append(headerRow);
 
     const body = this.shadowRoot.querySelector("#annual-budget-body");
@@ -472,7 +477,7 @@ class KontaApp extends HTMLElement {
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row";
       const sectionCell = this.budgetCell(label, "th");
-      sectionCell.colSpan = months.length + 3;
+      sectionCell.colSpan = months.length + 4;
       sectionRow.append(sectionCell);
       body.append(sectionRow);
 
@@ -483,7 +488,7 @@ class KontaApp extends HTMLElement {
         const emptyRow = document.createElement("tr");
         emptyRow.className = "budget-empty-row";
         const emptyCell = this.budgetCell(`Aucun poste de ${label.toLowerCase()}`, "td");
-        emptyCell.colSpan = months.length + 3;
+        emptyCell.colSpan = months.length + 4;
         emptyRow.append(emptyCell);
         body.append(emptyRow);
       }
@@ -494,7 +499,7 @@ class KontaApp extends HTMLElement {
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row archived";
       const sectionCell = this.budgetCell("Postes archivés", "th");
-      sectionCell.colSpan = months.length + 3;
+      sectionCell.colSpan = months.length + 4;
       sectionRow.append(sectionCell);
       body.append(sectionRow);
       for (const post of archivedPosts) body.append(this.annualBudgetPostRow(post, months));
@@ -512,6 +517,7 @@ class KontaApp extends HTMLElement {
   }
 
   annualBudgetPostRow(post, months) {
+    const inlineCopy = months.length > 1;
     const row = document.createElement("tr");
     row.dataset.postId = post.id;
     if (!post.isActive) row.className = "budget-archived-row";
@@ -526,22 +532,6 @@ class KontaApp extends HTMLElement {
     nameInput.setAttribute("aria-label", `Nom du poste, ${post.name}`);
     nameCell.append(nameInput);
 
-    const typeCell = document.createElement("span");
-    typeCell.className = "budget-post-type";
-    const typeSelect = document.createElement("select");
-    typeSelect.dataset.postType = "";
-    typeSelect.disabled = !post.isActive;
-    for (const [value, label] of [["Income", "Revenu"], ["Expense", "Dépense"], ["Savings", "Épargne"]]) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = label;
-      typeSelect.append(option);
-    }
-    typeSelect.value = post.type;
-    typeSelect.setAttribute("aria-label", `Type du poste, ${post.name}`);
-    typeCell.append(typeSelect);
-    nameCell.append(typeCell);
-    nameCell.append(this.budgetCategoryMappings(post));
     row.append(nameCell);
 
     for (const month of months) {
@@ -559,6 +549,18 @@ class KontaApp extends HTMLElement {
       input.setAttribute("aria-label", `${post.name}, ${new Intl.DateTimeFormat("fr-FR", { month: "long" })
         .format(new Date(post.year, month - 1, 1))}`);
       cell.append(input);
+      if (inlineCopy && post.isActive && month < 12) {
+        cell.classList.add("budget-month-editable");
+        const copy = this.budgetIconButton({
+          label: `Recopier le montant de ${post.name} sur les mois suivants`,
+          title: "Recopier ce montant sur les mois suivants",
+          dataAttribute: "copyForward",
+          paths: ["M5 12h14", "M13 6l6 6-6 6"]
+        });
+        copy.dataset.month = month;
+        copy.classList.add("budget-inline-copy");
+        cell.append(copy);
+      }
       row.append(cell);
     }
 
@@ -570,28 +572,46 @@ class KontaApp extends HTMLElement {
 
     const actionCell = document.createElement("td");
     actionCell.className = "budget-actions-cell";
-    if (post.isActive) {
-      const copyButton = document.createElement("button");
-      copyButton.type = "button";
-      copyButton.className = "secondary-button";
-      copyButton.textContent = "Recopier";
-      copyButton.title = "Recopier le montant du dernier mois modifié sur les mois suivants";
-      copyButton.dataset.copyForward = "";
-      copyButton.setAttribute("aria-label", `Recopier le montant de ${post.name} sur les mois suivants`);
-      actionCell.append(copyButton);
-      const archiveButton = document.createElement("button");
-      archiveButton.type = "button";
-      archiveButton.className = "secondary-button";
-      archiveButton.textContent = "Archiver";
-      archiveButton.dataset.archivePost = "";
-      archiveButton.setAttribute("aria-label", `Archiver le poste ${post.name}`);
-      actionCell.append(archiveButton);
-    } else {
-      actionCell.textContent = "Archivé";
-      actionCell.classList.add("muted");
+    if (post.isActive && !inlineCopy) {
+      actionCell.append(this.budgetIconButton({
+        label: `Recopier le montant de ${post.name} sur les mois suivants`,
+        title: "Recopier le montant du dernier mois modifié sur les mois suivants",
+        dataAttribute: "copyForward",
+        paths: ["M5 12h14", "M13 6l6 6-6 6"]
+      }));
     }
+    actionCell.append(this.budgetIconButton({
+      label: `Supprimer le poste ${post.name}`,
+      title: "Supprimer le poste",
+      dataAttribute: "deletePost",
+      paths: ["M4 7h16", "M10 11v6", "M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3"]
+    }));
     row.append(actionCell);
+
+    const mappingCell = document.createElement("td");
+    mappingCell.className = "budget-mapping-cell";
+    mappingCell.append(this.budgetCategoryMappings(post));
+    row.append(mappingCell);
     return row;
+  }
+
+  budgetIconButton({ label, title, dataAttribute, paths }) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button icon-button";
+    button.title = title;
+    button.dataset[dataAttribute] = "";
+    button.setAttribute("aria-label", label);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    for (const definition of paths) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", definition);
+      svg.append(path);
+    }
+    button.append(svg);
+    return button;
   }
 
   budgetCategoryMappings(post) {
@@ -655,7 +675,7 @@ class KontaApp extends HTMLElement {
             : savingsTotal;
       row.append(this.budgetCell(this.formatCurrency(annualTotal), "td"));
       row.lastChild.className = "amount";
-      row.append(this.budgetCell("", "td"));
+      row.append(this.budgetCell("", "td"), this.budgetCell("", "td"));
       foot.append(row);
     }
 
@@ -857,13 +877,13 @@ class KontaApp extends HTMLElement {
 
     try {
       let response;
-      if (input.matches("[data-post-name], [data-post-type]")) {
+      if (input.matches("[data-post-name]")) {
         response = await fetch(`/api/annual-budgets/posts/${post.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: row.querySelector("[data-post-name]").value.trim(),
-            type: row.querySelector("[data-post-type]").value
+            type: post.type
           })
         });
       } else if (input.matches("[data-month-amount]")) {
@@ -881,11 +901,6 @@ class KontaApp extends HTMLElement {
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’enregistrer cette modification.");
-      if (input.matches("[data-post-type]")) {
-        await this.loadAnnualBudget();
-        this.setAnnualBudgetFeedback("Type de poste modifié.");
-        return;
-      }
       const index = this.annualBudget.posts.findIndex(item => item.id === result.id);
       if (index < 0) throw new Error("Le poste modifié est absent du budget affiché.");
       this.annualBudget.posts[index] = result;
@@ -933,20 +948,20 @@ class KontaApp extends HTMLElement {
       return;
     }
 
-    const button = event.target.closest("[data-archive-post]");
+    const button = event.target.closest("[data-delete-post]");
     if (!button) return;
     const row = button.closest("[data-post-id]");
     const post = this.annualBudget?.posts.find(item => item.id === row?.dataset.postId);
-    if (!post || !window.confirm(`Archiver « ${post.name} » ? Les montants déjà prévus seront conservés.`)) return;
+    if (!post || !window.confirm(`Supprimer « ${post.name} » ? Le poste et tous ses montants seront définitivement supprimés.`)) return;
     button.disabled = true;
     try {
       const response = await fetch(`/api/annual-budgets/posts/${post.id}`, { method: "DELETE" });
       if (!response.ok) {
         const result = await response.json();
-        throw new Error(result.detail ?? result.title ?? "Impossible d’archiver le poste.");
+        throw new Error(result.detail ?? result.title ?? "Impossible de supprimer le poste.");
       }
       await this.loadAnnualBudget();
-      this.setAnnualBudgetFeedback(`Poste « ${post.name} » archivé. Ses montants sont conservés.`);
+      this.setAnnualBudgetFeedback(`Poste « ${post.name} » supprimé.`);
     } catch (exception) {
       this.setAnnualBudgetFeedback(exception.message, true);
       button.disabled = false;
@@ -958,7 +973,8 @@ class KontaApp extends HTMLElement {
     const post = this.annualBudget?.posts.find(item => item.id === row?.dataset.postId);
     if (!post) return;
     const inputs = [...row.querySelectorAll("[data-month-amount]")];
-    const source = inputs.find(input => input.dataset.month === row.dataset.sourceMonth && input.value !== "")
+    const sourceMonth = button.dataset.month ?? row.dataset.sourceMonth;
+    const source = inputs.find(input => input.dataset.month === sourceMonth && input.value !== "")
       ?? inputs.find(input => input.value !== "");
     if (!source) {
       this.setAnnualBudgetFeedback("Saisissez d’abord un montant à recopier.", true);

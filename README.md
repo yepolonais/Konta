@@ -31,7 +31,7 @@ dotnet test Konta.sln
 - `GET /api/annual-budgets/{year}/months/{month}` : comparer le prévu au réalisé pour un mois, avec le détail des opérations et les opérations non rapprochées.
 - `POST /api/annual-budgets/posts/{id}/months/{month}/copy-forward` : recopier le montant d'un mois sur les mois suivants.
 - `POST /api/annual-budgets/{year}/posts` : ajouter un poste de revenu, dépense ou épargne planifiée.
-- `PUT /api/annual-budgets/posts/{id}` et `DELETE /api/annual-budgets/posts/{id}` : modifier ou archiver un poste.
+- `PUT /api/annual-budgets/posts/{id}` et `DELETE /api/annual-budgets/posts/{id}` : modifier ou supprimer définitivement un poste (avec ses montants mensuels).
 - `PUT /api/annual-budgets/posts/{id}/months/{month}` et `DELETE /api/annual-budgets/posts/{id}/months/{month}` : définir ou effacer la prévision d'un mois. Un montant nul explicite est différent d'une prévision absente.
 - `PUT /api/annual-budgets/posts/{id}/categories` : associer une ou plusieurs catégories réelles à un poste de revenu ou dépense (une catégorie par poste actif et par année).
 - L'écran d'accueil propose une grille annuelle pour consulter et modifier les prévisions ainsi qu'un suivi mensuel des revenus et dépenses catégorisés. Les enveloppes d'épargne sont rapprochées comme les autres postes, via des catégories rattachées : seuls les versements sortants comptent, sans gonfler les dépenses.

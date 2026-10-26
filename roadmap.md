@@ -39,6 +39,7 @@ L'application doit être organisée autour de deux espaces complémentaires, plu
 - [ ] Intégrer les contributions aux objectifs d'épargne dans le budget et leur comparaison au réalisé.
 - [ ] Déplacer l'alignement du solde de référence dans Opérations réelles.
 - [ ] Conserver les écrans Synthèses et Règles, qui sont utiles dans l'organisation actuelle.
+- [x] Permettre de supprimer définitivement un poste de revenus ou de dépenses saisi par erreur (remplace l'archivage).
 
 ## Décision d'interface — grille annuelle et suivi mensuel
 
