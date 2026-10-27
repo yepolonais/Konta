@@ -1,3 +1,10 @@
+const BUDGET_GROUPS = [
+  { type: "Income", label: "Revenus", typeLabel: "Revenu" },
+  { type: "Expense", expenseKind: "Fixed", label: "Charges fixes", typeLabel: "Dépense" },
+  { type: "Expense", expenseKind: "Variable", label: "Dépenses variables", typeLabel: "Dépense" },
+  { type: "Savings", label: "Épargne planifiée", typeLabel: "Épargne" }
+];
+
 class KontaApp extends HTMLElement {
   constructor() {
     super();
@@ -475,12 +482,6 @@ class KontaApp extends HTMLElement {
   renderAnnualBudget() {
     if (!this.annualBudget) return;
     const budget = this.annualBudget;
-    const groups = [
-      { type: "Income", label: "Revenus" },
-      { type: "Expense", expenseKind: "Fixed", label: "Charges fixes" },
-      { type: "Expense", expenseKind: "Variable", label: "Dépenses variables" },
-      { type: "Savings", label: "Épargne planifiée" }
-    ];
     const activePosts = budget.posts.filter(post => post.isActive);
     const narrowLayout = window.matchMedia("(max-width: 800px)").matches;
     const months = narrowLayout ? [this.selectedBudgetMonth] : Array.from({ length: 12 }, (_, index) => index + 1);
@@ -502,7 +503,7 @@ class KontaApp extends HTMLElement {
 
     const body = this.shadowRoot.querySelector("#annual-budget-body");
     body.replaceChildren();
-    for (const { type, expenseKind, label } of groups) {
+    for (const { type, expenseKind, label } of BUDGET_GROUPS) {
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row";
       const sectionCell = this.budgetCell(label, "th");
@@ -819,12 +820,7 @@ class KontaApp extends HTMLElement {
 
     const body = this.shadowRoot.querySelector("#budget-monthly-body");
     body.replaceChildren();
-    for (const { type, expenseKind, label, typeLabel } of [
-      { type: "Income", label: "Revenus", typeLabel: "Revenu" },
-      { type: "Expense", expenseKind: "Fixed", label: "Charges fixes", typeLabel: "Dépense" },
-      { type: "Expense", expenseKind: "Variable", label: "Dépenses variables", typeLabel: "Dépense" },
-      { type: "Savings", label: "Épargne planifiée", typeLabel: "Épargne" }
-    ]) {
+    for (const { type, expenseKind, label, typeLabel } of BUDGET_GROUPS) {
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row";
       const sectionCell = this.budgetCell(label, "th");

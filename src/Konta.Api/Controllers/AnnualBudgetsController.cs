@@ -65,12 +65,7 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         {
             if (request.ExpenseKind.HasValue && !Enum.IsDefined(request.ExpenseKind.Value))
             {
-                return BadRequest(new ProblemDetails
-                {
-                    Title = "Catégorie de dépense invalide",
-                    Detail = "Choisissez une charge fixe ou une dépense variable.",
-                    Status = StatusCodes.Status400BadRequest
-                });
+                return BadRequest(InvalidExpenseKind());
             }
 
             var post = await annualBudgetService.CreatePostAsync(
@@ -120,12 +115,7 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         {
             if (request.ExpenseKind.HasValue && !Enum.IsDefined(request.ExpenseKind.Value))
             {
-                return BadRequest(new ProblemDetails
-                {
-                    Title = "Catégorie de dépense invalide",
-                    Detail = "Choisissez une charge fixe ou une dépense variable.",
-                    Status = StatusCodes.Status400BadRequest
-                });
+                return BadRequest(InvalidExpenseKind());
             }
 
             var post = await annualBudgetService.UpdatePostAsync(
@@ -379,6 +369,13 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
             });
         }
     }
+
+    private static ProblemDetails InvalidExpenseKind() => new()
+    {
+        Title = "Catégorie de dépense invalide",
+        Detail = "Choisissez une charge fixe ou une dépense variable.",
+        Status = StatusCodes.Status400BadRequest
+    };
 
     private static ProblemDetails InvalidRequest(ArgumentException exception) => new()
     {

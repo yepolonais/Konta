@@ -161,15 +161,9 @@ public sealed class AnnualBudgetService(
             throw new DuplicateAnnualBudgetPostException(normalizedName);
         }
 
-        AnnualBudgetExpenseKind? targetExpenseKind = type == AnnualBudgetPostType.Expense
-            ? expenseKind ?? AnnualBudgetExpenseKind.Variable
-            : null;
+        var targetExpenseKind = ResolveExpenseKind(type, expenseKind);
         var existingPosts = await repository.ListPostsAsync(year, cancellationToken);
-        var sortOrder = existingPosts
-            .Where(item => item.IsActive && IsInGroup(item, type, targetExpenseKind))
-            .Select(item => item.SortOrder)
-            .DefaultIfEmpty(-1)
-            .Max() + 1;
+        var sortOrder = NextSortOrder(existingPosts, null, type, targetExpenseKind);
         var post = new AnnualBudgetPost(year, normalizedName, type, targetExpenseKind, sortOrder);
         await repository.AddPostAsync(post, cancellationToken);
         return ToItem(post);
@@ -195,18 +189,11 @@ public sealed class AnnualBudgetService(
             throw new DuplicateAnnualBudgetPostException(normalizedName);
         }
 
-        AnnualBudgetExpenseKind? targetExpenseKind = type == AnnualBudgetPostType.Expense
-            ? expenseKind ?? AnnualBudgetExpenseKind.Variable
-            : null;
+        var targetExpenseKind = ResolveExpenseKind(type, expenseKind);
         if (!IsInGroup(post, type, targetExpenseKind))
         {
             var existingPosts = await repository.ListPostsAsync(post.Year, cancellationToken);
-            var sortOrder = existingPosts
-                .Where(item => item.Id != post.Id && item.IsActive && IsInGroup(item, type, targetExpenseKind))
-                .Select(item => item.SortOrder)
-                .DefaultIfEmpty(-1)
-                .Max() + 1;
-            post.SetSortOrder(sortOrder);
+            post.SetSortOrder(NextSortOrder(existingPosts, post.Id, type, targetExpenseKind));
         }
 
         post.Update(normalizedName, type, targetExpenseKind);
@@ -468,6 +455,22 @@ public sealed class AnnualBudgetService(
 
     private static BudgetExtraItem ToExtraItem(BudgetExtra extra) =>
         new(extra.Id, extra.Year, extra.Month, extra.Label, extra.Amount);
+
+    private static AnnualBudgetExpenseKind? ResolveExpenseKind(
+        AnnualBudgetPostType type,
+        AnnualBudgetExpenseKind? expenseKind) =>
+        type == AnnualBudgetPostType.Expense ? expenseKind ?? AnnualBudgetExpenseKind.Variable : null;
+
+    private static int NextSortOrder(
+        IEnumerable<AnnualBudgetPost> posts,
+        Guid? excludedPostId,
+        AnnualBudgetPostType type,
+        AnnualBudgetExpenseKind? expenseKind) =>
+        posts
+            .Where(item => item.Id != excludedPostId && item.IsActive && IsInGroup(item, type, expenseKind))
+            .Select(item => item.SortOrder)
+            .DefaultIfEmpty(-1)
+            .Max() + 1;
 
     private static bool IsInGroup(
         AnnualBudgetPost post,
