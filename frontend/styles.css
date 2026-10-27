@@ -284,7 +284,7 @@ main[data-current-page="budget"] { max-width: none; }
 .budget-monthly-heading { align-items: end; display: flex; justify-content: space-between; padding: 20px 22px 12px; }
 .budget-monthly-heading h3 { font-size: 16px; margin: 0; text-transform: capitalize; }
 .budget-monthly-heading > p { color: var(--muted); font-family: "DM Mono", monospace; font-size: 12px; margin: 0; text-transform: capitalize; }
-.budget-monthly-totals { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 22px 16px; }
+.budget-monthly-totals { display: grid; gap: 10px; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 0 22px 16px; }
 .budget-month-total { background: var(--surface-soft); border: 1px solid var(--line); border-top: 3px solid #bbc8bd; border-radius: 5px; display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; padding: 12px; }
 .budget-month-total.income { border-top-color: var(--wine); }
 .budget-month-total.expense { border-top-color: var(--coral); }

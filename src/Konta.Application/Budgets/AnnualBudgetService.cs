@@ -128,6 +128,13 @@ public sealed class AnnualBudgetService(
             .Where(extra => extra.Month == month)
             .Select(ToExtraItem)
             .ToArray();
+        var extraTotal = monthExtras.Sum(extra => extra.Amount);
+        var actualIncomeTotal = transactions
+            .Where(transaction => transaction.Type == TransactionType.Income)
+            .Sum(transaction => transaction.Amount);
+        var actualExpenseTotal = transactions
+            .Where(transaction => transaction.Type == TransactionType.Expense)
+            .Sum(transaction => transaction.Amount);
 
         return new AnnualBudgetMonthSummary(
             year,
@@ -135,10 +142,12 @@ public sealed class AnnualBudgetService(
             plannedIncomeTotal,
             plannedExpenseTotal,
             plannedSavingsTotal,
-            monthExtras.Sum(extra => extra.Amount),
+            extraTotal,
             actualSavingsTotal,
-            transactions.Where(transaction => transaction.Type == TransactionType.Income).Sum(transaction => transaction.Amount),
-            transactions.Where(transaction => transaction.Type == TransactionType.Expense).Sum(transaction => transaction.Amount),
+            plannedIncomeTotal + extraTotal - plannedExpenseTotal - plannedSavingsTotal,
+            actualIncomeTotal - actualExpenseTotal - actualSavingsTotal,
+            actualIncomeTotal,
+            actualExpenseTotal,
             unassignedTransactions.Where(transaction => transaction.Type == TransactionType.Income).Sum(transaction => transaction.Amount),
             unassignedTransactions.Where(transaction => transaction.Type == TransactionType.Expense).Sum(transaction => transaction.Amount),
             unassignedTransactions.Length,

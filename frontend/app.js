@@ -1,8 +1,8 @@
 const BUDGET_GROUPS = [
-  { type: "Income", label: "Revenus", typeLabel: "Revenu" },
-  { type: "Expense", expenseKind: "Fixed", label: "Charges fixes", typeLabel: "Dépense" },
-  { type: "Expense", expenseKind: "Variable", label: "Dépenses variables", typeLabel: "Dépense" },
-  { type: "Savings", label: "Épargne planifiée", typeLabel: "Épargne" }
+  { type: "Income", label: "Revenus", emptyLabel: "Aucun poste de revenus", typeLabel: "Revenu" },
+  { type: "Expense", expenseKind: "Fixed", label: "Charges fixes", emptyLabel: "Aucune charge fixe", typeLabel: "Dépense" },
+  { type: "Expense", expenseKind: "Variable", label: "Dépenses variables", emptyLabel: "Aucune dépense variable", typeLabel: "Dépense" },
+  { type: "Savings", label: "Épargne planifiée", emptyLabel: "Aucune épargne planifiée", typeLabel: "Épargne" }
 ];
 
 class KontaApp extends HTMLElement {
@@ -125,7 +125,7 @@ class KontaApp extends HTMLElement {
               </div>
               <div class="budget-monthly-totals" id="budget-monthly-totals"></div>
               <p class="feedback error" id="budget-month-feedback" role="status" aria-live="polite" hidden></p>
-              <p class="budget-savings-note">Le réalisé d’une enveloppe d’épargne correspond aux versements sortants des catégories rattachées, y compris les virements entre vos comptes.</p>
+              <p class="budget-savings-note">Les virements entre vos comptes ne sont comptés ni dans les revenus ni dans les dépenses. Le réalisé d’une enveloppe d’épargne correspond aux versements sortants des catégories rattachées.</p>
               <div class="table-wrap">
                 <table class="budget-monthly-table">
                   <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th>Écart réalisé − prévu</th></tr></thead>
@@ -503,7 +503,7 @@ class KontaApp extends HTMLElement {
 
     const body = this.shadowRoot.querySelector("#annual-budget-body");
     body.replaceChildren();
-    for (const { type, expenseKind, label } of BUDGET_GROUPS) {
+    for (const { type, expenseKind, label, emptyLabel } of BUDGET_GROUPS) {
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row";
       const sectionCell = this.budgetCell(label, "th");
@@ -524,7 +524,7 @@ class KontaApp extends HTMLElement {
       if (groupPosts.length === 0) {
         const emptyRow = document.createElement("tr");
         emptyRow.className = "budget-empty-row";
-        const emptyCell = this.budgetCell(`Aucun poste de ${label.toLowerCase()}`, "td");
+        const emptyCell = this.budgetCell(emptyLabel, "td");
         emptyCell.colSpan = months.length + 4;
         emptyRow.append(emptyCell);
         body.append(emptyRow);
@@ -804,7 +804,8 @@ class KontaApp extends HTMLElement {
       ["Revenus", summary.plannedIncomeTotal, summary.actualIncomeTotal, "income"],
       ["Dépenses", summary.plannedExpenseTotal, summary.actualExpenseTotal, "expense"],
       ["Extras", summary.plannedExtraTotal, null, "income"],
-      ["Épargne", summary.plannedSavingsTotal, summary.actualSavingsTotal, "savings"]
+      ["Épargne", summary.plannedSavingsTotal, summary.actualSavingsTotal, "savings"],
+      ["Disponible", summary.plannedAvailableTotal, summary.actualAvailableTotal, "available"]
     ]) {
       const card = document.createElement("article");
       card.className = `budget-month-total ${style}`;
@@ -820,7 +821,7 @@ class KontaApp extends HTMLElement {
 
     const body = this.shadowRoot.querySelector("#budget-monthly-body");
     body.replaceChildren();
-    for (const { type, expenseKind, label, typeLabel } of BUDGET_GROUPS) {
+    for (const { type, expenseKind, label, emptyLabel, typeLabel } of BUDGET_GROUPS) {
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row";
       const sectionCell = this.budgetCell(label, "th");
@@ -832,7 +833,7 @@ class KontaApp extends HTMLElement {
         && (type !== "Expense" || (post.expenseKind ?? "Variable") === expenseKind));
       if (posts.length === 0) {
         const row = document.createElement("tr");
-        const emptyCell = this.budgetCell(`Aucun poste de ${label.toLowerCase()}`, "td");
+        const emptyCell = this.budgetCell(emptyLabel, "td");
         emptyCell.colSpan = 5;
         row.append(emptyCell);
         body.append(row);

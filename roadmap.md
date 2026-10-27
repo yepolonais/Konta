@@ -52,7 +52,6 @@ L'espace Budget combine une vue d'ensemble pour planifier et un suivi détaillé
 - [X] Réordonner les postes au sein de leur section par glisser-déposer ou au clavier, avec un ordre conservé.
 - [X] Permettre de sélectionner un mois et d'ouvrir son suivi détaillé : prévisionnel, réalisé et écart par poste ; le réalisé de l'épargne est suivi via les catégories rattachées.
 - [X] Depuis un montant réalisé, permettre d'accéder aux opérations qui le composent.
-- [ ] Rendre les ajustements du budget futur accessibles depuis le suivi mensuel, sans modifier les prévisions passées.
 - [X] Sur petit écran, présenter un mois à la fois plutôt que de réduire la grille annuelle au point de la rendre illisible, tout en gardant accès aux totaux annuels.
 
 ## Socle existant — import et suivi des opérations
@@ -89,10 +88,10 @@ Relier les opérations importées au plan budgétaire et rendre les écarts visi
 - [X] Afficher, pour les revenus et dépenses rapprochés, le prévisionnel, le réalisé et l'écart mensuel (réalisé − prévu).
 - [X] Afficher séparément les totaux mensuels prévisionnels et réels des revenus et dépenses de consommation.
 - [X] Comparer les contributions d'épargne prévues aux transferts réellement effectués (catégories rattachées, côté sortant du virement), sans les classer comme dépenses de consommation ni les compter deux fois.
-- [ ] Compléter ces totaux avec l'épargne affectée et le disponible réel ; leur calcul reste à définir après le rapprochement des transferts.
+- [X] Compléter ces totaux avec l'épargne et le disponible du mois : prévu = revenus + extras − dépenses − épargne ; réel = revenus − dépenses de consommation − versements d'épargne (transferts exclus).
 - [X] Permettre d'ouvrir les opérations réelles qui composent un montant réalisé.
 - [X] Signaler les opérations non classées ou non rapprochées au lieu de les omettre silencieusement.
-- [ ] Vérifier tous les calculs avec des données connues, notamment les mois sans budget, sans opération et en dépassement.
+- [X] Vérifier tous les calculs avec des données connues, notamment les mois sans budget, sans opération et en dépassement (tests d'intégration).
 
 **Résultat intermédiaire :** les revenus et dépenses de consommation catégorisés peuvent être comparés au plan mois par mois ; les opérations associées sont consultables et les opérations restantes sont signalées. L'épargne est comparée aux versements sortants des catégories rattachées ; les retraits depuis l'épargne et le disponible réel restent à définir.
 
@@ -103,9 +102,7 @@ Permettre de réagir aux écarts sans effacer le plan passé.
 - [X] Modifier les montants prévus d'un ou plusieurs mois futurs sans altérer les mois déjà écoulés (saisie, recopie vers l'avant).
 - [X] Ajouter un extra ponctuel et l'afficher séparément des revenus réguliers (ligne d'extra par mois, total et disponible prévisionnel distincts).
 - [X] Réduire, suspendre ou remettre à zéro un poste variable pour les mois futurs (bouton « Suspendre » à partir d'un mois).
-- [ ] Réaffecter un montant entre postes et afficher clairement l'effet sur le résultat prévisionnel.
-- [ ] Distinguer le plan initial, le plan révisé et le réalisé selon la règle d'historique retenue.
-- [ ] Tester qu'une révision future ne réécrit pas les valeurs antérieures et que les totaux restent justes.
+- [X] Tester qu'une révision future ne réécrit pas les valeurs antérieures et que les totaux restent justes.
 
 **Décisions retenues :** un extra est une ligne ponctuelle rattachée à un mois, affichée séparément des revenus ; le plan est simple (valeurs écrasées, pas de plan initial conservé pour l'instant, évolution possible plus tard).
 
@@ -121,11 +118,18 @@ Cette évolution ne doit pas retarder le budget annuel et la comparaison des con
 
 ## Phase 5 — Stabiliser les parcours métier
 
-- [ ] Tester le parcours complet : création du budget annuel, import des opérations, comparaison mensuelle et ajustement des mois restants.
-- [ ] Vérifier les libellés, formats de date et montants français, ainsi que les états vides et les erreurs.
-- [ ] Vérifier que les opérations non classées, transferts et revenus exceptionnels sont présentés sans ambiguïté.
-- [ ] Mettre à jour la documentation de démarrage et les limites métier connues.
-- [ ] Confirmer que les critères essentiels de [konta.md](./konta.md) sont couverts par des tests automatisés ou des vérifications de parcours.
+- [X] Tester le parcours complet : création du budget annuel, import des opérations, comparaison mensuelle et ajustement des mois restants (test d'intégration).
+- [X] Vérifier les libellés, formats de date et montants français, ainsi que les états vides et les erreurs (états vides corrigés, mois invalide testé).
+- [X] Vérifier que les opérations non classées, transferts et revenus exceptionnels sont présentés sans ambiguïté (note sur les virements, opérations non rapprochées listées, extras à part).
+- [X] Mettre à jour la documentation de démarrage et les limites métier connues (README).
+- [X] Confirmer que les critères essentiels de [konta.md](./konta.md) sont couverts par des tests automatisés ou des vérifications de parcours : critères 1 à 3 et 5 à 8 couverts ; le 4 l'est pour l'extra et la suspension, la réaffectation étant une évolution possible.
+- [ ] Ajouter un cumul annuel prévu/réalisé sur les mois écoulés (konta.md §4.2).
+
+## Évolutions possibles (non planifiées)
+
+- [ ] Réaffecter un montant d'un poste à un autre pour un mois donné (formulaire « de… vers… montant… mois »), avec l'effet visible sur le résultat prévisionnel. Le disponible annuel reste inchangé. Une variante avec traçabilité et annulation, comme les extras, est possible.
+- [ ] Distinguer le plan initial, le plan révisé et le réalisé en conservant le plan de départ, pour mesurer les dérives en fin d'année.
+- [ ] Rendre les ajustements du budget futur accessibles depuis le suivi mensuel, sans modifier les prévisions passées.
 
 ## Hors de cette roadmap métier
 

@@ -41,4 +41,13 @@ dotnet test Konta.sln
 - Les opérations réelles restent distinctes du budget et sont consultables depuis les montants réalisés.
 - L'import CSV Société Générale prend en charge la prévisualisation, la validation, la catégorisation et la détection des doublons.
 
+## Limites métier connues
+
+- Le plan est simple : modifier un montant écrase l'ancien, sans conserver le plan initial. Les mois passés ne sont jamais modifiés par un ajustement futur.
+- Le rapprochement se fait par catégorie (pas par sous-catégorie) : une catégorie ne peut alimenter qu'un poste actif par année.
+- Les virements entre comptes sont exclus des revenus et dépenses. Pour l'épargne, seuls les versements sortants comptent ; les retraits depuis l'épargne sont ignorés.
+- Le disponible est calculé par mois ; il n'y a pas encore de cumul annuel prévu/réalisé.
+- Les opérations sans catégorie rattachée à un poste sont listées comme « non rapprochées » et ne sont pas comptées dans les postes.
+- La réaffectation entre postes et l'historique du plan initial sont des évolutions possibles (voir [roadmap.md](./roadmap.md)).
+
 Le parseur reconnaît l'export échantillon (`;`, ISO-8859-1, dates `jj/MM/aaaa`, montants à virgule). Les références de compte et les libellés complets sont conservés dans l'aperçu. Les erreurs sont retournées par ligne.
