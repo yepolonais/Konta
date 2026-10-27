@@ -15,6 +15,8 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
                 .ThenInclude(mapping => mapping.Category)
             .Where(post => post.Year == year)
             .OrderBy(post => post.Type)
+            .ThenBy(post => post.ExpenseKind)
+            .ThenBy(post => post.SortOrder)
             .ThenBy(post => post.Name)
             .ToArrayAsync(cancellationToken);
 
@@ -35,8 +37,31 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
                 .ThenInclude(mapping => mapping.Category)
             .Where(post => post.Year == year)
             .OrderBy(post => post.Type)
+            .ThenBy(post => post.ExpenseKind)
+            .ThenBy(post => post.SortOrder)
             .ThenBy(post => post.Name)
             .ToArrayAsync(cancellationToken);
+
+    public async Task SetPostOrderAsync(
+        IReadOnlyList<Guid> postIds,
+        CancellationToken cancellationToken)
+    {
+        var posts = await dbContext.AnnualBudgetPosts
+            .Where(post => postIds.Contains(post.Id))
+            .ToArrayAsync(cancellationToken);
+        if (posts.Length != postIds.Count)
+        {
+            throw new InvalidOperationException("Un ou plusieurs postes n'existent plus.");
+        }
+
+        var postsById = posts.ToDictionary(post => post.Id);
+        for (var index = 0; index < postIds.Count; index++)
+        {
+            postsById[postIds[index]].SetSortOrder(index);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 
     public Task<bool> ExistsByNameAsync(
         int year,
@@ -53,6 +78,32 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
     {
         dbContext.AnnualBudgetPosts.Add(post);
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<BudgetExtra>> ListExtrasAsync(int year, CancellationToken cancellationToken) =>
+        await dbContext.BudgetExtras
+            .Where(extra => extra.Year == year)
+            .OrderBy(extra => extra.Month)
+            .ThenBy(extra => extra.Label)
+            .ToArrayAsync(cancellationToken);
+
+    public async Task AddExtraAsync(BudgetExtra extra, CancellationToken cancellationToken)
+    {
+        dbContext.BudgetExtras.Add(extra);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<bool> DeleteExtraAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var extra = await dbContext.BudgetExtras.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (extra is null)
+        {
+            return false;
+        }
+
+        dbContext.BudgetExtras.Remove(extra);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     public async Task UpdatePostAsync(AnnualBudgetPost post, CancellationToken cancellationToken)

@@ -19,6 +19,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
     public DbSet<BudgetOverride> BudgetOverrides => Set<BudgetOverride>();
     public DbSet<AnnualBudgetPost> AnnualBudgetPosts => Set<AnnualBudgetPost>();
     public DbSet<BudgetMonthlyAmount> BudgetMonthlyAmounts => Set<BudgetMonthlyAmount>();
+    public DbSet<BudgetExtra> BudgetExtras => Set<BudgetExtra>();
     public DbSet<BudgetPostCategoryMapping> BudgetPostCategoryMappings => Set<BudgetPostCategoryMapping>();
     public DbSet<RecurringForecast> RecurringForecasts => Set<RecurringForecast>();
     public DbSet<ForecastOccurrence> ForecastOccurrences => Set<ForecastOccurrence>();
@@ -107,6 +108,8 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.HasKey(post => post.Id);
             entity.Property(post => post.Name).HasMaxLength(100).IsRequired();
             entity.Property(post => post.Type).HasConversion<string>().HasMaxLength(16);
+            entity.Property(post => post.ExpenseKind).HasConversion<string>().HasMaxLength(16);
+            entity.Property(post => post.SortOrder).IsRequired();
             entity.HasIndex(post => new { post.Year, post.Name }).IsUnique();
             entity.HasMany(post => post.MonthlyAmounts)
                 .WithOne()
@@ -119,6 +122,14 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.HasKey(amount => amount.Id);
             entity.Property(amount => amount.Amount).HasPrecision(18, 2);
             entity.HasIndex(amount => new { amount.AnnualBudgetPostId, amount.Month }).IsUnique();
+        });
+
+        modelBuilder.Entity<BudgetExtra>(entity =>
+        {
+            entity.HasKey(extra => extra.Id);
+            entity.Property(extra => extra.Label).HasMaxLength(200).IsRequired();
+            entity.Property(extra => extra.Amount).HasPrecision(18, 2);
+            entity.HasIndex(extra => new { extra.Year, extra.Month });
         });
 
         modelBuilder.Entity<BudgetPostCategoryMapping>(entity =>

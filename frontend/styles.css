@@ -2,6 +2,10 @@ html, body { background: var(--page-canvas, #f4f5f1); margin: 0; min-height: 100
 :root { --page-canvas: #f4f5f1; }
 :root[data-theme="dark"] { --page-canvas: #171416; color-scheme: dark; }
 
+input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
 :host {
   --ink: #1d2924;
   --muted: #68736d;
@@ -216,7 +220,7 @@ button:disabled { cursor: wait; opacity: .65; }
   padding: 0 8px;
 }
 .budget-year-label input { width: 96px; }
-.annual-budget-totals { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 18px 22px; }
+.annual-budget-totals { display: grid; gap: 10px; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 18px 22px; }
 .annual-budget-total { background: var(--surface-soft); border: 1px solid var(--line); border-top: 3px solid #bbc8bd; border-radius: 5px; display: grid; gap: 6px; min-width: 0; padding: 12px; }
 .annual-budget-total span { color: var(--muted); font-size: 10px; font-weight: 700; }
 .annual-budget-total strong { font-family: "DM Mono", monospace; font-size: clamp(15px, 1.8vw, 20px); overflow-wrap: anywhere; }
@@ -224,7 +228,7 @@ button:disabled { cursor: wait; opacity: .65; }
 .annual-budget-total.expense { border-top-color: var(--coral); }
 .annual-budget-total.savings { border-top-color: #8b7aab; }
 .annual-budget-total.available { background: var(--surface-accent); border-top-color: var(--positive); }
-.annual-budget-form { align-items: end; background: var(--surface-subtle); border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: minmax(180px, 1fr) minmax(150px, .5fr) auto; padding: 16px 22px; }
+.annual-budget-form { align-items: end; background: var(--surface-subtle); border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: minmax(180px, 1fr) minmax(150px, .5fr) minmax(160px, .6fr) auto; padding: 16px 22px; }
 .annual-budget-form label { color: var(--muted); display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
 .annual-budget-form input, .annual-budget-form select {
   background: var(--field);
@@ -265,6 +269,11 @@ main[data-current-page="budget"] { max-width: none; }
 .annual-budget-table input:disabled, .annual-budget-table select:disabled { background: transparent; border-color: transparent; }
 .annual-budget-table td:first-child { min-width: 180px; }
 .annual-budget-table td:first-child > input { font-weight: 700; }
+.budget-post-name-controls { align-items: center; display: grid; gap: 6px; grid-template-columns: 28px minmax(0, 1fr); min-width: 0; }
+.budget-drag-handle { cursor: grab; min-height: 28px; padding: 3px; touch-action: none; width: 28px; }
+.budget-drag-handle:active { cursor: grabbing; }
+.budget-post-dragging { opacity: .45; }
+.budget-post-drop-target td { box-shadow: inset 0 2px var(--wine); }
 .budget-category-mappings { color: var(--muted); font-size: 10px; margin-top: 4px; position: relative; }
 .budget-category-mappings summary, .budget-transaction-details summary { color: var(--wine-dark); cursor: pointer; font-weight: 700; }
 .budget-category-mapping-list { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; display: grid; gap: 5px; left: 0; max-height: 220px; min-width: 200px; overflow-y: auto; padding: 8px; position: absolute; top: 20px; z-index: 3; }
@@ -275,7 +284,7 @@ main[data-current-page="budget"] { max-width: none; }
 .budget-monthly-heading { align-items: end; display: flex; justify-content: space-between; padding: 20px 22px 12px; }
 .budget-monthly-heading h3 { font-size: 16px; margin: 0; text-transform: capitalize; }
 .budget-monthly-heading > p { color: var(--muted); font-family: "DM Mono", monospace; font-size: 12px; margin: 0; text-transform: capitalize; }
-.budget-monthly-totals { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 22px 16px; }
+.budget-monthly-totals { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 22px 16px; }
 .budget-month-total { background: var(--surface-soft); border: 1px solid var(--line); border-top: 3px solid #bbc8bd; border-radius: 5px; display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; padding: 12px; }
 .budget-month-total.income { border-top-color: var(--wine); }
 .budget-month-total.expense { border-top-color: var(--coral); }
@@ -478,3 +487,13 @@ main[data-current-page="budget"] { max-width: none; }
 .annual-budget-total strong, .summary-total strong, .budget-month-total strong,
 .annual-budget-table tfoot th, .annual-budget-table tfoot td,
 .section-kicker, td.amount { font-weight: 500; }
+
+.budget-extras { display: grid; gap: 12px; padding: 0 22px 16px; }
+.budget-extras p { margin: 4px 0 0; color: var(--muted); }
+.budget-extra-form { display: grid; gap: 10px; grid-template-columns: 1fr 2fr 1fr auto; align-items: end; }
+.budget-extra-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.budget-extra-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+@media (max-width: 800px) {
+  .budget-extras { padding-left: 16px; padding-right: 16px; }
+  .budget-extra-form { grid-template-columns: 1fr; }
+}

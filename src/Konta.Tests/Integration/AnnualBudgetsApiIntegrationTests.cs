@@ -111,6 +111,105 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
+    public async Task UpdatePost_ChangesExpenseKind_WithoutChangingExpenseTotals()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var postId = await CreatePostAsync(client, 2026, "Loyer", "Expense");
+        await SetMonthlyAmountAsync(client, postId, 1, 800m);
+
+        // Act
+        using var updateResponse = await client.PutAsync(
+            $"/api/annual-budgets/posts/{postId}",
+            JsonContent("""{"name":"Loyer","type":"Expense","expenseKind":"Fixed"}"""));
+        using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
+        using var monthResponse = await client.GetAsync("/api/annual-budgets/2026/months/1");
+
+        // Assert
+        updateResponse.EnsureSuccessStatusCode();
+        using var updated = JsonDocument.Parse(await updateResponse.Content.ReadAsStringAsync());
+        Assert.Equal("Fixed", updated.RootElement.GetProperty("expenseKind").GetString());
+        Assert.Equal("Expense", updated.RootElement.GetProperty("type").GetString());
+        using var year = JsonDocument.Parse(await yearResponse.Content.ReadAsStringAsync());
+        Assert.Equal(800m, year.RootElement.GetProperty("expenseTotal").GetDecimal());
+        using var month = JsonDocument.Parse(await monthResponse.Content.ReadAsStringAsync());
+        Assert.Equal("Fixed", Assert.Single(month.RootElement.GetProperty("posts").EnumerateArray())
+            .GetProperty("expenseKind").GetString());
+    }
+
+    [Fact]
+    public async Task ReorderPosts_PersistsOrderWithinExpenseGroup_WithoutChangingTotals()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var rentId = await CreatePostAsync(client, 2026, "Loyer", "Expense", "Fixed");
+        var internetId = await CreatePostAsync(client, 2026, "Internet", "Expense", "Fixed");
+        var groceriesId = await CreatePostAsync(client, 2026, "Courses", "Expense", "Variable");
+        await SetMonthlyAmountAsync(client, rentId, 1, 900m);
+        await SetMonthlyAmountAsync(client, internetId, 1, 40m);
+        await SetMonthlyAmountAsync(client, groceriesId, 1, 300m);
+
+        // Act
+        using var reorderResponse = await client.PutAsync(
+            "/api/annual-budgets/2026/posts/order",
+            JsonContent(JsonSerializer.Serialize(new
+            {
+                type = "Expense",
+                expenseKind = "Fixed",
+                postIds = new[] { internetId, rentId }
+            })));
+        using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
+        using var monthResponse = await client.GetAsync("/api/annual-budgets/2026/months/1");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, reorderResponse.StatusCode);
+        using var year = JsonDocument.Parse(await yearResponse.Content.ReadAsStringAsync());
+        var expensePosts = year.RootElement.GetProperty("posts").EnumerateArray()
+            .Where(post => post.GetProperty("type").GetString() == "Expense")
+            .ToArray();
+        Assert.Equal(
+            new[] { "Internet", "Loyer", "Courses" },
+            expensePosts.Select(post => post.GetProperty("name").GetString()));
+        Assert.Equal(1240m, year.RootElement.GetProperty("expenseTotal").GetDecimal());
+        using var month = JsonDocument.Parse(await monthResponse.Content.ReadAsStringAsync());
+        var monthPosts = month.RootElement.GetProperty("posts").EnumerateArray()
+            .Where(post => post.GetProperty("type").GetString() == "Expense")
+            .ToArray();
+        Assert.Equal(
+            new[] { "Internet", "Loyer", "Courses" },
+            monthPosts.Select(post => post.GetProperty("name").GetString()));
+        Assert.Equal(1240m, month.RootElement.GetProperty("plannedExpenseTotal").GetDecimal());
+    }
+
+    [Fact]
+    public async Task ReorderPosts_ReturnsBadRequest_WhenPostFromAnotherGroupIsIncluded()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var fixedId = await CreatePostAsync(client, 2026, "Loyer", "Expense", "Fixed");
+        var variableId = await CreatePostAsync(client, 2026, "Courses", "Expense", "Variable");
+
+        // Act
+        using var response = await client.PutAsync(
+            "/api/annual-budgets/2026/posts/order",
+            JsonContent(JsonSerializer.Serialize(new
+            {
+                type = "Expense",
+                expenseKind = "Fixed",
+                postIds = new[] { fixedId, variableId }
+            })));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task ClearMonthlyAmount_RemovesPlannedValue_WhenMonthIsCleared()
     {
         // Arrange
@@ -303,6 +402,104 @@ public sealed class AnnualBudgetsApiIntegrationTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
+    [Fact]
+    public async Task AddExtra_IncludesExtraSeparatelyInTotals_WhenExtraIsCreated()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var incomeId = await CreatePostAsync(client, 2026, "Salaires", "Income");
+        await SetMonthlyAmountAsync(client, incomeId, 3, 3000m);
+
+        // Act
+        using var createResponse = await client.PostAsync(
+            "/api/annual-budgets/2026/extras",
+            JsonContent("""{"month":3,"label":"Apport","amount":500}"""));
+        using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
+        using var monthResponse = await client.GetAsync("/api/annual-budgets/2026/months/3");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var year = JsonDocument.Parse(await yearResponse.Content.ReadAsStringAsync());
+        Assert.Equal(3000m, year.RootElement.GetProperty("incomeTotal").GetDecimal());
+        Assert.Equal(500m, year.RootElement.GetProperty("extraTotal").GetDecimal());
+        Assert.Equal(3500m, year.RootElement.GetProperty("availableTotal").GetDecimal());
+        Assert.Single(year.RootElement.GetProperty("extras").EnumerateArray());
+        using var month = JsonDocument.Parse(await monthResponse.Content.ReadAsStringAsync());
+        Assert.Equal(500m, month.RootElement.GetProperty("plannedExtraTotal").GetDecimal());
+        Assert.Equal(3000m, month.RootElement.GetProperty("plannedIncomeTotal").GetDecimal());
+    }
+
+    [Fact]
+    public async Task AddExtra_ReturnsBadRequest_WhenAmountIsNotPositive()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.PostAsync(
+            "/api/annual-budgets/2026/extras",
+            JsonContent("""{"month":3,"label":"Apport","amount":0}"""));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteExtra_RemovesExtraFromTotals_WhenExtraExists()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        using var createResponse = await client.PostAsync(
+            "/api/annual-budgets/2026/extras",
+            JsonContent("""{"month":6,"label":"Prime","amount":800}"""));
+        using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var extraId = created.RootElement.GetProperty("id").GetGuid();
+
+        // Act
+        using var deleteResponse = await client.DeleteAsync($"/api/annual-budgets/extras/{extraId}");
+        using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        using var year = JsonDocument.Parse(await yearResponse.Content.ReadAsStringAsync());
+        Assert.Equal(0m, year.RootElement.GetProperty("extraTotal").GetDecimal());
+    }
+
+    [Fact]
+    public async Task ClearForward_KeepsPreviousMonths_WhenPostIsSuspended()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var postId = await CreatePostAsync(client, 2026, "Vacances", "Savings");
+        for (var month = 1; month <= 12; month++)
+        {
+            await SetMonthlyAmountAsync(client, postId, month, 100m);
+        }
+
+        // Act
+        using var response = await client.PostAsync(
+            $"/api/annual-budgets/posts/{postId}/months/7/clear-forward",
+            content: null);
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var amounts = payload.RootElement.GetProperty("monthlyAmounts").EnumerateArray()
+            .Select(item => item.ValueKind == JsonValueKind.Null ? (decimal?)null : item.GetDecimal())
+            .ToArray();
+        Assert.All(amounts.Take(6), amount => Assert.Equal(100m, amount));
+        Assert.All(amounts.Skip(6), amount => Assert.Null(amount));
+        Assert.Equal(600m, payload.RootElement.GetProperty("annualTotal").GetDecimal());
+    }
+
     private static async Task<Guid> CreateAccountAsync(HttpClient client, string name, string accountNumber)
     {
         using var response = await client.PostAsync("/api/accounts", JsonContent(
@@ -335,11 +532,16 @@ public sealed class AnnualBudgetsApiIntegrationTests
         "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
         + $"{date};{date};{accountNumber};Compte courant;{label};{label};{category};;{amount};Non\n";
 
-    private static async Task<Guid> CreatePostAsync(HttpClient client, int year, string name, string type)
+    private static async Task<Guid> CreatePostAsync(
+        HttpClient client,
+        int year,
+        string name,
+        string type,
+        string? expenseKind = null)
     {
         using var response = await client.PostAsync(
             $"/api/annual-budgets/{year}/posts",
-            JsonContent(JsonSerializer.Serialize(new { name, type })));
+            JsonContent(JsonSerializer.Serialize(new { name, type, expenseKind })));
         response.EnsureSuccessStatusCode();
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return payload.RootElement.GetProperty("id").GetGuid();

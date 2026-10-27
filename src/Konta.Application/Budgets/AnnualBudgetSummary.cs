@@ -5,5 +5,7 @@ public sealed record AnnualBudgetSummary(
     decimal IncomeTotal,
     decimal ExpenseTotal,
     decimal SavingsTotal,
+    decimal ExtraTotal,
     decimal AvailableTotal,
-    IReadOnlyList<AnnualBudgetPostItem> Posts);
+    IReadOnlyList<AnnualBudgetPostItem> Posts,
+    IReadOnlyList<BudgetExtraItem> Extras);

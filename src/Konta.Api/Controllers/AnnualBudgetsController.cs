@@ -63,7 +63,22 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
 
         try
         {
-            var post = await annualBudgetService.CreatePostAsync(year, request.Name, request.Type.Value, cancellationToken);
+            if (request.ExpenseKind.HasValue && !Enum.IsDefined(request.ExpenseKind.Value))
+            {
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "Catégorie de dépense invalide",
+                    Detail = "Choisissez une charge fixe ou une dépense variable.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+            }
+
+            var post = await annualBudgetService.CreatePostAsync(
+                year,
+                request.Name,
+                request.Type.Value,
+                request.ExpenseKind,
+                cancellationToken);
             return CreatedAtAction(nameof(Get), new { year }, post);
         }
         catch (DuplicateAnnualBudgetPostException exception)
@@ -103,7 +118,22 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
 
         try
         {
-            var post = await annualBudgetService.UpdatePostAsync(id, request.Name, request.Type.Value, cancellationToken);
+            if (request.ExpenseKind.HasValue && !Enum.IsDefined(request.ExpenseKind.Value))
+            {
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "Catégorie de dépense invalide",
+                    Detail = "Choisissez une charge fixe ou une dépense variable.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+            }
+
+            var post = await annualBudgetService.UpdatePostAsync(
+                id,
+                request.Name,
+                request.Type.Value,
+                request.ExpenseKind,
+                cancellationToken);
             return post is null ? NotFound() : Ok(post);
         }
         catch (DuplicateAnnualBudgetPostException exception)
@@ -118,6 +148,40 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         catch (ArgumentException exception)
         {
             return BadRequest(InvalidRequest(exception));
+        }
+    }
+
+    [HttpPut("{year:int}/posts/order")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ReorderPosts(
+        int year,
+        ReorderAnnualBudgetPostsRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await annualBudgetService.ReorderPostsAsync(
+                year,
+                request.Type,
+                request.ExpenseKind,
+                request.PostIds,
+                cancellationToken);
+            return NoContent();
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(InvalidRequest(exception));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Réorganisation impossible",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            });
         }
     }
 
@@ -227,6 +291,66 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         }
     }
 
+    [HttpPost("posts/{id:guid}/months/{month:int}/clear-forward")]
+    [ProducesResponseType<AnnualBudgetPostItem>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AnnualBudgetPostItem>> ClearMonthlyAmountsFrom(
+        Guid id,
+        int month,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var post = await annualBudgetService.ClearMonthlyAmountsFromAsync(id, month, cancellationToken);
+            return post is null ? NotFound() : Ok(post);
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            return BadRequest(InvalidRequest(exception));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Poste désactivé",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+    }
+
+    [HttpPost("{year:int}/extras")]
+    [ProducesResponseType<BudgetExtraItem>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<BudgetExtraItem>> AddExtra(
+        int year,
+        AddBudgetExtraRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var extra = await annualBudgetService.AddExtraAsync(
+                year,
+                request.Month!.Value,
+                request.Label,
+                request.Amount!.Value,
+                cancellationToken);
+            return Created($"/api/annual-budgets/extras/{extra.Id}", extra);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(InvalidRequest(exception));
+        }
+    }
+
+    [HttpDelete("extras/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteExtra(Guid id, CancellationToken cancellationToken) =>
+        await annualBudgetService.DeleteExtraAsync(id, cancellationToken) ? NoContent() : NotFound();
+
     [HttpDelete("posts/{id:guid}/months/{month:int}")]
     [ProducesResponseType<AnnualBudgetPostItem>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -271,11 +395,36 @@ public sealed record SaveAnnualBudgetPostRequest
 
     [Required]
     public AnnualBudgetPostType? Type { get; init; }
+
+    public AnnualBudgetExpenseKind? ExpenseKind { get; init; }
+}
+
+public sealed record ReorderAnnualBudgetPostsRequest
+{
+    [Required]
+    public AnnualBudgetPostType Type { get; init; }
+
+    public AnnualBudgetExpenseKind? ExpenseKind { get; init; }
+
+    [Required, MinLength(1)]
+    public required IReadOnlyList<Guid> PostIds { get; init; }
 }
 
 public sealed record SetMonthlyAmountRequest
 {
     [Required, Range(0, double.MaxValue)]
+    public decimal? Amount { get; init; }
+}
+
+public sealed record AddBudgetExtraRequest
+{
+    [Required, Range(1, 12)]
+    public int? Month { get; init; }
+
+    [Required, StringLength(200)]
+    public required string Label { get; init; }
+
+    [Required, Range(0.01, double.MaxValue)]
     public decimal? Amount { get; init; }
 }
 

@@ -9,6 +9,7 @@ public sealed record AnnualBudgetMonthSummary(
     decimal PlannedIncomeTotal,
     decimal PlannedExpenseTotal,
     decimal PlannedSavingsTotal,
+    decimal PlannedExtraTotal,
     decimal ActualSavingsTotal,
     decimal ActualIncomeTotal,
     decimal ActualExpenseTotal,
@@ -16,12 +17,15 @@ public sealed record AnnualBudgetMonthSummary(
     decimal UnassignedExpenseTotal,
     int UnassignedTransactionCount,
     IReadOnlyList<TransactionListItem> UnassignedTransactions,
-    IReadOnlyList<AnnualBudgetMonthPostItem> Posts);
+    IReadOnlyList<AnnualBudgetMonthPostItem> Posts,
+    IReadOnlyList<BudgetExtraItem> Extras);
 
 public sealed record AnnualBudgetMonthPostItem(
     Guid Id,
     string Name,
     AnnualBudgetPostType Type,
+    AnnualBudgetExpenseKind? ExpenseKind,
+    int SortOrder,
     decimal? PlannedAmount,
     decimal? ActualAmount,
     decimal? VarianceAmount,

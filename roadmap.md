@@ -10,11 +10,11 @@ Les phases ci-dessous sont une proposition de travail. Les décisions métier si
 
 ## Décision d'interface — budget comme écran d'accueil
 
-- [x] Remplacer l'écran/onglet « Opérations » comme destination principale par le budget prévisionnel annuel.
-- [x] Faire du budget le premier écran présenté à l'ouverture de l'application.
-- [x] Ne pas supprimer le socle d'import ni les données des opérations : ils restent nécessaires au calcul du réalisé.
-- [x] Rendre les opérations consultables depuis le suivi prévu/réalisé, notamment en ouvrant le détail des opérations derrière le montant réalisé d'un poste.
-- [x] Garder l'import accessible comme parcours dédié, sans maintenir une liste d'opérations isolée comme écran d'accueil.
+- [X] Remplacer l'écran/onglet « Opérations » comme destination principale par le budget prévisionnel annuel.
+- [X] Faire du budget le premier écran présenté à l'ouverture de l'application.
+- [X] Ne pas supprimer le socle d'import ni les données des opérations : ils restent nécessaires au calcul du réalisé.
+- [X] Rendre les opérations consultables depuis le suivi prévu/réalisé, notamment en ouvrant le détail des opérations derrière le montant réalisé d'un poste.
+- [X] Garder l'import accessible comme parcours dédié, sans maintenir une liste d'opérations isolée comme écran d'accueil.
 
 ## Organisation fonctionnelle — Budget et Opérations réelles
 
@@ -39,20 +39,21 @@ L'application doit être organisée autour de deux espaces complémentaires, plu
 - [ ] Intégrer les contributions aux objectifs d'épargne dans le budget et leur comparaison au réalisé.
 - [ ] Déplacer l'alignement du solde de référence dans Opérations réelles.
 - [ ] Conserver les écrans Synthèses et Règles, qui sont utiles dans l'organisation actuelle.
-- [x] Permettre de supprimer définitivement un poste de revenus ou de dépenses saisi par erreur (remplace l'archivage).
+- [X] Permettre de supprimer définitivement un poste de revenus ou de dépenses saisi par erreur (remplace l'archivage).
 
 ## Décision d'interface — grille annuelle et suivi mensuel
 
 L'espace Budget combine une vue d'ensemble pour planifier et un suivi détaillé pour piloter chaque mois :
 
-- [x] Proposer une grille annuelle avec les postes en lignes et les mois en colonnes, ainsi qu'un total annuel par poste.
-- [x] Permettre d'éditer les montants directement dans la grille, mois par mois.
-- [x] Ajouter une facilité pour recopier un montant sur les mois suivants (bouton « Recopier » par poste).
-- [x] Présenter clairement des sections distinctes pour les revenus, les dépenses et l'épargne planifiée.
-- [x] Permettre de sélectionner un mois et d'ouvrir son suivi détaillé : prévisionnel, réalisé et écart par poste ; le réalisé de l'épargne est suivi via les catégories rattachées.
-- [x] Depuis un montant réalisé, permettre d'accéder aux opérations qui le composent.
+- [X] Proposer une grille annuelle avec les postes en lignes et les mois en colonnes, ainsi qu'un total annuel par poste.
+- [X] Permettre d'éditer les montants directement dans la grille, mois par mois.
+- [X] Ajouter une facilité pour recopier un montant sur les mois suivants (bouton « Recopier » par poste).
+- [X] Présenter clairement des sections distinctes pour les revenus, les charges fixes, les dépenses variables et l'épargne planifiée ; fixes et variables restent des dépenses dans les calculs.
+- [X] Réordonner les postes au sein de leur section par glisser-déposer ou au clavier, avec un ordre conservé.
+- [X] Permettre de sélectionner un mois et d'ouvrir son suivi détaillé : prévisionnel, réalisé et écart par poste ; le réalisé de l'épargne est suivi via les catégories rattachées.
+- [X] Depuis un montant réalisé, permettre d'accéder aux opérations qui le composent.
 - [ ] Rendre les ajustements du budget futur accessibles depuis le suivi mensuel, sans modifier les prévisions passées.
-- [x] Sur petit écran, présenter un mois à la fois plutôt que de réduire la grille annuelle au point de la rendre illisible, tout en gardant accès aux totaux annuels.
+- [X] Sur petit écran, présenter un mois à la fois plutôt que de réduire la grille annuelle au point de la rendre illisible, tout en gardant accès aux totaux annuels.
 
 ## Socle existant — import et suivi des opérations
 
@@ -70,13 +71,13 @@ Avant de s'appuyer dessus pour le budget annuel, vérifier que les parcours et d
 
 Permettre de créer un plan pour une année, distinct des transactions bancaires.
 
-- [x] Définir les postes budgétaires configurables, chacun de type revenu ou dépense.
-- [x] Définir les enveloppes d'épargne planifiées comme une affectation distincte des dépenses de consommation.
-- [x] Définir le modèle de montants prévisionnels mensuels par poste, y compris les mois sans prévision et les montants explicitement nuls.
-- [x] Permettre de créer, renommer et désactiver les postes sans perdre les données historiques.
-- [x] Prévoir une saisie ou une édition pratique des montants sur une grille annuelle (postes en lignes, mois en colonnes).
-- [x] Calculer et afficher les totaux mensuels et annuels des revenus, des dépenses de consommation, des contributions d'épargne planifiées et du disponible prévisionnel.
-- [x] Tester les calculs, les changements d'année et la persistance après redémarrage.
+- [X] Définir les postes budgétaires configurables, chacun de type revenu ou dépense.
+- [X] Définir les enveloppes d'épargne planifiées comme une affectation distincte des dépenses de consommation.
+- [X] Définir le modèle de montants prévisionnels mensuels par poste, y compris les mois sans prévision et les montants explicitement nuls.
+- [X] Permettre de créer, renommer et désactiver les postes sans perdre les données historiques.
+- [X] Prévoir une saisie ou une édition pratique des montants sur une grille annuelle (postes en lignes, mois en colonnes).
+- [X] Calculer et afficher les totaux mensuels et annuels des revenus, des dépenses de consommation, des contributions d'épargne planifiées et du disponible prévisionnel.
+- [X] Tester les calculs, les changements d'année et la persistance après redémarrage.
 
 **Résultat attendu :** le foyer peut bâtir et consulter son budget annuel, y compris ce qu'il prévoit de mettre de côté, sans devoir créer de fausses opérations réelles.
 
@@ -84,13 +85,13 @@ Permettre de créer un plan pour une année, distinct des transactions bancaires
 
 Relier les opérations importées au plan budgétaire et rendre les écarts visibles.
 
-- [x] Décision : un poste budgétaire peut agréger plusieurs catégories réelles ; une catégorie ne peut alimenter qu'un poste actif par année. Le rapprochement se fait par catégorie, pas encore par sous-catégorie.
-- [x] Afficher, pour les revenus et dépenses rapprochés, le prévisionnel, le réalisé et l'écart mensuel (réalisé − prévu).
-- [x] Afficher séparément les totaux mensuels prévisionnels et réels des revenus et dépenses de consommation.
-- [x] Comparer les contributions d'épargne prévues aux transferts réellement effectués (catégories rattachées, côté sortant du virement), sans les classer comme dépenses de consommation ni les compter deux fois.
+- [X] Décision : un poste budgétaire peut agréger plusieurs catégories réelles ; une catégorie ne peut alimenter qu'un poste actif par année. Le rapprochement se fait par catégorie, pas encore par sous-catégorie.
+- [X] Afficher, pour les revenus et dépenses rapprochés, le prévisionnel, le réalisé et l'écart mensuel (réalisé − prévu).
+- [X] Afficher séparément les totaux mensuels prévisionnels et réels des revenus et dépenses de consommation.
+- [X] Comparer les contributions d'épargne prévues aux transferts réellement effectués (catégories rattachées, côté sortant du virement), sans les classer comme dépenses de consommation ni les compter deux fois.
 - [ ] Compléter ces totaux avec l'épargne affectée et le disponible réel ; leur calcul reste à définir après le rapprochement des transferts.
-- [x] Permettre d'ouvrir les opérations réelles qui composent un montant réalisé.
-- [x] Signaler les opérations non classées ou non rapprochées au lieu de les omettre silencieusement.
+- [X] Permettre d'ouvrir les opérations réelles qui composent un montant réalisé.
+- [X] Signaler les opérations non classées ou non rapprochées au lieu de les omettre silencieusement.
 - [ ] Vérifier tous les calculs avec des données connues, notamment les mois sans budget, sans opération et en dépassement.
 
 **Résultat intermédiaire :** les revenus et dépenses de consommation catégorisés peuvent être comparés au plan mois par mois ; les opérations associées sont consultables et les opérations restantes sont signalées. L'épargne est comparée aux versements sortants des catégories rattachées ; les retraits depuis l'épargne et le disponible réel restent à définir.
@@ -99,14 +100,14 @@ Relier les opérations importées au plan budgétaire et rendre les écarts visi
 
 Permettre de réagir aux écarts sans effacer le plan passé.
 
-- [ ] Modifier les montants prévus d'un ou plusieurs mois futurs sans altérer les mois déjà écoulés.
-- [ ] Ajouter un extra ponctuel et l'afficher séparément des revenus réguliers.
-- [ ] Réduire, suspendre ou remettre à zéro un poste variable pour les mois futurs.
+- [X] Modifier les montants prévus d'un ou plusieurs mois futurs sans altérer les mois déjà écoulés (saisie, recopie vers l'avant).
+- [X] Ajouter un extra ponctuel et l'afficher séparément des revenus réguliers (ligne d'extra par mois, total et disponible prévisionnel distincts).
+- [X] Réduire, suspendre ou remettre à zéro un poste variable pour les mois futurs (bouton « Suspendre » à partir d'un mois).
 - [ ] Réaffecter un montant entre postes et afficher clairement l'effet sur le résultat prévisionnel.
 - [ ] Distinguer le plan initial, le plan révisé et le réalisé selon la règle d'historique retenue.
 - [ ] Tester qu'une révision future ne réécrit pas les valeurs antérieures et que les totaux restent justes.
 
-**Décision métier à confirmer avant cette phase :** comment représenter un « extra » (revenu exceptionnel, apport au compte ou autre ajustement), et quel niveau d'historique conserver pour les versions successives du budget.
+**Décisions retenues :** un extra est une ligne ponctuelle rattachée à un mois, affichée séparément des revenus ; le plan est simple (valeurs écrasées, pas de plan initial conservé pour l'instant, évolution possible plus tard).
 
 ## Phase 4 — Approfondir le suivi des enveloppes (évolution)
 

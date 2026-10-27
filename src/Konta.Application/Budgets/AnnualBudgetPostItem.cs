@@ -7,6 +7,8 @@ public sealed record AnnualBudgetPostItem(
     int Year,
     string Name,
     AnnualBudgetPostType Type,
+    AnnualBudgetExpenseKind? ExpenseKind,
+    int SortOrder,
     bool IsActive,
     IReadOnlyList<decimal?> MonthlyAmounts,
     decimal AnnualTotal,

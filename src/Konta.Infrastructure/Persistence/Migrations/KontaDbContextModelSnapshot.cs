@@ -86,6 +86,10 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ExpenseKind")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
@@ -93,6 +97,9 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -108,6 +115,34 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("AnnualBudgetPosts");
+                });
+
+            modelBuilder.Entity("Konta.Domain.Budgets.BudgetExtra", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Year", "Month");
+
+                    b.ToTable("BudgetExtras");
                 });
 
             modelBuilder.Entity("Konta.Domain.Budgets.BudgetMonthlyAmount", b =>

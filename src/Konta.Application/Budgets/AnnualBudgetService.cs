@@ -27,13 +27,18 @@ public sealed class AnnualBudgetService(
             .Where(post => post.Type == AnnualBudgetPostType.Savings)
             .Sum(post => post.AnnualTotal);
 
+        var extras = (await repository.ListExtrasAsync(year, cancellationToken)).Select(ToExtraItem).ToArray();
+        var extraTotal = extras.Sum(extra => extra.Amount);
+
         return new AnnualBudgetSummary(
             year,
             incomeTotal,
             expenseTotal,
             savingsTotal,
-            incomeTotal - expenseTotal - savingsTotal,
-            posts);
+            extraTotal,
+            incomeTotal + extraTotal - expenseTotal - savingsTotal,
+            posts,
+            extras);
     }
 
     public async Task<AnnualBudgetMonthSummary> GetMonthAsync(
@@ -93,6 +98,8 @@ public sealed class AnnualBudgetService(
                 post.Id,
                 post.Name,
                 post.Type,
+                post.ExpenseKind,
+                post.SortOrder,
                 plannedAmount,
                 actualAmount,
                 varianceAmount,
@@ -117,6 +124,10 @@ public sealed class AnnualBudgetService(
         var plannedIncomeTotal = SumPlanned(activePosts, AnnualBudgetPostType.Income, month);
         var plannedExpenseTotal = SumPlanned(activePosts, AnnualBudgetPostType.Expense, month);
         var plannedSavingsTotal = SumPlanned(activePosts, AnnualBudgetPostType.Savings, month);
+        var monthExtras = (await repository.ListExtrasAsync(year, cancellationToken))
+            .Where(extra => extra.Month == month)
+            .Select(ToExtraItem)
+            .ToArray();
 
         return new AnnualBudgetMonthSummary(
             year,
@@ -124,6 +135,7 @@ public sealed class AnnualBudgetService(
             plannedIncomeTotal,
             plannedExpenseTotal,
             plannedSavingsTotal,
+            monthExtras.Sum(extra => extra.Amount),
             actualSavingsTotal,
             transactions.Where(transaction => transaction.Type == TransactionType.Income).Sum(transaction => transaction.Amount),
             transactions.Where(transaction => transaction.Type == TransactionType.Expense).Sum(transaction => transaction.Amount),
@@ -131,13 +143,15 @@ public sealed class AnnualBudgetService(
             unassignedTransactions.Where(transaction => transaction.Type == TransactionType.Expense).Sum(transaction => transaction.Amount),
             unassignedTransactions.Length,
             unassignedTransactions,
-            postItems);
+            postItems,
+            monthExtras);
     }
 
     public async Task<AnnualBudgetPostItem> CreatePostAsync(
         int year,
         string name,
         AnnualBudgetPostType type,
+        AnnualBudgetExpenseKind? expenseKind,
         CancellationToken cancellationToken)
     {
         ValidateYear(year);
@@ -147,7 +161,16 @@ public sealed class AnnualBudgetService(
             throw new DuplicateAnnualBudgetPostException(normalizedName);
         }
 
-        var post = new AnnualBudgetPost(year, normalizedName, type);
+        AnnualBudgetExpenseKind? targetExpenseKind = type == AnnualBudgetPostType.Expense
+            ? expenseKind ?? AnnualBudgetExpenseKind.Variable
+            : null;
+        var existingPosts = await repository.ListPostsAsync(year, cancellationToken);
+        var sortOrder = existingPosts
+            .Where(item => item.IsActive && IsInGroup(item, type, targetExpenseKind))
+            .Select(item => item.SortOrder)
+            .DefaultIfEmpty(-1)
+            .Max() + 1;
+        var post = new AnnualBudgetPost(year, normalizedName, type, targetExpenseKind, sortOrder);
         await repository.AddPostAsync(post, cancellationToken);
         return ToItem(post);
     }
@@ -156,6 +179,7 @@ public sealed class AnnualBudgetService(
         Guid id,
         string name,
         AnnualBudgetPostType type,
+        AnnualBudgetExpenseKind? expenseKind,
         CancellationToken cancellationToken)
     {
         var post = await repository.GetPostAsync(id, cancellationToken);
@@ -171,9 +195,62 @@ public sealed class AnnualBudgetService(
             throw new DuplicateAnnualBudgetPostException(normalizedName);
         }
 
-        post.Update(normalizedName, type);
+        AnnualBudgetExpenseKind? targetExpenseKind = type == AnnualBudgetPostType.Expense
+            ? expenseKind ?? AnnualBudgetExpenseKind.Variable
+            : null;
+        if (!IsInGroup(post, type, targetExpenseKind))
+        {
+            var existingPosts = await repository.ListPostsAsync(post.Year, cancellationToken);
+            var sortOrder = existingPosts
+                .Where(item => item.Id != post.Id && item.IsActive && IsInGroup(item, type, targetExpenseKind))
+                .Select(item => item.SortOrder)
+                .DefaultIfEmpty(-1)
+                .Max() + 1;
+            post.SetSortOrder(sortOrder);
+        }
+
+        post.Update(normalizedName, type, targetExpenseKind);
         await repository.UpdatePostAsync(post, cancellationToken);
         return ToItem(post);
+    }
+
+    public async Task ReorderPostsAsync(
+        int year,
+        AnnualBudgetPostType type,
+        AnnualBudgetExpenseKind? expenseKind,
+        IReadOnlyList<Guid> postIds,
+        CancellationToken cancellationToken)
+    {
+        ValidateYear(year);
+        if (!Enum.IsDefined(type))
+        {
+            throw new ArgumentOutOfRangeException(nameof(type), "Le type du poste budgétaire est invalide.");
+        }
+
+        if (expenseKind.HasValue && !Enum.IsDefined(expenseKind.Value))
+        {
+            throw new ArgumentOutOfRangeException(nameof(expenseKind), "La catégorie de dépense est invalide.");
+        }
+
+        if ((type == AnnualBudgetPostType.Expense) != expenseKind.HasValue)
+        {
+            throw new ArgumentException("Indiquez une catégorie uniquement pour les dépenses.", nameof(expenseKind));
+        }
+
+        if (postIds.Count == 0 || postIds.Distinct().Count() != postIds.Count)
+        {
+            throw new ArgumentException("La liste des postes à ordonner est vide ou contient des doublons.", nameof(postIds));
+        }
+
+        var posts = (await repository.ListPostsAsync(year, cancellationToken))
+            .Where(post => post.IsActive && IsInGroup(post, type, expenseKind))
+            .ToArray();
+        if (posts.Length != postIds.Count || !posts.Select(post => post.Id).ToHashSet().SetEquals(postIds))
+        {
+            throw new ArgumentException("La liste doit contenir exactement les postes actifs de cette section.", nameof(postIds));
+        }
+
+        await repository.SetPostOrderAsync(postIds, cancellationToken);
     }
 
     public async Task<bool> DeletePostAsync(Guid id, CancellationToken cancellationToken)
@@ -251,6 +328,51 @@ public sealed class AnnualBudgetService(
         return ToItem(await repository.GetPostAsync(id, cancellationToken) ?? post);
     }
 
+    public async Task<AnnualBudgetPostItem?> ClearMonthlyAmountsFromAsync(
+        Guid id,
+        int month,
+        CancellationToken cancellationToken)
+    {
+        if (month is < 1 or > 12)
+        {
+            throw new ArgumentOutOfRangeException(nameof(month), "Le mois doit être compris entre 1 et 12.");
+        }
+
+        var post = await repository.GetPostAsync(id, cancellationToken);
+        if (post is null)
+        {
+            return null;
+        }
+
+        if (!post.IsActive)
+        {
+            throw new InvalidOperationException("Un poste désactivé ne peut pas être modifié.");
+        }
+
+        for (var target = month; target <= 12; target++)
+        {
+            await repository.SetMonthlyAmountAsync(id, target, null, cancellationToken);
+        }
+
+        return ToItem(await repository.GetPostAsync(id, cancellationToken) ?? post);
+    }
+
+    public async Task<BudgetExtraItem> AddExtraAsync(
+        int year,
+        int month,
+        string label,
+        decimal amount,
+        CancellationToken cancellationToken)
+    {
+        ValidateYear(year);
+        var extra = new BudgetExtra(year, month, label, amount);
+        await repository.AddExtraAsync(extra, cancellationToken);
+        return ToExtraItem(extra);
+    }
+
+    public Task<bool> DeleteExtraAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.DeleteExtraAsync(id, cancellationToken);
+
     public async Task<AnnualBudgetPostItem?> SetCategoryMappingsAsync(
         Guid id,
         IReadOnlyCollection<Guid> categoryIds,
@@ -308,6 +430,8 @@ public sealed class AnnualBudgetService(
             post.Year,
             post.Name,
             post.Type,
+            post.ExpenseKind,
+            post.SortOrder,
             post.IsActive,
             amounts,
             amounts.Where(amount => amount.HasValue).Sum(amount => amount!.Value),
@@ -341,6 +465,17 @@ public sealed class AnnualBudgetService(
 
         return name.Trim();
     }
+
+    private static BudgetExtraItem ToExtraItem(BudgetExtra extra) =>
+        new(extra.Id, extra.Year, extra.Month, extra.Label, extra.Amount);
+
+    private static bool IsInGroup(
+        AnnualBudgetPost post,
+        AnnualBudgetPostType type,
+        AnnualBudgetExpenseKind? expenseKind) =>
+        post.Type == type
+        && (type != AnnualBudgetPostType.Expense
+            || (post.ExpenseKind ?? AnnualBudgetExpenseKind.Variable) == expenseKind);
 
     private static void ValidateYear(int year)
     {

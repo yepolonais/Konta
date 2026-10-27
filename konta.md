@@ -27,6 +27,7 @@ L'objectif est d'éviter de découvrir trop tard qu'une dépense importante ou u
 - Les postes sont nommés librement, par exemple : salaires, loyer, électricité, internet, assurances, courses, loisirs, impôts, vacances ou imprévus.
 - Les revenus prévisionnels comprennent notamment les salaires et peuvent inclure d'autres sources.
 - Les dépenses prévisionnelles couvrent les charges régulières comme les dépenses variables ou ponctuelles.
+- Dans l'interface, les dépenses peuvent être réparties entre « Charges fixes » (montants réguliers liés à un contrat) et « Dépenses variables ». Cette séparation est une classification de présentation : les deux catégories restent des dépenses et alimentent les mêmes totaux et comparaisons.
 - Un poste peut avoir un montant prévu différent pour chaque mois. La répétition d'un montant d'un mois à l'autre est une facilité de saisie, pas une obligation.
 - Le budget affiche les totaux par mois et par poste, les totaux annuels des revenus et dépenses, ainsi que le résultat prévisionnel (revenus moins dépenses).
 

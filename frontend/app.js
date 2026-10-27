@@ -18,6 +18,7 @@ class KontaApp extends HTMLElement {
     this.annualBudget = null;
     this.annualBudgetCategories = [];
     this.annualBudgetMonth = null;
+    this.draggedBudgetPostId = null;
     this.selectedBudgetMonth = new Date().getMonth() + 1;
   }
 
@@ -80,6 +81,10 @@ class KontaApp extends HTMLElement {
                 <option value="Expense">Dépense</option>
                 <option value="Savings">Épargne planifiée</option>
               </select></label>
+              <label id="annual-budget-expense-kind-field" hidden>Catégorie de dépense<select id="annual-budget-expense-kind">
+                <option value="Variable">Dépense variable</option>
+                <option value="Fixed">Charge fixe</option>
+              </select></label>
               <button type="submit">Ajouter un poste</button>
             </form>
             <div class="annual-budget-toolbar">
@@ -95,6 +100,17 @@ class KontaApp extends HTMLElement {
               </table>
             </div>
             <p class="empty" id="annual-budget-empty" hidden>Ajoutez vos premiers postes prévisionnels pour construire le budget de l’année.</p>
+            <section class="budget-extras" aria-labelledby="budget-extras-title">
+              <div><span class="section-kicker">Ajustement</span><h3 id="budget-extras-title">Extras ponctuels</h3>
+              <p>Argent ajouté en plus du plan, une seule fois. Il est comptabilisé à part des revenus réguliers.</p></div>
+              <form class="budget-extra-form" id="budget-extra-form">
+                <label>Mois<select id="budget-extra-month" required></select></label>
+                <label>Motif<input id="budget-extra-label" maxlength="200" placeholder="Ex. Apport après dépassement" required></label>
+                <label>Montant (€)<input id="budget-extra-amount" type="number" min="0.01" step="0.01" required></label>
+                <button type="submit">Ajouter l’extra</button>
+              </form>
+              <ul class="budget-extra-list" id="budget-extra-list"></ul>
+            </section>
             <section class="budget-monthly-review" aria-labelledby="budget-monthly-title">
               <div class="budget-monthly-heading">
                 <div><span class="section-kicker">Suivi mensuel</span><h3 id="budget-monthly-title">Prévu et réalisé</h3></div>
@@ -271,6 +287,9 @@ class KontaApp extends HTMLElement {
       this.loadSummary();
     });
     this.shadowRoot.querySelector("#annual-budget-form").addEventListener("submit", event => this.createAnnualBudgetPost(event));
+    this.shadowRoot.querySelector("#annual-budget-post-type").addEventListener("change", event => {
+      this.shadowRoot.querySelector("#annual-budget-expense-kind-field").hidden = event.target.value !== "Expense";
+    });
     this.shadowRoot.querySelector("#annual-budget-year").addEventListener("change", () => this.loadAnnualBudget());
     this.shadowRoot.querySelector("#annual-budget-month").addEventListener("change", event => {
       this.selectedBudgetMonth = Number(event.target.value);
@@ -278,10 +297,19 @@ class KontaApp extends HTMLElement {
       this.loadAnnualBudgetMonth();
     });
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
+    this.shadowRoot.querySelector("#budget-extra-form").addEventListener("submit", event => this.addBudgetExtra(event));
+    this.shadowRoot.querySelector("#budget-extra-list").addEventListener("click", event => this.deleteBudgetExtra(event));
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("focusin", event => {
       const input = event.target.closest("[data-month-amount]");
       if (input) input.closest("[data-post-id]").dataset.sourceMonth = input.dataset.month;
     });
+    const annualBudgetBody = this.shadowRoot.querySelector("#annual-budget-body");
+    annualBudgetBody.addEventListener("dragstart", event => this.handleBudgetPostDragStart(event));
+    annualBudgetBody.addEventListener("dragover", event => this.handleBudgetPostDragOver(event));
+    annualBudgetBody.addEventListener("dragleave", event => this.handleBudgetPostDragLeave(event));
+    annualBudgetBody.addEventListener("drop", event => this.handleBudgetPostDrop(event));
+    annualBudgetBody.addEventListener("dragend", () => this.clearBudgetPostDragState());
+    annualBudgetBody.addEventListener("keydown", event => this.handleBudgetPostMoveKeydown(event));
     // Garde le focus sur le champ pour que la flèche reste visible et que la valeur saisie soit recopiée.
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("mousedown", event => {
       if (event.target.closest(".budget-inline-copy")) event.preventDefault();
@@ -448,9 +476,10 @@ class KontaApp extends HTMLElement {
     if (!this.annualBudget) return;
     const budget = this.annualBudget;
     const groups = [
-      ["Income", "Revenus"],
-      ["Expense", "Dépenses"],
-      ["Savings", "Épargne planifiée"]
+      { type: "Income", label: "Revenus" },
+      { type: "Expense", expenseKind: "Fixed", label: "Charges fixes" },
+      { type: "Expense", expenseKind: "Variable", label: "Dépenses variables" },
+      { type: "Savings", label: "Épargne planifiée" }
     ];
     const activePosts = budget.posts.filter(post => post.isActive);
     const narrowLayout = window.matchMedia("(max-width: 800px)").matches;
@@ -473,7 +502,7 @@ class KontaApp extends HTMLElement {
 
     const body = this.shadowRoot.querySelector("#annual-budget-body");
     body.replaceChildren();
-    for (const [type, label] of groups) {
+    for (const { type, expenseKind, label } of groups) {
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row";
       const sectionCell = this.budgetCell(label, "th");
@@ -481,8 +510,15 @@ class KontaApp extends HTMLElement {
       sectionRow.append(sectionCell);
       body.append(sectionRow);
 
-      const groupPosts = activePosts.filter(post => post.type === type);
-      for (const post of groupPosts) body.append(this.annualBudgetPostRow(post, months));
+      const groupPosts = activePosts.filter(post => post.type === type
+        && (type !== "Expense" || (post.expenseKind ?? "Variable") === expenseKind));
+      for (const post of groupPosts) {
+        const row = this.annualBudgetPostRow(post, months);
+        row.dataset.orderGroup = `${type}:${expenseKind ?? ""}`;
+        row.dataset.orderType = type;
+        if (expenseKind) row.dataset.orderExpenseKind = expenseKind;
+        body.append(row);
+      }
 
       if (groupPosts.length === 0) {
         const emptyRow = document.createElement("tr");
@@ -506,6 +542,7 @@ class KontaApp extends HTMLElement {
     }
 
     this.renderAnnualBudgetTotals(months);
+    this.renderBudgetExtras();
     this.shadowRoot.querySelector("#annual-budget-empty").hidden = budget.posts.length > 0;
     this.shadowRoot.querySelector(".annual-budget-table-wrap").hidden = budget.posts.length === 0;
     this.shadowRoot.querySelector("#budget-monthly-title").textContent =
@@ -523,6 +560,19 @@ class KontaApp extends HTMLElement {
     if (!post.isActive) row.className = "budget-archived-row";
 
     const nameCell = document.createElement("td");
+    const nameControls = document.createElement("div");
+    nameControls.className = "budget-post-name-controls";
+    if (post.isActive) {
+      const handle = this.budgetIconButton({
+        label: `Déplacer ${post.name}. Utilisez les flèches haut et bas pour changer sa position`,
+        title: "Glisser pour déplacer, ou utiliser les flèches haut et bas",
+        dataAttribute: "movePost",
+        paths: ["M8 5h8", "M8 9h8", "M8 13h8", "M8 17h8"]
+      });
+      handle.classList.add("budget-drag-handle");
+      handle.draggable = true;
+      nameControls.append(handle);
+    }
     const nameInput = document.createElement("input");
     nameInput.type = "text";
     nameInput.maxLength = 100;
@@ -530,8 +580,8 @@ class KontaApp extends HTMLElement {
     nameInput.disabled = !post.isActive;
     nameInput.dataset.postName = "";
     nameInput.setAttribute("aria-label", `Nom du poste, ${post.name}`);
-    nameCell.append(nameInput);
-
+    nameControls.append(nameInput);
+    nameCell.append(nameControls);
     row.append(nameCell);
 
     for (const month of months) {
@@ -578,6 +628,14 @@ class KontaApp extends HTMLElement {
         title: "Recopier le montant du dernier mois modifié sur les mois suivants",
         dataAttribute: "copyForward",
         paths: ["M5 12h14", "M13 6l6 6-6 6"]
+      }));
+    }
+    if (post.isActive) {
+      actionCell.append(this.budgetIconButton({
+        label: `Suspendre ${post.name} à partir du dernier mois modifié`,
+        title: "Retirer les montants prévus à partir du dernier mois modifié",
+        dataAttribute: "clearForward",
+        paths: ["M6 6l12 12", "M18 6L6 18"]
       }));
     }
     actionCell.append(this.budgetIconButton({
@@ -649,8 +707,11 @@ class KontaApp extends HTMLElement {
     const incomeTotal = this.annualBudgetTypeTotal("Income");
     const expenseTotal = this.annualBudgetTypeTotal("Expense");
     const savingsTotal = this.annualBudgetTypeTotal("Savings");
+    const extraTotal = this.annualBudgetExtraTotal();
+    const availableTotal = incomeTotal + extraTotal - expenseTotal - savingsTotal;
     const types = [
       ["Income", "Total revenus"],
+      ["Extra", "Total extras"],
       ["Expense", "Total dépenses"],
       ["Savings", "Total épargne prévue"],
       ["Available", "Disponible prévisionnel"]
@@ -667,12 +728,14 @@ class KontaApp extends HTMLElement {
         row.append(cell);
       }
       const annualTotal = type === "Available"
-        ? incomeTotal - expenseTotal - savingsTotal
+        ? availableTotal
         : type === "Income"
           ? incomeTotal
-          : type === "Expense"
-            ? expenseTotal
-            : savingsTotal;
+          : type === "Extra"
+            ? extraTotal
+            : type === "Expense"
+              ? expenseTotal
+              : savingsTotal;
       row.append(this.budgetCell(this.formatCurrency(annualTotal), "td"));
       row.lastChild.className = "amount";
       row.append(this.budgetCell("", "td"), this.budgetCell("", "td"));
@@ -683,9 +746,10 @@ class KontaApp extends HTMLElement {
     cards.replaceChildren();
     for (const [label, amount, style] of [
       ["Revenus prévus", incomeTotal, "income"],
+      ["Extras prévus", extraTotal, "income"],
       ["Dépenses prévues", expenseTotal, "expense"],
       ["Épargne prévue", savingsTotal, "savings"],
-      ["Disponible annuel", incomeTotal - expenseTotal - savingsTotal, "available"]
+      ["Disponible annuel", availableTotal, "available"]
     ]) {
       const card = document.createElement("article");
       card.className = `annual-budget-total ${style}`;
@@ -704,7 +768,15 @@ class KontaApp extends HTMLElement {
       .reduce((total, post) => total + Math.round(post.annualTotal * 100), 0) / 100;
   }
 
+  annualBudgetExtraTotal() {
+    return (this.annualBudget.extras ?? [])
+      .reduce((total, extra) => total + Math.round(extra.amount * 100), 0) / 100;
+  }
+
   monthlyBudgetTotal(type, month) {
+    const extra = (this.annualBudget.extras ?? [])
+      .filter(item => item.month === month)
+      .reduce((total, item) => total + Math.round(item.amount * 100), 0);
     const totalFor = postType => this.annualBudget.posts
       .filter(post => post.isActive && post.type === postType)
       .reduce((total, post) => total + Math.round((post.monthlyAmounts[month - 1] ?? 0) * 100), 0);
@@ -712,9 +784,10 @@ class KontaApp extends HTMLElement {
     const expense = totalFor("Expense");
     const savings = totalFor("Savings");
     const total = type === "Income" ? income
+      : type === "Extra" ? extra
       : type === "Expense" ? expense
         : type === "Savings" ? savings
-          : income - expense - savings;
+          : income + extra - expense - savings;
     return total / 100;
   }
 
@@ -729,6 +802,7 @@ class KontaApp extends HTMLElement {
     for (const [label, planned, actual, style] of [
       ["Revenus", summary.plannedIncomeTotal, summary.actualIncomeTotal, "income"],
       ["Dépenses", summary.plannedExpenseTotal, summary.actualExpenseTotal, "expense"],
+      ["Extras", summary.plannedExtraTotal, null, "income"],
       ["Épargne", summary.plannedSavingsTotal, summary.actualSavingsTotal, "savings"]
     ]) {
       const card = document.createElement("article");
@@ -736,17 +810,20 @@ class KontaApp extends HTMLElement {
       const title = document.createElement("strong");
       title.textContent = label;
       const amounts = document.createElement("span");
-      amounts.textContent = `Prévu ${this.formatCurrency(planned)} · Réalisé ${this.formatCurrency(actual)}`;
+      amounts.textContent = actual === null
+        ? `Prévu ${this.formatCurrency(planned)}`
+        : `Prévu ${this.formatCurrency(planned)} · Réalisé ${this.formatCurrency(actual)}`;
       card.append(title, amounts);
       totals.append(card);
     }
 
     const body = this.shadowRoot.querySelector("#budget-monthly-body");
     body.replaceChildren();
-    for (const [type, label, typeLabel] of [
-      ["Income", "Revenus", "Revenu"],
-      ["Expense", "Dépenses", "Dépense"],
-      ["Savings", "Épargne planifiée", "Épargne"]
+    for (const { type, expenseKind, label, typeLabel } of [
+      { type: "Income", label: "Revenus", typeLabel: "Revenu" },
+      { type: "Expense", expenseKind: "Fixed", label: "Charges fixes", typeLabel: "Dépense" },
+      { type: "Expense", expenseKind: "Variable", label: "Dépenses variables", typeLabel: "Dépense" },
+      { type: "Savings", label: "Épargne planifiée", typeLabel: "Épargne" }
     ]) {
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row";
@@ -755,7 +832,8 @@ class KontaApp extends HTMLElement {
       sectionRow.append(sectionCell);
       body.append(sectionRow);
 
-      const posts = summary.posts.filter(post => post.type === type);
+      const posts = summary.posts.filter(post => post.type === type
+        && (type !== "Expense" || (post.expenseKind ?? "Variable") === expenseKind));
       if (posts.length === 0) {
         const row = document.createElement("tr");
         const emptyCell = this.budgetCell(`Aucun poste de ${label.toLowerCase()}`, "td");
@@ -851,7 +929,13 @@ class KontaApp extends HTMLElement {
       const response = await fetch(`/api/annual-budgets/${year}/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nameInput.value.trim(), type })
+        body: JSON.stringify({
+          name: nameInput.value.trim(),
+          type,
+          expenseKind: type === "Expense"
+            ? this.shadowRoot.querySelector("#annual-budget-expense-kind").value
+            : null
+        })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’ajouter le poste.");
@@ -874,7 +958,6 @@ class KontaApp extends HTMLElement {
       await this.handleBudgetCategoryMappingChange(row, post);
       return;
     }
-
     try {
       let response;
       if (input.matches("[data-post-name]")) {
@@ -883,7 +966,8 @@ class KontaApp extends HTMLElement {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: row.querySelector("[data-post-name]").value.trim(),
-            type: post.type
+            type: post.type,
+            expenseKind: post.type === "Expense" ? post.expenseKind ?? "Variable" : null
           })
         });
       } else if (input.matches("[data-month-amount]")) {
@@ -948,6 +1032,12 @@ class KontaApp extends HTMLElement {
       return;
     }
 
+    const clearButton = event.target.closest("[data-clear-forward]");
+    if (clearButton) {
+      await this.clearBudgetAmountsForward(clearButton);
+      return;
+    }
+
     const button = event.target.closest("[data-delete-post]");
     if (!button) return;
     const row = button.closest("[data-post-id]");
@@ -965,6 +1055,100 @@ class KontaApp extends HTMLElement {
     } catch (exception) {
       this.setAnnualBudgetFeedback(exception.message, true);
       button.disabled = false;
+    }
+  }
+
+  handleBudgetPostDragStart(event) {
+    const handle = event.target.closest("[data-move-post]");
+    const row = handle?.closest("[data-post-id]");
+    if (!row || !event.dataTransfer) return;
+    this.draggedBudgetPostId = row.dataset.postId;
+    row.classList.add("budget-post-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", row.dataset.postId);
+  }
+
+  handleBudgetPostDragOver(event) {
+    const target = event.target.closest("tr[data-post-id]");
+    const dragged = this.draggedBudgetPostId
+      ? this.shadowRoot.querySelector(`[data-post-id="${this.draggedBudgetPostId}"]`)
+      : null;
+    if (!dragged || !target || target === dragged || target.dataset.orderGroup !== dragged.dataset.orderGroup) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    this.shadowRoot.querySelectorAll(".budget-post-drop-target").forEach(row => row.classList.remove("budget-post-drop-target"));
+    target.classList.add("budget-post-drop-target");
+  }
+
+  handleBudgetPostDragLeave(event) {
+    const row = event.target.closest("tr[data-post-id]");
+    if (row && !row.contains(event.relatedTarget)) row.classList.remove("budget-post-drop-target");
+  }
+
+  async handleBudgetPostDrop(event) {
+    const target = event.target.closest("tr[data-post-id]");
+    const sourceId = this.draggedBudgetPostId;
+    const source = sourceId
+      ? this.shadowRoot.querySelector(`[data-post-id="${sourceId}"]`)
+      : null;
+    if (!source || !target || source === target || source.dataset.orderGroup !== target.dataset.orderGroup) return;
+    event.preventDefault();
+    const groupRows = [...this.shadowRoot.querySelectorAll(`tr[data-order-group="${source.dataset.orderGroup}"]`)];
+    const postIds = groupRows.map(row => row.dataset.postId);
+    const sourceIndex = postIds.indexOf(sourceId);
+    let targetIndex = postIds.indexOf(target.dataset.postId);
+    const bounds = target.getBoundingClientRect();
+    if (event.clientY > bounds.top + bounds.height / 2) targetIndex++;
+    postIds.splice(sourceIndex, 1);
+    if (sourceIndex < targetIndex) targetIndex--;
+    postIds.splice(targetIndex, 0, sourceId);
+    await this.persistBudgetPostOrder(source, postIds);
+  }
+
+  handleBudgetPostMoveKeydown(event) {
+    const handle = event.target.closest("[data-move-post]");
+    const row = handle?.closest("[data-post-id]");
+    if (!row || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+    const groupRows = [...this.shadowRoot.querySelectorAll(`tr[data-order-group="${row.dataset.orderGroup}"]`)];
+    const postIds = groupRows.map(item => item.dataset.postId);
+    const index = postIds.indexOf(row.dataset.postId);
+    const targetIndex = index + (event.key === "ArrowUp" ? -1 : 1);
+    if (targetIndex < 0 || targetIndex >= postIds.length) return;
+    event.preventDefault();
+    [postIds[index], postIds[targetIndex]] = [postIds[targetIndex], postIds[index]];
+    this.persistBudgetPostOrder(row, postIds, row.dataset.postId);
+  }
+
+  clearBudgetPostDragState() {
+    this.draggedBudgetPostId = null;
+    this.shadowRoot.querySelectorAll(".budget-post-dragging, .budget-post-drop-target").forEach(row => {
+      row.classList.remove("budget-post-dragging", "budget-post-drop-target");
+    });
+  }
+
+  async persistBudgetPostOrder(row, postIds, focusPostId = null) {
+    const type = row.dataset.orderType;
+    const expenseKind = row.dataset.orderExpenseKind || null;
+    try {
+      const response = await fetch(`/api/annual-budgets/${this.annualBudget.year}/posts/order`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, expenseKind, postIds })
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.detail ?? result.title ?? "Impossible d’enregistrer l’ordre des postes.");
+      }
+      this.clearBudgetPostDragState();
+      await this.loadAnnualBudget();
+      if (focusPostId) {
+        this.shadowRoot.querySelector(`[data-post-id="${focusPostId}"] [data-move-post]`)?.focus();
+      }
+      this.setAnnualBudgetFeedback("Ordre des postes enregistré.");
+    } catch (exception) {
+      this.clearBudgetPostDragState();
+      this.setAnnualBudgetFeedback(exception.message, true);
+      await this.loadAnnualBudget();
     }
   }
 
@@ -1001,6 +1185,105 @@ class KontaApp extends HTMLElement {
       const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" })
         .format(new Date(post.year, Number(source.dataset.month) - 1, 1));
       this.setAnnualBudgetFeedback(`Montant de ${monthName} recopié sur les mois suivants pour « ${post.name} ».`);
+    } catch (exception) {
+      this.setAnnualBudgetFeedback(exception.message, true);
+      button.disabled = false;
+    }
+  }
+
+  async clearBudgetAmountsForward(button) {
+    const row = button.closest("[data-post-id]");
+    const post = this.annualBudget?.posts.find(item => item.id === row?.dataset.postId);
+    if (!post) return;
+    const month = Number(row.dataset.sourceMonth ?? this.selectedBudgetMonth);
+    const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" })
+      .format(new Date(post.year, month - 1, 1));
+    if (!window.confirm(`Retirer les montants prévus de « ${post.name} » de ${monthName} à décembre ? Les mois précédents sont conservés.`)) return;
+    button.disabled = true;
+    try {
+      const response = await fetch(`/api/annual-budgets/posts/${post.id}/months/${month}/clear-forward`, { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de suspendre le poste.");
+      await this.loadAnnualBudget();
+      this.setAnnualBudgetFeedback(`« ${post.name} » suspendu de ${monthName} à décembre.`);
+    } catch (exception) {
+      this.setAnnualBudgetFeedback(exception.message, true);
+      button.disabled = false;
+    }
+  }
+
+  renderBudgetExtras() {
+    const monthSelect = this.shadowRoot.querySelector("#budget-extra-month");
+    if (monthSelect.options.length === 0) {
+      for (let month = 1; month <= 12; month++) {
+        monthSelect.append(this.option(String(month), new Intl.DateTimeFormat("fr-FR", { month: "long" })
+          .format(new Date(2000, month - 1, 1))));
+      }
+      monthSelect.value = String(this.selectedBudgetMonth);
+    }
+
+    const list = this.shadowRoot.querySelector("#budget-extra-list");
+    list.replaceChildren();
+    const extras = this.annualBudget.extras ?? [];
+    if (extras.length === 0) {
+      const empty = document.createElement("li");
+      empty.className = "muted";
+      empty.textContent = "Aucun extra pour cette année.";
+      list.append(empty);
+    }
+    for (const extra of extras) {
+      const item = document.createElement("li");
+      item.dataset.extraId = extra.id;
+      const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" })
+        .format(new Date(extra.year, extra.month - 1, 1));
+      const text = document.createElement("span");
+      text.textContent = `${monthName} · ${extra.label} · +${this.formatCurrency(extra.amount)}`;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary-button";
+      remove.textContent = "Supprimer";
+      remove.dataset.deleteExtra = "";
+      remove.setAttribute("aria-label", `Supprimer l’extra ${extra.label}`);
+      item.append(text, remove);
+      list.append(item);
+    }
+  }
+
+  async addBudgetExtra(event) {
+    event.preventDefault();
+    const year = Number(this.shadowRoot.querySelector("#annual-budget-year").value);
+    const labelInput = this.shadowRoot.querySelector("#budget-extra-label");
+    const amountInput = this.shadowRoot.querySelector("#budget-extra-amount");
+    try {
+      const response = await fetch(`/api/annual-budgets/${year}/extras`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          month: Number(this.shadowRoot.querySelector("#budget-extra-month").value),
+          label: labelInput.value.trim(),
+          amount: Number(amountInput.value)
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’ajouter l’extra.");
+      labelInput.value = "";
+      amountInput.value = "";
+      await this.loadAnnualBudget();
+      this.setAnnualBudgetFeedback("Extra ajouté.");
+    } catch (exception) {
+      this.setAnnualBudgetFeedback(exception.message, true);
+    }
+  }
+
+  async deleteBudgetExtra(event) {
+    const button = event.target.closest("[data-delete-extra]");
+    if (!button) return;
+    button.disabled = true;
+    try {
+      const response = await fetch(`/api/annual-budgets/extras/${button.closest("[data-extra-id]").dataset.extraId}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Impossible de supprimer l’extra.");
+      await this.loadAnnualBudget();
+      this.setAnnualBudgetFeedback("Extra supprimé.");
     } catch (exception) {
       this.setAnnualBudgetFeedback(exception.message, true);
       button.disabled = false;
