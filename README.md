@@ -27,10 +27,9 @@ dotnet test Konta.sln
 ## Fonctionnalités disponibles
 
 - `GET /api/health` : état de l'API.
-- `GET /api/annual-budgets/{year}` : consulter les postes, montants mensuels et totaux prévisionnels d'une année.
-- `GET /api/annual-budgets/{year}/months/{month}` : comparer le prévu au réalisé pour un mois, avec le détail des opérations et les opérations non rapprochées.
+- `GET /api/annual-budgets/{year}` : consulter les postes, montants mensuels, reports prévisionnels et totaux d'une année.
+- `GET /api/annual-budgets/{year}/months/{month}` : comparer le prévu au réalisé pour un mois, avec le report prévisionnel, le détail des opérations et les opérations non rapprochées.
 - `POST /api/annual-budgets/posts/{id}/months/{month}/copy-forward` : recopier le montant d'un mois sur les mois suivants.
-- `POST /api/annual-budgets/posts/{id}/months/{month}/clear-forward` : retirer les montants prévus d'un poste à partir d'un mois.
 - `PUT /api/annual-budgets/{year}/posts/order` : définir l'ordre des postes actifs dans une même section.
 - `POST /api/annual-budgets/{year}/extras` et `DELETE /api/annual-budgets/extras/{id}` : ajouter ou supprimer un extra ponctuel.
 - `POST /api/annual-budgets/{year}/posts` : ajouter un poste de revenu, dépense ou épargne planifiée.
@@ -46,7 +45,7 @@ dotnet test Konta.sln
 - Le plan est simple : modifier un montant écrase l'ancien, sans conserver le plan initial. Les mois passés ne sont jamais modifiés par un ajustement futur.
 - Le rapprochement se fait par catégorie (pas par sous-catégorie) : une catégorie ne peut alimenter qu'un poste actif par année.
 - Les virements entre comptes sont exclus des revenus et dépenses. Pour l'épargne, seuls les versements sortants comptent ; les retraits depuis l'épargne sont ignorés.
-- Le disponible est calculé par mois ; il n'y a pas encore de cumul annuel prévu/réalisé.
+- Le disponible prévisionnel affiché est le net du mois (revenus + extras − dépenses − épargne), hors report. Le report cumulé est affiché séparément, et la ligne « Résultat prévisionnel du mois » est calculée comme disponible mensuel plus report (qui peut être négatif). Le report reprend le disponible prévisionnel cumulé de décembre de l'année précédente en janvier.
 - Les opérations sans catégorie rattachée à un poste sont listées comme « non rapprochées » et ne sont pas comptées dans les postes.
 - La réaffectation entre postes et l'historique du plan initial sont des évolutions possibles (voir [roadmap.md](./roadmap.md)).
 

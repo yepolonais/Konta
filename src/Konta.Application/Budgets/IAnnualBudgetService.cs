@@ -34,10 +34,6 @@ public interface IAnnualBudgetService
         Guid id,
         int month,
         CancellationToken cancellationToken);
-    Task<AnnualBudgetPostItem?> ClearMonthlyAmountsFromAsync(
-        Guid id,
-        int month,
-        CancellationToken cancellationToken);
     Task<BudgetExtraItem> AddExtraAsync(
         int year,
         int month,

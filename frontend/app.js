@@ -505,7 +505,7 @@ class KontaApp extends HTMLElement {
     body.replaceChildren();
     for (const { type, expenseKind, label, emptyLabel } of BUDGET_GROUPS) {
       const sectionRow = document.createElement("tr");
-      sectionRow.className = "budget-section-row";
+      sectionRow.className = `budget-section-row ${type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
       const sectionCell = this.budgetCell(label, "th");
       sectionCell.colSpan = months.length + 4;
       sectionRow.append(sectionCell);
@@ -545,7 +545,7 @@ class KontaApp extends HTMLElement {
     this.renderAnnualBudgetTotals(months);
     this.renderBudgetExtras();
     this.shadowRoot.querySelector("#annual-budget-empty").hidden = budget.posts.length > 0;
-    this.shadowRoot.querySelector(".annual-budget-table-wrap").hidden = budget.posts.length === 0;
+    this.shadowRoot.querySelector(".annual-budget-table-wrap").hidden = false;
     this.shadowRoot.querySelector("#budget-monthly-title").textContent =
       `Prévu et réalisé · ${new Intl.DateTimeFormat("fr-FR", { month: "long" })
         .format(new Date(budget.year, this.selectedBudgetMonth - 1, 1))}`;
@@ -570,7 +570,12 @@ class KontaApp extends HTMLElement {
         dataAttribute: "movePost",
         paths: ["M8 5h8", "M8 9h8", "M8 13h8", "M8 17h8"]
       });
-      handle.classList.add("budget-drag-handle");
+      handle.classList.add(
+        "budget-drag-handle",
+        post.type === "Income" ? "budget-drag-handle-income"
+          : post.type === "Savings" ? "budget-drag-handle-savings"
+            : "budget-drag-handle-expense"
+      );
       handle.draggable = true;
       nameControls.append(handle);
     }
@@ -631,20 +636,14 @@ class KontaApp extends HTMLElement {
         paths: ["M5 12h14", "M13 6l6 6-6 6"]
       }));
     }
-    if (post.isActive) {
-      actionCell.append(this.budgetIconButton({
-        label: `Suspendre ${post.name} à partir du dernier mois modifié`,
-        title: "Retirer les montants prévus à partir du dernier mois modifié",
-        dataAttribute: "clearForward",
-        paths: ["M6 6l12 12", "M18 6L6 18"]
-      }));
-    }
-    actionCell.append(this.budgetIconButton({
+    const deleteButton = this.budgetIconButton({
       label: `Supprimer le poste ${post.name}`,
       title: "Supprimer le poste",
       dataAttribute: "deletePost",
       paths: ["M4 7h16", "M10 11v6", "M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3"]
-    }));
+    });
+    deleteButton.classList.add("budget-post-delete");
+    actionCell.append(deleteButton);
     row.append(actionCell);
 
     const mappingCell = document.createElement("td");
@@ -709,7 +708,7 @@ class KontaApp extends HTMLElement {
     const expenseTotal = this.annualBudgetTypeTotal("Expense");
     const savingsTotal = this.annualBudgetTypeTotal("Savings");
     const extraTotal = this.annualBudgetExtraTotal();
-    const availableTotal = incomeTotal + extraTotal - expenseTotal - savingsTotal;
+    const availableTotal = this.annualBudget.availableTotal;
     const types = [
       ["Income", "Total revenus"],
       ["Extra", "Total extras"],
@@ -743,6 +742,23 @@ class KontaApp extends HTMLElement {
       foot.append(row);
     }
 
+    this.appendAnnualBudgetBalanceRow(
+      foot,
+      "Report du mois précédent",
+      "CarryForward",
+      months,
+      null,
+      "budget-carry-forward-row"
+    );
+    this.appendAnnualBudgetBalanceRow(
+      foot,
+      "Résultat prévisionnel du mois",
+      "MonthlyNet",
+      months,
+      null,
+      "budget-month-result-row"
+    );
+
     const cards = this.shadowRoot.querySelector("#annual-budget-totals");
     cards.replaceChildren();
     for (const [label, amount, style] of [
@@ -763,6 +779,30 @@ class KontaApp extends HTMLElement {
     }
   }
 
+  appendAnnualBudgetBalanceRow(foot, label, totalType, months, annualTotal, rowClass) {
+    const row = document.createElement("tr");
+    row.className = rowClass;
+    row.append(this.budgetCell(label, "th"));
+    for (const month of months) {
+      const cell = this.budgetCell(
+        totalType === "CarryForward"
+          ? this.formatCurrency(this.monthlyBudgetTotal(totalType, month))
+          : this.formatCurrency(this.monthlyBudgetTotal("Available", month)
+            + this.monthlyBudgetTotal("CarryForward", month)),
+        "td"
+      );
+      cell.className = "amount budget-month-column";
+      row.append(cell);
+    }
+    row.append(this.budgetCell(
+      annualTotal === null ? "—" : this.formatCurrency(annualTotal),
+      "td"
+    ));
+    row.lastChild.className = "amount";
+    row.append(this.budgetCell("", "td"), this.budgetCell("", "td"));
+    foot.append(row);
+  }
+
   annualBudgetTypeTotal(type) {
     return this.annualBudget.posts
       .filter(post => post.isActive && post.type === type)
@@ -775,6 +815,9 @@ class KontaApp extends HTMLElement {
   }
 
   monthlyBudgetTotal(type, month) {
+    if (type === "CarryForward") {
+      return this.annualBudget.plannedCarryForwardAmounts[month - 1];
+    }
     const extra = (this.annualBudget.extras ?? [])
       .filter(item => item.month === month)
       .reduce((total, item) => total + Math.round(item.amount * 100), 0);
@@ -823,7 +866,7 @@ class KontaApp extends HTMLElement {
     body.replaceChildren();
     for (const { type, expenseKind, label, emptyLabel, typeLabel } of BUDGET_GROUPS) {
       const sectionRow = document.createElement("tr");
-      sectionRow.className = "budget-section-row";
+      sectionRow.className = `budget-section-row ${type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
       const sectionCell = this.budgetCell(label, "th");
       sectionCell.colSpan = 5;
       sectionRow.append(sectionCell);
@@ -1029,12 +1072,6 @@ class KontaApp extends HTMLElement {
       return;
     }
 
-    const clearButton = event.target.closest("[data-clear-forward]");
-    if (clearButton) {
-      await this.clearBudgetAmountsForward(clearButton);
-      return;
-    }
-
     const button = event.target.closest("[data-delete-post]");
     if (!button) return;
     const row = button.closest("[data-post-id]");
@@ -1182,27 +1219,6 @@ class KontaApp extends HTMLElement {
       const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" })
         .format(new Date(post.year, Number(source.dataset.month) - 1, 1));
       this.setAnnualBudgetFeedback(`Montant de ${monthName} recopié sur les mois suivants pour « ${post.name} ».`);
-    } catch (exception) {
-      this.setAnnualBudgetFeedback(exception.message, true);
-      button.disabled = false;
-    }
-  }
-
-  async clearBudgetAmountsForward(button) {
-    const row = button.closest("[data-post-id]");
-    const post = this.annualBudget?.posts.find(item => item.id === row?.dataset.postId);
-    if (!post) return;
-    const month = Number(row.dataset.sourceMonth ?? this.selectedBudgetMonth);
-    const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" })
-      .format(new Date(post.year, month - 1, 1));
-    if (!window.confirm(`Retirer les montants prévus de « ${post.name} » de ${monthName} à décembre ? Les mois précédents sont conservés.`)) return;
-    button.disabled = true;
-    try {
-      const response = await fetch(`/api/annual-budgets/posts/${post.id}/months/${month}/clear-forward`, { method: "POST" });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de suspendre le poste.");
-      await this.loadAnnualBudget();
-      this.setAnnualBudgetFeedback(`« ${post.name} » suspendu de ${monthName} à décembre.`);
     } catch (exception) {
       this.setAnnualBudgetFeedback(exception.message, true);
       button.disabled = false;

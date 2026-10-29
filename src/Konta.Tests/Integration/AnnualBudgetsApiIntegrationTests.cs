@@ -472,35 +472,6 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
-    public async Task ClearForward_KeepsPreviousMonths_WhenPostIsSuspended()
-    {
-        // Arrange
-        using var dataDirectory = new TemporaryDirectory();
-        using var factory = CreateFactory(dataDirectory);
-        using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Vacances", "Savings");
-        for (var month = 1; month <= 12; month++)
-        {
-            await SetMonthlyAmountAsync(client, postId, month, 100m);
-        }
-
-        // Act
-        using var response = await client.PostAsync(
-            $"/api/annual-budgets/posts/{postId}/months/7/clear-forward",
-            content: null);
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var amounts = payload.RootElement.GetProperty("monthlyAmounts").EnumerateArray()
-            .Select(item => item.ValueKind == JsonValueKind.Null ? (decimal?)null : item.GetDecimal())
-            .ToArray();
-        Assert.All(amounts.Take(6), amount => Assert.Equal(100m, amount));
-        Assert.All(amounts.Skip(6), amount => Assert.Null(amount));
-        Assert.Equal(600m, payload.RootElement.GetProperty("annualTotal").GetDecimal());
-    }
-
-    [Fact]
     public async Task GetMonth_ComputesPlannedAndActualAvailable_WhenMonthHasPlanAndOperations()
     {
         // Arrange
@@ -539,6 +510,42 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal(1400m, payload.RootElement.GetProperty("plannedAvailableTotal").GetDecimal());
         Assert.Equal(1650m, payload.RootElement.GetProperty("actualAvailableTotal").GetDecimal());
+    }
+
+    [Fact]
+    public async Task GetMonth_CarriesForecastAcrossMonthsAndYears_WhenPriorMonthHasAvailableAmount()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var priorIncomeId = await CreatePostAsync(client, 2025, "Salaires", "Income");
+        var priorExpenseId = await CreatePostAsync(client, 2025, "Dépenses", "Expense");
+        var incomeId = await CreatePostAsync(client, 2026, "Salaires", "Income");
+        var expenseId = await CreatePostAsync(client, 2026, "Dépenses", "Expense");
+        await SetMonthlyAmountAsync(client, priorIncomeId, 12, 1000m);
+        await SetMonthlyAmountAsync(client, priorExpenseId, 12, 1200m);
+        await SetMonthlyAmountAsync(client, incomeId, 1, 1000m);
+        await SetMonthlyAmountAsync(client, expenseId, 1, 700m);
+        await SetMonthlyAmountAsync(client, incomeId, 2, 100m);
+        await SetMonthlyAmountAsync(client, expenseId, 2, 200m);
+
+        // Act
+        using var januaryResponse = await client.GetAsync("/api/annual-budgets/2026/months/1");
+        using var februaryResponse = await client.GetAsync("/api/annual-budgets/2026/months/2");
+        using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
+
+        // Assert
+        using var january = JsonDocument.Parse(await januaryResponse.Content.ReadAsStringAsync());
+        Assert.Equal(-200m, january.RootElement.GetProperty("plannedCarryForwardAmount").GetDecimal());
+        Assert.Equal(300m, january.RootElement.GetProperty("plannedAvailableTotal").GetDecimal());
+        using var february = JsonDocument.Parse(await februaryResponse.Content.ReadAsStringAsync());
+        Assert.Equal(100m, february.RootElement.GetProperty("plannedCarryForwardAmount").GetDecimal());
+        Assert.Equal(-100m, february.RootElement.GetProperty("plannedAvailableTotal").GetDecimal());
+        using var year = JsonDocument.Parse(await yearResponse.Content.ReadAsStringAsync());
+        Assert.Equal(-200m, year.RootElement.GetProperty("plannedCarryForwardAmounts")[0].GetDecimal());
+        Assert.Equal(100m, year.RootElement.GetProperty("plannedCarryForwardAmounts")[1].GetDecimal());
+        Assert.Equal(200m, year.RootElement.GetProperty("availableTotal").GetDecimal());
     }
 
     [Fact]
@@ -617,7 +624,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
-    public async Task FutureRevisions_KeepPastMonthsAndTotals_WhenCopiedThenSuspended()
+    public async Task FutureRevisions_KeepPastMonthsAndUpdateTotals_WhenCopiedForward()
     {
         // Arrange
         using var dataDirectory = new TemporaryDirectory();
@@ -634,23 +641,18 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var copyResponse = await client.PostAsync(
             $"/api/annual-budgets/posts/{postId}/months/6/copy-forward",
             content: null);
-        using var clearResponse = await client.PostAsync(
-            $"/api/annual-budgets/posts/{postId}/months/10/clear-forward",
-            content: null);
         using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
 
         // Assert
         copyResponse.EnsureSuccessStatusCode();
-        clearResponse.EnsureSuccessStatusCode();
         using var year = JsonDocument.Parse(await yearResponse.Content.ReadAsStringAsync());
         var post = Assert.Single(year.RootElement.GetProperty("posts").EnumerateArray());
         var amounts = post.GetProperty("monthlyAmounts").EnumerateArray()
             .Select(item => item.ValueKind == JsonValueKind.Null ? (decimal?)null : item.GetDecimal())
             .ToArray();
         Assert.All(amounts.Take(5), amount => Assert.Equal(400m, amount));
-        Assert.All(amounts.Skip(5).Take(4), amount => Assert.Equal(450m, amount));
-        Assert.All(amounts.Skip(9), amount => Assert.Null(amount));
-        var expectedTotal = 5 * 400m + 4 * 450m;
+        Assert.All(amounts.Skip(5), amount => Assert.Equal(450m, amount));
+        var expectedTotal = 5 * 400m + 7 * 450m;
         Assert.Equal(expectedTotal, post.GetProperty("annualTotal").GetDecimal());
         Assert.Equal(expectedTotal, year.RootElement.GetProperty("expenseTotal").GetDecimal());
     }

@@ -29,7 +29,7 @@ L'objectif est d'éviter de découvrir trop tard qu'une dépense importante ou u
 - Les dépenses prévisionnelles couvrent les charges régulières comme les dépenses variables ou ponctuelles.
 - Dans l'interface, les dépenses peuvent être réparties entre « Charges fixes » (montants réguliers liés à un contrat) et « Dépenses variables ». Cette séparation est une classification de présentation : les deux catégories restent des dépenses et alimentent les mêmes totaux et comparaisons.
 - Un poste peut avoir un montant prévu différent pour chaque mois. La répétition d'un montant d'un mois à l'autre est une facilité de saisie, pas une obligation.
-- Le budget affiche les totaux par mois et par poste, les totaux annuels des revenus et dépenses, ainsi que le résultat prévisionnel (revenus moins dépenses).
+- Le budget affiche les totaux par mois et par poste, les totaux annuels des revenus et dépenses, ainsi que le disponible prévisionnel mensuel (revenus + extras − dépenses − épargne). Sous cette ligne, il affiche le report du mois précédent, calculé à partir du plan et non éditable ; janvier reprend le disponible prévisionnel cumulé de décembre de l'année précédente. La dernière ligne est le résultat prévisionnel du mois : disponible mensuel plus report du mois précédent. Un report négatif réduit le résultat. Ce résultat n'est pas le solde de clôture d'un compte bancaire.
 
 ### 3.2 Types de postes et montants
 
@@ -74,7 +74,7 @@ Pour un mois sélectionné, l'utilisateur doit pouvoir comparer, par poste :
 - l'écart entre le réalisé et le prévisionnel ;
 - le montant restant ou le dépassement.
 
-La comparaison doit également montrer les totaux des revenus et dépenses, ainsi que le résultat net du mois. Les montants doivent être calculés à partir du budget et des opérations enregistrées, pas maintenus comme des totaux indépendants susceptibles de diverger.
+La comparaison doit également montrer les totaux des revenus et dépenses, ainsi que le disponible prévisionnel du mois, sans le report. Le report du mois précédent est affiché séparément et calculé à partir des montants prévisionnels, sans tenir compte des opérations réelles. Les montants doivent être calculés à partir du budget et des opérations enregistrées, pas maintenus comme des totaux indépendants susceptibles de diverger.
 
 Pour l'année, l'utilisateur doit pouvoir consulter les mois écoulés, le cumul prévu et réalisé, et le budget révisé pour les mois à venir. Un dépassement doit être visible et compréhensible afin de permettre une action sur le reste de l'année.
 

@@ -76,6 +76,7 @@ Permettre de créer un plan pour une année, distinct des transactions bancaires
 - [X] Permettre de créer, renommer et désactiver les postes sans perdre les données historiques.
 - [X] Prévoir une saisie ou une édition pratique des montants sur une grille annuelle (postes en lignes, mois en colonnes).
 - [X] Calculer et afficher les totaux mensuels et annuels des revenus, des dépenses de consommation, des contributions d'épargne planifiées et du disponible prévisionnel.
+- [X] Reporter automatiquement le disponible prévisionnel d'un mois sur le suivant ; en janvier, reprendre celui de décembre de l'année précédente. Le montant est calculé depuis le plan et n'est pas éditable.
 - [X] Tester les calculs, les changements d'année et la persistance après redémarrage.
 
 **Résultat attendu :** le foyer peut bâtir et consulter son budget annuel, y compris ce qu'il prévoit de mettre de côté, sans devoir créer de fausses opérations réelles.
@@ -101,7 +102,7 @@ Permettre de réagir aux écarts sans effacer le plan passé.
 
 - [X] Modifier les montants prévus d'un ou plusieurs mois futurs sans altérer les mois déjà écoulés (saisie, recopie vers l'avant).
 - [X] Ajouter un extra ponctuel et l'afficher séparément des revenus réguliers (ligne d'extra par mois, total et disponible prévisionnel distincts).
-- [X] Réduire, suspendre ou remettre à zéro un poste variable pour les mois futurs (bouton « Suspendre » à partir d'un mois).
+- [X] Modifier ou remettre à zéro les montants prévus d'un poste variable pour les mois futurs, par édition directe des cellules.
 - [X] Tester qu'une révision future ne réécrit pas les valeurs antérieures et que les totaux restent justes.
 
 **Décisions retenues :** un extra est une ligne ponctuelle rattachée à un mois, affichée séparément des revenus ; le plan est simple (valeurs écrasées, pas de plan initial conservé pour l'instant, évolution possible plus tard).

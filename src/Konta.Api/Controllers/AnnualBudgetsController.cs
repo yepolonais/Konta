@@ -281,36 +281,6 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         }
     }
 
-    [HttpPost("posts/{id:guid}/months/{month:int}/clear-forward")]
-    [ProducesResponseType<AnnualBudgetPostItem>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<AnnualBudgetPostItem>> ClearMonthlyAmountsFrom(
-        Guid id,
-        int month,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var post = await annualBudgetService.ClearMonthlyAmountsFromAsync(id, month, cancellationToken);
-            return post is null ? NotFound() : Ok(post);
-        }
-        catch (ArgumentOutOfRangeException exception)
-        {
-            return BadRequest(InvalidRequest(exception));
-        }
-        catch (InvalidOperationException exception)
-        {
-            return Conflict(new ProblemDetails
-            {
-                Title = "Poste désactivé",
-                Detail = exception.Message,
-                Status = StatusCodes.Status409Conflict
-            });
-        }
-    }
-
     [HttpPost("{year:int}/extras")]
     [ProducesResponseType<BudgetExtraItem>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]

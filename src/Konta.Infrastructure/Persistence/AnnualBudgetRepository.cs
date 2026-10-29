@@ -20,6 +20,15 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
             .ThenBy(post => post.Name)
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<AnnualBudgetPost>> ListPostsBeforeYearAsync(
+        int year,
+        CancellationToken cancellationToken) =>
+        await dbContext.AnnualBudgetPosts
+            .AsNoTracking()
+            .Include(post => post.MonthlyAmounts)
+            .Where(post => post.Year < year)
+            .ToArrayAsync(cancellationToken);
+
     public Task<AnnualBudgetPost?> GetPostAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.AnnualBudgetPosts
             .Include(post => post.MonthlyAmounts)
@@ -85,6 +94,14 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
             .Where(extra => extra.Year == year)
             .OrderBy(extra => extra.Month)
             .ThenBy(extra => extra.Label)
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<BudgetExtra>> ListExtrasBeforeYearAsync(
+        int year,
+        CancellationToken cancellationToken) =>
+        await dbContext.BudgetExtras
+            .AsNoTracking()
+            .Where(extra => extra.Year < year)
             .ToArrayAsync(cancellationToken);
 
     public async Task AddExtraAsync(BudgetExtra extra, CancellationToken cancellationToken)

@@ -5,6 +5,7 @@ namespace Konta.Application.Budgets;
 public interface IAnnualBudgetRepository
 {
     Task<IReadOnlyList<AnnualBudgetPost>> ListPostsAsync(int year, CancellationToken cancellationToken);
+    Task<IReadOnlyList<AnnualBudgetPost>> ListPostsBeforeYearAsync(int year, CancellationToken cancellationToken);
     Task<AnnualBudgetPost?> GetPostAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> ExistsByNameAsync(int year, string name, Guid? excludedId, CancellationToken cancellationToken);
     Task AddPostAsync(AnnualBudgetPost post, CancellationToken cancellationToken);
@@ -13,6 +14,7 @@ public interface IAnnualBudgetRepository
     Task SetPostOrderAsync(IReadOnlyList<Guid> postIds, CancellationToken cancellationToken);
     Task SetMonthlyAmountAsync(Guid postId, int month, decimal? amount, CancellationToken cancellationToken);
     Task<IReadOnlyList<BudgetExtra>> ListExtrasAsync(int year, CancellationToken cancellationToken);
+    Task<IReadOnlyList<BudgetExtra>> ListExtrasBeforeYearAsync(int year, CancellationToken cancellationToken);
     Task AddExtraAsync(BudgetExtra extra, CancellationToken cancellationToken);
     Task<bool> DeleteExtraAsync(Guid id, CancellationToken cancellationToken);
     Task SetCategoryMappingsAsync(

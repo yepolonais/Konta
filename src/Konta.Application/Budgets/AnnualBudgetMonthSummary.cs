@@ -10,6 +10,7 @@ public sealed record AnnualBudgetMonthSummary(
     decimal PlannedExpenseTotal,
     decimal PlannedSavingsTotal,
     decimal PlannedExtraTotal,
+    decimal PlannedCarryForwardAmount,
     decimal ActualSavingsTotal,
     decimal PlannedAvailableTotal,
     decimal ActualAvailableTotal,

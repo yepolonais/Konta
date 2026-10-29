@@ -13,7 +13,8 @@ public sealed class AnnualBudgetService(
     public async Task<AnnualBudgetSummary> GetAsync(int year, CancellationToken cancellationToken)
     {
         ValidateYear(year);
-        var posts = (await repository.ListPostsAsync(year, cancellationToken))
+        var budgetPosts = await repository.ListPostsAsync(year, cancellationToken);
+        var posts = budgetPosts
             .Select(ToItem)
             .ToArray();
         var activePosts = posts.Where(post => post.IsActive).ToArray();
@@ -27,7 +28,14 @@ public sealed class AnnualBudgetService(
             .Where(post => post.Type == AnnualBudgetPostType.Savings)
             .Sum(post => post.AnnualTotal);
 
-        var extras = (await repository.ListExtrasAsync(year, cancellationToken)).Select(ToExtraItem).ToArray();
+        var budgetExtras = await repository.ListExtrasAsync(year, cancellationToken);
+        var previousPosts = await repository.ListPostsBeforeYearAsync(year, cancellationToken);
+        var previousExtras = await repository.ListExtrasBeforeYearAsync(year, cancellationToken);
+        var carryForwardAmounts = GetPlannedCarryForwardAmounts(
+            year,
+            previousPosts.Concat(budgetPosts).ToArray(),
+            previousExtras.Concat(budgetExtras).ToArray());
+        var extras = budgetExtras.Select(ToExtraItem).ToArray();
         var extraTotal = extras.Sum(extra => extra.Amount);
 
         return new AnnualBudgetSummary(
@@ -37,6 +45,7 @@ public sealed class AnnualBudgetService(
             savingsTotal,
             extraTotal,
             incomeTotal + extraTotal - expenseTotal - savingsTotal,
+            carryForwardAmounts,
             posts,
             extras);
     }
@@ -124,7 +133,12 @@ public sealed class AnnualBudgetService(
         var plannedIncomeTotal = SumPlanned(activePosts, AnnualBudgetPostType.Income, month);
         var plannedExpenseTotal = SumPlanned(activePosts, AnnualBudgetPostType.Expense, month);
         var plannedSavingsTotal = SumPlanned(activePosts, AnnualBudgetPostType.Savings, month);
-        var monthExtras = (await repository.ListExtrasAsync(year, cancellationToken))
+        var budgetExtras = await repository.ListExtrasAsync(year, cancellationToken);
+        var carryForwardAmounts = GetPlannedCarryForwardAmounts(
+            year,
+            (await repository.ListPostsBeforeYearAsync(year, cancellationToken)).Concat(posts).ToArray(),
+            (await repository.ListExtrasBeforeYearAsync(year, cancellationToken)).Concat(budgetExtras).ToArray());
+        var monthExtras = budgetExtras
             .Where(extra => extra.Month == month)
             .Select(ToExtraItem)
             .ToArray();
@@ -143,6 +157,7 @@ public sealed class AnnualBudgetService(
             plannedExpenseTotal,
             plannedSavingsTotal,
             extraTotal,
+            carryForwardAmounts[month - 1],
             actualSavingsTotal,
             plannedIncomeTotal + extraTotal - plannedExpenseTotal - plannedSavingsTotal,
             actualIncomeTotal - actualExpenseTotal - actualSavingsTotal,
@@ -324,35 +339,6 @@ public sealed class AnnualBudgetService(
         return ToItem(await repository.GetPostAsync(id, cancellationToken) ?? post);
     }
 
-    public async Task<AnnualBudgetPostItem?> ClearMonthlyAmountsFromAsync(
-        Guid id,
-        int month,
-        CancellationToken cancellationToken)
-    {
-        if (month is < 1 or > 12)
-        {
-            throw new ArgumentOutOfRangeException(nameof(month), "Le mois doit être compris entre 1 et 12.");
-        }
-
-        var post = await repository.GetPostAsync(id, cancellationToken);
-        if (post is null)
-        {
-            return null;
-        }
-
-        if (!post.IsActive)
-        {
-            throw new InvalidOperationException("Un poste désactivé ne peut pas être modifié.");
-        }
-
-        for (var target = month; target <= 12; target++)
-        {
-            await repository.SetMonthlyAmountAsync(id, target, null, cancellationToken);
-        }
-
-        return ToItem(await repository.GetPostAsync(id, cancellationToken) ?? post);
-    }
-
     public async Task<BudgetExtraItem> AddExtraAsync(
         int year,
         int month,
@@ -447,6 +433,44 @@ public sealed class AnnualBudgetService(
             .SelectMany(post => post.MonthlyAmounts)
             .Where(amount => amount.Month == month)
             .Sum(amount => amount.Amount);
+
+    private static decimal[] GetPlannedCarryForwardAmounts(
+        int year,
+        IReadOnlyCollection<AnnualBudgetPost> posts,
+        IReadOnlyCollection<BudgetExtra> extras)
+    {
+        var earliestYear = posts.Select(post => post.Year)
+            .Concat(extras.Select(extra => extra.Year))
+            .DefaultIfEmpty(year)
+            .Min();
+        var postsByYear = posts.GroupBy(post => post.Year).ToDictionary(group => group.Key, group => group.ToArray());
+        var extrasByYear = extras.GroupBy(extra => extra.Year).ToDictionary(group => group.Key, group => group.ToArray());
+        var carryForwardAmounts = new decimal[12];
+        var available = 0m;
+
+        for (var budgetYear = earliestYear; budgetYear <= year; budgetYear++)
+        {
+            postsByYear.TryGetValue(budgetYear, out var yearPosts);
+            extrasByYear.TryGetValue(budgetYear, out var yearExtras);
+            var activePosts = (yearPosts ?? []).Where(post => post.IsActive).ToArray();
+            yearExtras ??= [];
+
+            for (var month = 1; month <= 12; month++)
+            {
+                if (budgetYear == year)
+                {
+                    carryForwardAmounts[month - 1] = available;
+                }
+
+                available += SumPlanned(activePosts, AnnualBudgetPostType.Income, month)
+                    + yearExtras.Where(extra => extra.Month == month).Sum(extra => extra.Amount)
+                    - SumPlanned(activePosts, AnnualBudgetPostType.Expense, month)
+                    - SumPlanned(activePosts, AnnualBudgetPostType.Savings, month);
+            }
+        }
+
+        return carryForwardAmounts;
+    }
 
     private static bool TransactionTypeMatches(AnnualBudgetPostType postType, TransactionType transactionType) =>
         (postType == AnnualBudgetPostType.Income && transactionType == TransactionType.Income)

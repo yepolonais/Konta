@@ -198,7 +198,7 @@ button:disabled { cursor: wait; opacity: .65; }
 .summary-result-heading p { font-family: "DM Mono", monospace; text-transform: capitalize; }
 .summary-totals { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); padding: 0 22px 20px; }
 .summary-total { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px; border-top: 3px solid #bbc8bd; display: grid; gap: 8px; min-width: 0; padding: 16px; }
-.summary-total.income { border-top-color: var(--wine); }
+.summary-total.income { background: var(--positive-soft); border-top-color: var(--positive); }
 .summary-total.expense { border-top-color: var(--coral); }
 .summary-total.net.positive { background: var(--surface-accent); border-top-color: var(--wine); }
 .summary-total.net.negative { background: #fff5f1; border-top-color: var(--coral); }
@@ -224,7 +224,7 @@ button:disabled { cursor: wait; opacity: .65; }
 .annual-budget-total { background: var(--surface-soft); border: 1px solid var(--line); border-top: 3px solid #bbc8bd; border-radius: 5px; display: grid; gap: 6px; min-width: 0; padding: 12px; }
 .annual-budget-total span { color: var(--muted); font-size: 10px; font-weight: 700; }
 .annual-budget-total strong { font-family: "DM Mono", monospace; font-size: clamp(15px, 1.8vw, 20px); overflow-wrap: anywhere; }
-.annual-budget-total.income { border-top-color: var(--wine); }
+.annual-budget-total.income { background: var(--positive-soft); border-top-color: var(--positive); }
 .annual-budget-total.expense { border-top-color: var(--coral); }
 .annual-budget-total.savings { border-top-color: #8b7aab; }
 .annual-budget-total.available { background: var(--surface-accent); border-top-color: var(--positive); }
@@ -270,8 +270,15 @@ main[data-current-page="budget"] { max-width: none; }
 .annual-budget-table td:first-child { min-width: 180px; }
 .annual-budget-table td:first-child > input { font-weight: 700; }
 .budget-post-name-controls { align-items: center; display: grid; gap: 6px; grid-template-columns: 28px minmax(0, 1fr); min-width: 0; }
-.budget-drag-handle { cursor: grab; min-height: 28px; padding: 3px; touch-action: none; width: 28px; }
+.secondary-button.budget-drag-handle { background: var(--surface-accent); color: var(--wine-dark); cursor: grab; min-height: 28px; padding: 3px; touch-action: none; width: 28px; }
+.secondary-button.budget-drag-handle-expense:hover { background: #ecd9e0; color: var(--wine-dark); }
+.secondary-button.budget-drag-handle-income { background: var(--positive-soft); color: var(--positive); }
+.secondary-button.budget-drag-handle-income:hover { background: #d7ead8; color: var(--positive); }
+.secondary-button.budget-drag-handle-savings { background: #eeeaf4; color: #66577f; }
+.secondary-button.budget-drag-handle-savings:hover { background: #ddd5e9; color: #514367; }
 .budget-drag-handle:active { cursor: grabbing; }
+.secondary-button.budget-post-delete { background: #fde9e7; border-color: #efb2ac; color: #b42318; }
+.secondary-button.budget-post-delete:hover { background: #f9d1cc; border-color: #e89a91; color: #8f1b13; }
 .budget-post-dragging { opacity: .45; }
 .budget-post-drop-target td { box-shadow: inset 0 2px var(--wine); }
 .budget-category-mappings { color: var(--muted); font-size: 10px; margin-top: 4px; position: relative; }
@@ -286,7 +293,7 @@ main[data-current-page="budget"] { max-width: none; }
 .budget-monthly-heading > p { color: var(--muted); font-family: "DM Mono", monospace; font-size: 12px; margin: 0; text-transform: capitalize; }
 .budget-monthly-totals { display: grid; gap: 10px; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 0 22px 16px; }
 .budget-month-total { background: var(--surface-soft); border: 1px solid var(--line); border-top: 3px solid #bbc8bd; border-radius: 5px; display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; padding: 12px; }
-.budget-month-total.income { border-top-color: var(--wine); }
+.budget-month-total.income { background: var(--positive-soft); border-top-color: var(--positive); }
 .budget-month-total.expense { border-top-color: var(--coral); }
 .budget-month-total.savings { border-top-color: var(--positive); }
 .budget-month-total strong { font-size: 12px; }
@@ -306,6 +313,8 @@ main[data-current-page="budget"] { max-width: none; }
 .budget-unassigned-heading span, .budget-unassigned p { color: var(--muted); font-size: 11px; }
 .budget-unassigned p { margin: 8px 0 0; }
 .budget-section-row th { background: var(--surface-accent); color: var(--wine-dark); font-size: 10px; padding: 10px 12px; }
+.budget-section-row.income th { background: var(--positive-soft); color: var(--positive); }
+.budget-section-row.savings th { background: #eeeaf4; color: #66577f; }
 .budget-section-row.archived th { background: var(--surface-subtle); color: var(--muted); }
 .budget-empty-row td { color: var(--muted); font-size: 11px; padding: 10px 12px; }
 .budget-archived-row { opacity: .7; }
@@ -324,6 +333,10 @@ main[data-current-page="budget"] { max-width: none; }
 .budget-actions-cell.muted { color: var(--muted); font-size: 10px; text-align: center; }
 .annual-budget-table tfoot th, .annual-budget-table tfoot td { background: var(--surface-subtle); font-weight: 800; }
 .annual-budget-table tfoot .budget-available-row th, .annual-budget-table tfoot .budget-available-row td { background: var(--surface-accent); color: var(--wine-dark); }
+.annual-budget-table tfoot .budget-carry-forward-row th,
+.annual-budget-table tfoot .budget-carry-forward-row td { background: #fff1dc; border-top: 3px solid #e18a24; color: #995c00; }
+.annual-budget-table tfoot .budget-month-result-row th,
+.annual-budget-table tfoot .budget-month-result-row td { background: #fffaf1; color: #754a14; }
 .summary-table-heading { align-items: end; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; padding: 20px 22px 12px; }
 .summary-table-heading p { margin-top: 5px; }
 .summary-table { min-width: 680px; }
@@ -407,6 +420,20 @@ main[data-current-page="budget"] { max-width: none; }
 :host([data-theme="dark"]) button:not(.secondary-button):not(.text-button):hover { background: #f0b5c4; }
 :host([data-theme="dark"]) .secondary-button { background: #704052; border: 1px solid #a87587; color: #fff4f7; }
 :host([data-theme="dark"]) .secondary-button:hover { background: #835064; border-color: #ca8da1; color: #ffffff; }
+:host([data-theme="dark"]) .budget-drag-handle,
+:host([data-theme="dark"]) .budget-drag-handle-expense { background: #39242d; border-color: #704052; color: #df9bad; }
+:host([data-theme="dark"]) .budget-drag-handle-expense:hover { background: #4a2d39; border-color: #835064; color: #f0b5c4; }
+:host([data-theme="dark"]) .budget-drag-handle-income { background: #263a2e; border-color: #476b53; color: #b8e3c2; }
+:host([data-theme="dark"]) .budget-drag-handle-income:hover { background: #34523e; border-color: #5a8065; color: #d1f0d7; }
+:host([data-theme="dark"]) .budget-drag-handle-savings { background: #342d3e; border-color: #66577f; color: #c9badd; }
+:host([data-theme="dark"]) .budget-drag-handle-savings:hover { background: #443a53; border-color: #8b7aab; color: #e0d4f1; }
+:host([data-theme="dark"]) .budget-section-row.savings th { background: #342d3e; color: #c9badd; }
+:host([data-theme="dark"]) .annual-budget-table tfoot .budget-carry-forward-row th,
+:host([data-theme="dark"]) .annual-budget-table tfoot .budget-carry-forward-row td { background: #30261b; border-top-color: #c8832a; color: #f2c477; }
+:host([data-theme="dark"]) .annual-budget-table tfoot .budget-month-result-row th,
+:host([data-theme="dark"]) .annual-budget-table tfoot .budget-month-result-row td { background: #28221a; color: #f2c477; }
+:host([data-theme="dark"]) .budget-post-delete { background: #542c2c; border-color: #a9574c; color: #ffc0b3; }
+:host([data-theme="dark"]) .budget-post-delete:hover { background: #713a38; border-color: #d77769; color: #ffffff; }
 :host([data-theme="dark"]) .danger-button { background: #542c2c; border-color: #a9574c; color: #ffc0b3; }
 :host([data-theme="dark"]) .danger-button:hover { background: #713a38; border-color: #d77769; color: #ffffff; }
 :host([data-theme="dark"]) button:focus-visible { outline: 3px solid #f2c2cf; outline-offset: 2px; }
