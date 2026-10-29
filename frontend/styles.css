@@ -334,9 +334,9 @@ main[data-current-page="budget"] { max-width: none; }
 .annual-budget-table tfoot th, .annual-budget-table tfoot td { background: var(--surface-subtle); font-weight: 800; }
 .annual-budget-table tfoot .budget-available-row th, .annual-budget-table tfoot .budget-available-row td { background: var(--surface-accent); color: var(--wine-dark); }
 .annual-budget-table tfoot .budget-carry-forward-row th,
-.annual-budget-table tfoot .budget-carry-forward-row td { background: #fff1dc; border-top: 3px solid #e18a24; color: #995c00; }
+.annual-budget-table tfoot .budget-carry-forward-row td { background: #e6edfb; color: #2f4a8a; }
 .annual-budget-table tfoot .budget-month-result-row th,
-.annual-budget-table tfoot .budget-month-result-row td { background: #fffaf1; color: #754a14; }
+.annual-budget-table tfoot .budget-month-result-row td { background: #fffaf1; border-top: 3px solid #e18a24; color: #754a14; }
 .summary-table-heading { align-items: end; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; padding: 20px 22px 12px; }
 .summary-table-heading p { margin-top: 5px; }
 .summary-table { min-width: 680px; }
@@ -429,9 +429,9 @@ main[data-current-page="budget"] { max-width: none; }
 :host([data-theme="dark"]) .budget-drag-handle-savings:hover { background: #443a53; border-color: #8b7aab; color: #e0d4f1; }
 :host([data-theme="dark"]) .budget-section-row.savings th { background: #342d3e; color: #c9badd; }
 :host([data-theme="dark"]) .annual-budget-table tfoot .budget-carry-forward-row th,
-:host([data-theme="dark"]) .annual-budget-table tfoot .budget-carry-forward-row td { background: #30261b; border-top-color: #c8832a; color: #f2c477; }
+:host([data-theme="dark"]) .annual-budget-table tfoot .budget-carry-forward-row td { background: #1c2438; color: #9db4ee; }
 :host([data-theme="dark"]) .annual-budget-table tfoot .budget-month-result-row th,
-:host([data-theme="dark"]) .annual-budget-table tfoot .budget-month-result-row td { background: #28221a; color: #f2c477; }
+:host([data-theme="dark"]) .annual-budget-table tfoot .budget-month-result-row td { background: #28221a; border-top: 3px solid #c8832a; color: #f2c477; }
 :host([data-theme="dark"]) .budget-post-delete { background: #542c2c; border-color: #a9574c; color: #ffc0b3; }
 :host([data-theme="dark"]) .budget-post-delete:hover { background: #713a38; border-color: #d77769; color: #ffffff; }
 :host([data-theme="dark"]) .danger-button { background: #542c2c; border-color: #a9574c; color: #ffc0b3; }
