@@ -62,6 +62,7 @@ class KontaApp extends HTMLElement {
           <a class="brand" href="/" aria-label="Konta, accueil"><span class="brand-mark">K</span>Konta</a>
           <nav class="nav" aria-label="Navigation principale">
             <a href="#budget" aria-current="page">Budget</a>
+            <a href="#monthly">Suivi mensuel</a>
             <a href="#summary">Synthèses</a>
             <a href="#category-rules">Règles</a>
             <a href="#planning">Planification</a>
@@ -118,9 +119,12 @@ class KontaApp extends HTMLElement {
               </form>
               <ul class="budget-extra-list" id="budget-extra-list"></ul>
             </section>
+          </section>
+          <section class="panel budget-monthly-panel" id="monthly" data-page="monthly" aria-labelledby="budget-monthly-title" hidden>
             <section class="budget-monthly-review" aria-labelledby="budget-monthly-title">
               <div class="budget-monthly-heading">
                 <div><span class="section-kicker">Suivi mensuel</span><h3 id="budget-monthly-title">Prévu et réalisé</h3></div>
+                <label class="budget-month-label">Mois<select id="monthly-review-month"></select></label>
                 <p id="budget-monthly-period"></p>
               </div>
               <div class="budget-monthly-totals" id="budget-monthly-totals"></div>
@@ -128,7 +132,7 @@ class KontaApp extends HTMLElement {
               <p class="budget-savings-note">Les virements entre vos comptes ne sont comptés ni dans les revenus ni dans les dépenses. Le réalisé d’une enveloppe d’épargne correspond aux versements sortants des catégories rattachées.</p>
               <div class="table-wrap">
                 <table class="budget-monthly-table">
-                  <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th>Écart réalisé − prévu</th></tr></thead>
+                  <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th>Écart réalisé − prévu</th><th>Catégories réelles</th></tr></thead>
                   <tbody id="budget-monthly-body"></tbody>
                 </table>
               </div>
@@ -298,11 +302,16 @@ class KontaApp extends HTMLElement {
       this.shadowRoot.querySelector("#annual-budget-expense-kind-field").hidden = event.target.value !== "Expense";
     });
     this.shadowRoot.querySelector("#annual-budget-year").addEventListener("change", () => this.loadAnnualBudget());
-    this.shadowRoot.querySelector("#annual-budget-month").addEventListener("change", event => {
-      this.selectedBudgetMonth = Number(event.target.value);
-      this.renderAnnualBudget();
-      this.loadAnnualBudgetMonth();
-    });
+    for (const selector of ["#annual-budget-month", "#monthly-review-month"]) {
+      this.shadowRoot.querySelector(selector).addEventListener("change", event => {
+        this.selectedBudgetMonth = Number(event.target.value);
+        this.shadowRoot.querySelector("#annual-budget-month").value = event.target.value;
+        this.shadowRoot.querySelector("#monthly-review-month").value = event.target.value;
+        this.renderAnnualBudget();
+        this.loadAnnualBudgetMonth();
+      });
+    }
+    this.shadowRoot.querySelector("#budget-monthly-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
     this.shadowRoot.querySelector("#budget-extra-form").addEventListener("submit", event => this.addBudgetExtra(event));
     this.shadowRoot.querySelector("#budget-extra-list").addEventListener("click", event => this.deleteBudgetExtra(event));
@@ -375,20 +384,24 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#forecast-start").value = new Date().toISOString().slice(0, 10);
     const month = this.shadowRoot.querySelector("#summary-month");
     const budgetMonth = this.shadowRoot.querySelector("#annual-budget-month");
+    const monthlyMonth = this.shadowRoot.querySelector("#monthly-review-month");
     for (let value = 1; value <= 12; value++) {
       const option = document.createElement("option");
       option.value = value;
       const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(2026, value - 1, 1));
       option.textContent = monthName;
       month.append(option.cloneNode(true));
-      budgetMonth.append(option);
+      budgetMonth.append(option.cloneNode(true));
+      monthlyMonth.append(option);
     }
     budgetMonth.value = String(this.selectedBudgetMonth);
+    monthlyMonth.value = String(this.selectedBudgetMonth);
   }
 
   showPage(page) {
     const pages = {
       budget: ["Budget", "Planifiez les revenus, dépenses et montants mis de côté sur l’année."],
+      monthly: ["Suivi mensuel", "Comparez le prévu et le réalisé du mois, et rattachez vos catégories réelles aux postes."],
       transactions: ["Opérations", "Consultez les mouvements enregistrés sur vos comptes."],
       summary: ["Synthèses", "Comparez les revenus et les dépenses par mois ou par année."],
       import: ["Import CSV", "Prévisualisez, vérifiez et confirmez l’import de vos relevés."],
@@ -498,7 +511,6 @@ class KontaApp extends HTMLElement {
     });
     headerRow.append(this.budgetCell("Total annuel", "th"));
     headerRow.append(this.budgetCell("", "th"));
-    headerRow.append(this.budgetCell("Catégories réelles", "th"));
     head.append(headerRow);
 
     const body = this.shadowRoot.querySelector("#annual-budget-body");
@@ -507,7 +519,7 @@ class KontaApp extends HTMLElement {
       const sectionRow = document.createElement("tr");
       sectionRow.className = `budget-section-row ${type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
       const sectionCell = this.budgetCell(label, "th");
-      sectionCell.colSpan = months.length + 4;
+      sectionCell.colSpan = months.length + 3;
       sectionRow.append(sectionCell);
       body.append(sectionRow);
 
@@ -525,7 +537,7 @@ class KontaApp extends HTMLElement {
         const emptyRow = document.createElement("tr");
         emptyRow.className = "budget-empty-row";
         const emptyCell = this.budgetCell(emptyLabel, "td");
-        emptyCell.colSpan = months.length + 4;
+        emptyCell.colSpan = months.length + 3;
         emptyRow.append(emptyCell);
         body.append(emptyRow);
       }
@@ -536,7 +548,7 @@ class KontaApp extends HTMLElement {
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row archived";
       const sectionCell = this.budgetCell("Postes archivés", "th");
-      sectionCell.colSpan = months.length + 4;
+      sectionCell.colSpan = months.length + 3;
       sectionRow.append(sectionCell);
       body.append(sectionRow);
       for (const post of archivedPosts) body.append(this.annualBudgetPostRow(post, months));
@@ -646,10 +658,6 @@ class KontaApp extends HTMLElement {
     actionCell.append(deleteButton);
     row.append(actionCell);
 
-    const mappingCell = document.createElement("td");
-    mappingCell.className = "budget-mapping-cell";
-    mappingCell.append(this.budgetCategoryMappings(post));
-    row.append(mappingCell);
     return row;
   }
 
@@ -738,7 +746,7 @@ class KontaApp extends HTMLElement {
               : savingsTotal;
       row.append(this.budgetCell(this.formatCurrency(annualTotal), "td"));
       row.lastChild.className = "amount";
-      row.append(this.budgetCell("", "td"), this.budgetCell("", "td"));
+      row.append(this.budgetCell("", "td"));
       foot.append(row);
     }
 
@@ -799,7 +807,7 @@ class KontaApp extends HTMLElement {
       "td"
     ));
     row.lastChild.className = "amount";
-    row.append(this.budgetCell("", "td"), this.budgetCell("", "td"));
+    row.append(this.budgetCell("", "td"));
     foot.append(row);
   }
 
@@ -868,7 +876,7 @@ class KontaApp extends HTMLElement {
       const sectionRow = document.createElement("tr");
       sectionRow.className = `budget-section-row ${type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
       const sectionCell = this.budgetCell(label, "th");
-      sectionCell.colSpan = 5;
+      sectionCell.colSpan = 6;
       sectionRow.append(sectionCell);
       body.append(sectionRow);
 
@@ -877,7 +885,7 @@ class KontaApp extends HTMLElement {
       if (posts.length === 0) {
         const row = document.createElement("tr");
         const emptyCell = this.budgetCell(emptyLabel, "td");
-        emptyCell.colSpan = 5;
+        emptyCell.colSpan = 6;
         row.append(emptyCell);
         body.append(row);
       }
@@ -912,6 +920,12 @@ class KontaApp extends HTMLElement {
           }
         }
         row.append(varianceCell);
+        const mappingCell = document.createElement("td");
+        mappingCell.className = "budget-mapping-cell";
+        const budgetPost = this.annualBudget?.posts.find(item => item.id === post.id);
+        if (budgetPost) mappingCell.append(this.budgetCategoryMappings(budgetPost));
+        row.append(mappingCell);
+        row.dataset.postId = post.id;
         body.append(row);
       }
     }
@@ -929,7 +943,7 @@ class KontaApp extends HTMLElement {
       heading.append(title, amount);
       unassigned.append(heading, this.budgetTransactionDetails(summary.unassignedTransactions, "Voir les opérations à rapprocher"));
       const help = document.createElement("p");
-      help.textContent = "Rattachez leurs catégories au poste correspondant dans la grille annuelle pour les inclure dans les comparaisons.";
+      help.textContent = "Rattachez leurs catégories au poste correspondant dans la colonne « Catégories réelles » du suivi mensuel pour les inclure dans les comparaisons.";
       unassigned.append(help);
     }
   }

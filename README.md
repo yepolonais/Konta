@@ -36,7 +36,7 @@ dotnet test Konta.sln
 - `PUT /api/annual-budgets/posts/{id}` et `DELETE /api/annual-budgets/posts/{id}` : modifier ou supprimer définitivement un poste (avec ses montants mensuels).
 - `PUT /api/annual-budgets/posts/{id}/months/{month}` et `DELETE /api/annual-budgets/posts/{id}/months/{month}` : définir ou effacer la prévision d'un mois. Un montant nul explicite est différent d'une prévision absente.
 - `PUT /api/annual-budgets/posts/{id}/categories` : associer une ou plusieurs catégories réelles à un poste de revenu ou dépense (une catégorie par poste actif et par année).
-- L'écran d'accueil propose une grille annuelle pour consulter et modifier les prévisions ainsi qu'un suivi mensuel des revenus et dépenses catégorisés. Les enveloppes d'épargne sont rapprochées comme les autres postes, via des catégories rattachées : seuls les versements sortants comptent, sans gonfler les dépenses.
+- L’écran d’accueil propose une grille annuelle pour consulter et modifier les prévisions. Un onglet « Suivi mensuel » compare le prévu au réalisé des revenus et dépenses catégorisés, et c’est là que l’on rattache les catégories réelles à chaque poste. Les enveloppes d'épargne sont rapprochées comme les autres postes, via des catégories rattachées : seuls les versements sortants comptent, sans gonfler les dépenses.
 - Les opérations réelles restent distinctes du budget et sont consultables depuis les montants réalisés.
 - L'import CSV Société Générale prend en charge la prévisualisation, la validation, la catégorisation et la détection des doublons.
 
