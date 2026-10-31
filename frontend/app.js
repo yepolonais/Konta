@@ -27,6 +27,8 @@ class KontaApp extends HTMLElement {
     this.annualBudgetMonth = null;
     this.draggedBudgetPostId = null;
     this.selectedBudgetMonth = new Date().getMonth() + 1;
+    this.selectedMonthlyYear = new Date().getFullYear();
+    this.monthlyBudget = null;
   }
 
   connectedCallback() {
@@ -113,7 +115,14 @@ class KontaApp extends HTMLElement {
             <section class="budget-monthly-review" aria-labelledby="budget-monthly-title">
               <div class="budget-monthly-heading">
                 <div><span class="section-kicker">Suivi mensuel</span><h3 id="budget-monthly-title">Prévu et réalisé</h3></div>
-                <label class="budget-month-label">Mois<select id="monthly-review-month"></select></label>
+                <div class="budget-monthly-filters">
+                  <div class="budget-year-label" role="group" aria-label="Année du suivi">
+                    <button type="button" class="secondary-button" id="monthly-review-year-prev" aria-label="Année précédente">‹</button>
+                    <input id="monthly-review-year" type="number" min="1" max="9998" aria-label="Année du suivi" required>
+                    <button type="button" class="secondary-button" id="monthly-review-year-next" aria-label="Année suivante">›</button>
+                  </div>
+                  <label class="budget-month-label">Mois<select id="monthly-review-month"></select></label>
+                </div>
                 <p id="budget-monthly-period"></p>
               </div>
               <div class="budget-monthly-totals" id="budget-monthly-totals"></div>
@@ -305,6 +314,21 @@ class KontaApp extends HTMLElement {
       this.renderAnnualBudget();
       this.loadAnnualBudgetMonth();
     });
+    const monthlyYearInput = this.shadowRoot.querySelector("#monthly-review-year");
+    const changeMonthlyYear = year => {
+      if (!Number.isInteger(year) || year < 1 || year > 9998) {
+        monthlyYearInput.value = this.selectedMonthlyYear;
+        return;
+      }
+      this.selectedMonthlyYear = year;
+      monthlyYearInput.value = year;
+      this.updateMonthlyTitle();
+      this.loadAnnualBudgetMonth();
+    };
+    monthlyYearInput.addEventListener("change", () => changeMonthlyYear(Number(monthlyYearInput.value)));
+    for (const [selector, step] of [["#monthly-review-year-prev", -1], ["#monthly-review-year-next", 1]]) {
+      this.shadowRoot.querySelector(selector).addEventListener("click", () => changeMonthlyYear(this.selectedMonthlyYear + step));
+    }
     this.shadowRoot.querySelector("#budget-monthly-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("focusin", event => {
@@ -373,6 +397,7 @@ class KontaApp extends HTMLElement {
     year.value = new Date().getFullYear();
     const annualYear = this.shadowRoot.querySelector("#annual-budget-year");
     annualYear.value = year.value;
+    this.shadowRoot.querySelector("#monthly-review-year").value = this.selectedMonthlyYear;
     this.shadowRoot.querySelector("#forecast-start").value = new Date().toISOString().slice(0, 10);
     const month = this.shadowRoot.querySelector("#summary-month");
     const monthlyMonth = this.shadowRoot.querySelector("#monthly-review-month");
@@ -466,14 +491,20 @@ class KontaApp extends HTMLElement {
 
   async loadAnnualBudgetMonth() {
     const feedback = this.shadowRoot.querySelector("#budget-month-feedback");
-    const year = Number(this.shadowRoot.querySelector("#annual-budget-year").value);
+    const year = this.selectedMonthlyYear;
     const month = this.selectedBudgetMonth;
     feedback.hidden = true;
     try {
-      const response = await fetch(`/api/annual-budgets/${year}/months/${month}`);
-      const result = await response.json();
+      const [response, budgetResponse] = await Promise.all([
+        fetch(`/api/annual-budgets/${year}/months/${month}`),
+        fetch(`/api/annual-budgets/${year}`)
+      ]);
+      const [result, budget] = await Promise.all([response.json(), budgetResponse.json()]);
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de charger le suivi mensuel.");
+      if (!budgetResponse.ok) throw new Error(budget.detail ?? budget.title ?? "Impossible de charger le budget du suivi mensuel.");
+      if (year !== this.selectedMonthlyYear || month !== this.selectedBudgetMonth) return;
       this.annualBudgetMonth = result;
+      this.monthlyBudget = budget;
       this.renderAnnualBudgetMonth();
     } catch (exception) {
       feedback.textContent = exception.message;
@@ -546,12 +577,13 @@ class KontaApp extends HTMLElement {
     this.renderAnnualBudgetTotals(months);
     this.shadowRoot.querySelector("#annual-budget-empty").hidden = budget.posts.length > 0;
     this.shadowRoot.querySelector(".annual-budget-table-wrap").hidden = false;
+    this.updateMonthlyTitle();
+  }
+
+  updateMonthlyTitle() {
     this.shadowRoot.querySelector("#budget-monthly-title").textContent =
       `Prévu et réalisé · ${new Intl.DateTimeFormat("fr-FR", { month: "long" })
-        .format(new Date(budget.year, this.selectedBudgetMonth - 1, 1))}`;
-    if (this.annualBudgetMonth?.year === budget.year && this.annualBudgetMonth?.month === this.selectedBudgetMonth) {
-      this.renderAnnualBudgetMonth();
-    }
+        .format(new Date(this.selectedMonthlyYear, this.selectedBudgetMonth - 1, 1))}`;
   }
 
   annualBudgetPostRow(post, months) {
@@ -895,7 +927,7 @@ class KontaApp extends HTMLElement {
         row.append(varianceCell);
         const mappingCell = document.createElement("td");
         mappingCell.className = "budget-mapping-cell";
-        const budgetPost = this.annualBudget?.posts.find(item => item.id === post.id);
+        const budgetPost = this.monthlyBudget?.posts.find(item => item.id === post.id);
         if (budgetPost) mappingCell.append(this.budgetCategoryMappings(budgetPost));
         row.append(mappingCell);
         row.dataset.postId = post.id;
@@ -979,7 +1011,8 @@ class KontaApp extends HTMLElement {
     const input = event.target;
     const row = input.closest("[data-post-id]");
     if (!row) return;
-    const post = this.annualBudget?.posts.find(item => item.id === row.dataset.postId);
+    const post = this.annualBudget?.posts.find(item => item.id === row.dataset.postId)
+      ?? this.monthlyBudget?.posts.find(item => item.id === row.dataset.postId);
     if (!post) return;
     if (input.matches("[data-category-mapping]")) {
       await this.handleBudgetCategoryMappingChange(row, post);
@@ -1040,9 +1073,15 @@ class KontaApp extends HTMLElement {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’enregistrer le rapprochement.");
-      const index = this.annualBudget.posts.findIndex(item => item.id === result.id);
-      if (index < 0) throw new Error("Le poste rapproché est absent du budget affiché.");
-      this.annualBudget.posts[index] = result;
+      let found = false;
+      for (const budget of [this.annualBudget, this.monthlyBudget]) {
+        const index = budget?.posts.findIndex(item => item.id === result.id) ?? -1;
+        if (index >= 0) {
+          budget.posts[index] = result;
+          found = true;
+        }
+      }
+      if (!found) throw new Error("Le poste rapproché est absent du budget affiché.");
       this.renderAnnualBudget();
       await this.loadAnnualBudgetMonth();
       this.setAnnualBudgetFeedback("Rapprochement des catégories enregistré.");
