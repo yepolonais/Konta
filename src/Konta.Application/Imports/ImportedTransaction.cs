@@ -20,8 +20,6 @@ public sealed record ImportedTransaction(
     bool IsDuplicate = false,
     string? Fingerprint = null,
     CategoryRuleSuggestion? CategorySuggestion = null,
-    IReadOnlyList<Konta.Application.Planning.ForecastMatchCandidate>? ForecastMatchCandidates = null,
-    ForecastMatchConfirmation? ForecastMatchConfirmation = null,
     IReadOnlyList<TransferMatchCandidate>? TransferMatchCandidates = null,
     TransferMatchConfirmation? TransferMatchConfirmation = null,
     bool CreateSubcategoryRule = false,

@@ -1,4 +1,4 @@
-namespace Konta.Application.Planning;
+namespace Konta.Application.Accounts;
 
 public sealed record AccountBalanceSummary(
     Guid AccountId,
@@ -6,6 +6,4 @@ public sealed record AccountBalanceSummary(
     Guid? ReferenceTransactionId,
     DateOnly? ReferenceDate,
     decimal? ReferenceBalance,
-    decimal? ActualBalance,
-    decimal? ForecastBalance,
-    DateOnly ThroughDate);
+    decimal? ActualBalance);

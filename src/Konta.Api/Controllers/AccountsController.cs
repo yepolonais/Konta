@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using Konta.Application.Accounts;
-using Konta.Application.Planning;
 using Konta.Domain.Accounts;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,7 +7,7 @@ namespace Konta.Api.Controllers;
 
 [ApiController]
 [Route("api/accounts")]
-public sealed class AccountsController(IAccountService accountService, IPlanningService planningService) : ControllerBase
+public sealed class AccountsController(IAccountService accountService, IAccountBalanceService balanceService) : ControllerBase
 {
     /// <summary>Returns the accounts configured for Société Générale imports.</summary>
     [HttpGet]
@@ -73,15 +72,11 @@ public sealed class AccountsController(IAccountService accountService, IPlanning
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AccountBalanceSummary>> GetBalances(
         Guid id,
-        [FromQuery] DateOnly? throughDate,
         CancellationToken cancellationToken)
     {
         try
         {
-            return Ok(await planningService.GetBalancesAsync(
-                id,
-                throughDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
-                cancellationToken));
+            return Ok(await balanceService.GetBalanceAsync(id, cancellationToken));
         }
         catch (KeyNotFoundException)
         {
@@ -100,7 +95,7 @@ public sealed class AccountsController(IAccountService accountService, IPlanning
     {
         try
         {
-            return Ok(await planningService.SetReferenceBalanceAsync(
+            return Ok(await balanceService.SetReferenceBalanceAsync(
                 id,
                 request.TransactionId,
                 request.BalanceAfterTransaction,

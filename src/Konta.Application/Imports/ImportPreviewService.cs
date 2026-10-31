@@ -1,6 +1,5 @@
 using Konta.Application.Accounts;
 using Konta.Application.CategoryRules;
-using Konta.Application.Planning;
 using Konta.Domain.Accounts;
 
 namespace Konta.Application.Imports;
@@ -9,8 +8,7 @@ public sealed class ImportPreviewService(
     ITransactionCsvParser parser,
     IAccountRepository accountRepository,
     IImportCommitRepository importCommitRepository,
-    ICategoryRuleService categoryRuleService,
-    IPlanningService planningService) : IImportPreviewService
+    ICategoryRuleService categoryRuleService) : IImportPreviewService
 {
     public Task<ImportPreview> PreviewAsync(Stream csvStream, CancellationToken cancellationToken) =>
         PreviewAsync(csvStream, null, cancellationToken);
@@ -22,13 +20,12 @@ public sealed class ImportPreviewService(
     {
         var preview = await ResolveAccountsAsync(parser.Parse(csvStream), accountMappings, null, cancellationToken);
         var categorizedPreview = await ApplyCategoryRulesAsync(preview, cancellationToken);
-        var matchedPreview = await ApplyForecastMatchesAsync(categorizedPreview, cancellationToken);
         var duplicateRows = await importCommitRepository.FindDuplicateRowNumbersAsync(
-            matchedPreview.Transactions,
+            categorizedPreview.Transactions,
             cancellationToken);
-        var duplicatePreview = matchedPreview with
+        var duplicatePreview = categorizedPreview with
         {
-            Transactions = matchedPreview.Transactions
+            Transactions = categorizedPreview.Transactions
                 .Select(transaction => transaction with { IsDuplicate = duplicateRows.Contains(transaction.RowNumber) })
                 .ToArray()
         };
@@ -57,11 +54,10 @@ public sealed class ImportPreviewService(
         var reviewed = ApplyReview(parsed, review);
         var preview = await ResolveAccountsAsync(reviewed.Preview, accountMappings, reviewed.AccountOverrides, cancellationToken);
         var categorizedPreview = await ApplyCategoryRulesAsync(preview, cancellationToken);
-        var matchedPreview = await ApplyForecastMatchesAsync(categorizedPreview, cancellationToken);
-        var duplicateRows = await importCommitRepository.FindDuplicateRowNumbersAsync(matchedPreview.Transactions, cancellationToken);
-        var duplicatePreview = matchedPreview with
+        var duplicateRows = await importCommitRepository.FindDuplicateRowNumbersAsync(categorizedPreview.Transactions, cancellationToken);
+        var duplicatePreview = categorizedPreview with
         {
-            Transactions = matchedPreview.Transactions
+            Transactions = categorizedPreview.Transactions
                 .Select(transaction => transaction with { IsDuplicate = duplicateRows.Contains(transaction.RowNumber) })
                 .ToArray()
         };
@@ -72,42 +68,43 @@ public sealed class ImportPreviewService(
         }
 
         var saveResult = await importCommitRepository.SaveAsync(transferPreview.Transactions, cancellationToken);
+        var balanceApplied = await ApplyStatementBalanceAsync(transferPreview, cancellationToken);
         return new ImportCommitResult(
             saveResult.ImportedCount,
             saveResult.DuplicateCount,
             preview.Errors,
-            reviewed.ExcludedCount);
+            reviewed.ExcludedCount,
+            balanceApplied);
     }
 
-    private async Task<ImportPreview> ApplyForecastMatchesAsync(ImportPreview preview, CancellationToken cancellationToken)
+    private async Task<bool> ApplyStatementBalanceAsync(ImportPreview preview, CancellationToken cancellationToken)
     {
-        var errors = new List<string>();
-        var transactions = new List<ImportedTransaction>(preview.Transactions.Count);
-        foreach (var transaction in preview.Transactions)
+        if (preview.StatementBalance is not { } statement)
         {
-            var candidates = await planningService.FindForecastMatchesAsync(
-                transaction.AccountId,
-                transaction.TransactionDate,
-                transaction.Label,
-                transaction.Amount,
-                transaction.Type,
-                cancellationToken);
-            if (transaction.ForecastMatchConfirmation is { } confirmation
-                && !candidates.Any(candidate => candidate.ForecastId == confirmation.ForecastId
-                    && candidate.ScheduledDate == confirmation.ScheduledDate))
-            {
-                errors.Add($"Le rapprochement prévisionnel de la ligne {transaction.RowNumber} n'est plus disponible ou ne correspond pas à l'opération.");
-            }
-
-            transactions.Add(transaction with { ForecastMatchCandidates = candidates });
+            return false;
         }
 
-        if (errors.Count > 0)
+        var accountId = preview.Transactions
+            .FirstOrDefault(transaction => transaction.AccountNumber == statement.AccountNumber && transaction.AccountId.HasValue)
+            ?.AccountId;
+        if (accountId is null)
         {
-            throw new InvalidImportReviewException(errors);
+            return false;
         }
 
-        return preview with { Transactions = transactions.ToArray() };
+        var reference = (await accountRepository.ListTransactionsAsync(accountId.Value, cancellationToken))
+            .Where(transaction => transaction.Date <= statement.Date)
+            .OrderBy(transaction => transaction.Date)
+            .ThenBy(transaction => transaction.CreatedAt)
+            .ThenBy(transaction => transaction.Id)
+            .LastOrDefault();
+        if (reference is null)
+        {
+            return false;
+        }
+
+        await accountRepository.SetBalanceReferenceAsync(accountId.Value, reference.Id, statement.Balance, cancellationToken);
+        return true;
     }
 
     private async Task<ImportPreview> ApplyTransferMatchesAsync(ImportPreview preview, CancellationToken cancellationToken)
@@ -414,12 +411,6 @@ public sealed class ImportPreviewService(
                 accountOverrides[transaction.RowNumber] = decision.AccountId.Value;
             }
 
-            if (decision.ConfirmForecastMatch
-                && (!decision.ForecastId.HasValue || !decision.ForecastDate.HasValue))
-            {
-                errors.Add($"Le rapprochement de la ligne {transaction.RowNumber} doit désigner une échéance.");
-            }
-
             if (decision.ConfirmTransferMatch
                 && (decision.TransferTransactionId.HasValue == decision.TransferRowNumber.HasValue))
             {
@@ -440,9 +431,6 @@ public sealed class ImportPreviewService(
                     ? transaction.SubcategoryName
                     : string.IsNullOrWhiteSpace(decision.SubcategoryName) ? null : decision.SubcategoryName.Trim(),
                 CreateSubcategoryRule = decision.CreateSubcategoryRule,
-                ForecastMatchConfirmation = decision.ConfirmForecastMatch && decision.ForecastId.HasValue && decision.ForecastDate.HasValue
-                    ? new ForecastMatchConfirmation(decision.ForecastId.Value, decision.ForecastDate.Value)
-                    : null,
                 TransferMatchConfirmation = decision.ConfirmTransferMatch
                     ? new TransferMatchConfirmation(decision.TransferTransactionId, decision.TransferRowNumber)
                     : null

@@ -27,6 +27,7 @@ dotnet test Konta.sln
 ## Fonctionnalités disponibles
 
 - `GET /api/health` : état de l'API.
+- `PUT /api/accounts/{id}/balances/reference` et `GET /api/accounts/{id}/balances` : définir le solde constaté d'un compte juste après une opération (facultatif : l'import CSV le renseigne automatiquement depuis la ligne de résumé du relevé) et consulter le solde reconstitué.
 - `GET /api/annual-budgets/{year}` : consulter les postes, montants mensuels, reports prévisionnels et totaux d'une année.
 - `GET /api/annual-budgets/{year}/months/{month}` : comparer le prévu au réalisé pour un mois, avec le report prévisionnel, le détail des opérations et les opérations non rapprochées.
 - `POST /api/annual-budgets/posts/{id}/months/{month}/copy-forward` : recopier le montant d'un mois sur les mois suivants.
@@ -44,7 +45,7 @@ dotnet test Konta.sln
 - Le plan est simple : modifier un montant écrase l'ancien, sans conserver le plan initial. Les mois passés ne sont jamais modifiés par un ajustement futur.
 - Le rapprochement se fait par catégorie (pas par sous-catégorie) : une catégorie ne peut alimenter qu'un poste actif par année.
 - Les virements entre comptes sont exclus des revenus et dépenses. Pour l'épargne, seuls les versements sortants comptent ; les retraits depuis l'épargne sont ignorés.
-- Le disponible prévisionnel affiché est le net du mois (revenus + extras − dépenses − épargne), hors report. Le report cumulé est affiché séparément, et la ligne « Résultat prévisionnel du mois » est calculée comme disponible mensuel plus report (qui peut être négatif). Le report reprend le disponible prévisionnel cumulé de décembre de l'année précédente en janvier.
+- Le disponible prévisionnel affiché est le net du mois (revenus − dépenses − épargne), hors report. Le report cumulé est affiché séparément, et la ligne « Résultat prévisionnel du mois » est calculée comme disponible mensuel plus report (qui peut être négatif). Le report reprend le disponible prévisionnel cumulé de décembre de l'année précédente en janvier.
 - Les opérations sans catégorie rattachée à un poste sont listées comme « non rapprochées » et ne sont pas comptées dans les postes.
 - La réaffectation entre postes et l'historique du plan initial sont des évolutions possibles (voir [roadmap.md](./roadmap.md)).
 

@@ -4,7 +4,6 @@ using Konta.Application.Accounts;
 using Konta.Application.Categories;
 using Konta.Application.CategoryRules;
 using Konta.Application.Imports;
-using Konta.Application.Planning;
 using Konta.Domain.Accounts;
 using Konta.Domain.Categories;
 using Moq;
@@ -134,7 +133,6 @@ public sealed class ImportPreviewServiceTests
         var commitRepository = fixture.Freeze<Mock<IImportCommitRepository>>();
         var categoryRepository = new Mock<ICategoryRepository>();
         var categoryRuleRepository = new Mock<ICategoryRuleRepository>();
-        var planningService = new Mock<IPlanningService>();
         var accountNumber = fixture.Create<string>();
         var transaction = fixture.Build<ImportedTransaction>()
             .With(importedTransaction => importedTransaction.AccountNumber, accountNumber)
@@ -158,14 +156,6 @@ public sealed class ImportPreviewServiceTests
             .ReturnsAsync(new[] { new CategoryRule("Carte", "CARTE VISA", category.Id) });
         categoryRepository.Setup(repository => repository.GetAsync(category.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(category);
-        planningService.Setup(service => service.FindForecastMatchesAsync(
-                It.IsAny<Guid?>(),
-                It.IsAny<DateOnly>(),
-                It.IsAny<string>(),
-                It.IsAny<decimal>(),
-                It.IsAny<Konta.Domain.Transactions.TransactionType>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
         commitRepository.Setup(repository => repository.FindDuplicateRowNumbersAsync(
                 It.IsAny<IReadOnlyList<ImportedTransaction>>(),
                 It.IsAny<CancellationToken>()))
@@ -176,8 +166,7 @@ public sealed class ImportPreviewServiceTests
             parser.Object,
             accountRepository.Object,
             commitRepository.Object,
-            categoryRuleService,
-            planningService.Object);
+            categoryRuleService);
 
         // Act
         var result = await service.PreviewAsync(csvStream, CancellationToken.None);
@@ -244,19 +233,59 @@ public sealed class ImportPreviewServiceTests
         Assert.Empty(result.Errors);
     }
 
+    [Fact]
+    public async Task CommitAsync_SetsBalanceReferenceOnLastTransaction_WhenStatementBalanceIsPresent()
+    {
+        // Arrange
+        var fixture = CreateFixture();
+        var parser = fixture.Freeze<Mock<ITransactionCsvParser>>();
+        var accountRepository = fixture.Freeze<Mock<IAccountRepository>>();
+        var commitRepository = fixture.Freeze<Mock<IImportCommitRepository>>();
+        var accountNumber = fixture.Create<string>();
+        var transaction = fixture.Build<ImportedTransaction>()
+            .With(importedTransaction => importedTransaction.AccountNumber, accountNumber)
+            .Create();
+        var account = new Account("Compte commun", accountNumber, "Compte SG", AccountKind.Current);
+        var statementDate = new DateOnly(2026, 10, 30);
+        var earlier = new Konta.Domain.Transactions.Transaction(statementDate.AddDays(-1), "Avant", 10m, Konta.Domain.Transactions.TransactionType.Expense);
+        var last = new Konta.Domain.Transactions.Transaction(statementDate, "Dernière", 5m, Konta.Domain.Transactions.TransactionType.Expense);
+        var later = new Konta.Domain.Transactions.Transaction(statementDate.AddDays(1), "Après", 5m, Konta.Domain.Transactions.TransactionType.Expense);
+        var parsedPreview = CreatePreview(fixture, transaction) with
+        {
+            StatementBalance = new StatementBalance(accountNumber, statementDate, 1927.87m)
+        };
+        using var csvStream = new MemoryStream();
+
+        parser.Setup(transactionParser => transactionParser.Parse(It.IsAny<Stream>())).Returns(parsedPreview);
+        accountRepository.Setup(repository => repository.FindByBankAccountNumbersAsync(
+                It.IsAny<IReadOnlyCollection<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, Account> { [accountNumber] = account });
+        accountRepository.Setup(repository => repository.ListTransactionsAsync(account.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { earlier, later, last });
+        commitRepository.Setup(repository => repository.SaveAsync(
+                It.IsAny<IReadOnlyList<ImportedTransaction>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ImportedCount: 1, DuplicateCount: 0));
+
+        var service = fixture.Create<ImportPreviewService>();
+
+        // Act
+        var result = await service.CommitAsync(csvStream, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.BalanceApplied);
+        accountRepository.Verify(repository => repository.SetBalanceReferenceAsync(
+            account.Id,
+            last.Id,
+            1927.87m,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static IFixture CreateFixture()
     {
         var fixture = new Fixture().Customize(new AutoMoqCustomization());
         fixture.Customize<DateOnly>(composer => composer.FromFactory(() => new DateOnly(2026, 9, 25)));
-        fixture.Freeze<Mock<IPlanningService>>()
-            .Setup(service => service.FindForecastMatchesAsync(
-                It.IsAny<Guid?>(),
-                It.IsAny<DateOnly>(),
-                It.IsAny<string>(),
-                It.IsAny<decimal>(),
-                It.IsAny<Konta.Domain.Transactions.TransactionType>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<ForecastMatchCandidate>());
         fixture.Freeze<Mock<IImportCommitRepository>>()
             .Setup(repository => repository.FindTransferMatchCandidatesAsync(
                 It.IsAny<Guid>(),
@@ -274,11 +303,11 @@ public sealed class ImportPreviewServiceTests
             {
                 transaction with
                 {
-                    ForecastMatchConfirmation = null,
                     TransferMatchConfirmation = null
                 }
             })
             .With(preview => preview.Errors, Array.Empty<CsvRowError>())
             .With(preview => preview.UnmappedAccounts, Array.Empty<UnmappedAccount>())
+            .With(preview => preview.StatementBalance, (StatementBalance?)null)
             .Create();
 }

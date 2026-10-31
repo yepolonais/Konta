@@ -1,4 +1,5 @@
 using Konta.Domain.Accounts;
+using Konta.Domain.Transactions;
 
 namespace Konta.Application.Accounts;
 
@@ -11,4 +12,11 @@ public interface IAccountRepository
         CancellationToken cancellationToken);
     Task<bool> ExistsByBankAccountNumberAsync(string accountNumber, CancellationToken cancellationToken);
     Task AddAsync(Account account, CancellationToken cancellationToken);
+    Task<AccountBalanceReference?> GetBalanceReferenceAsync(Guid accountId, CancellationToken cancellationToken);
+    Task SetBalanceReferenceAsync(
+        Guid accountId,
+        Guid transactionId,
+        decimal balanceAfterTransaction,
+        CancellationToken cancellationToken);
+    Task<IReadOnlyList<Transaction>> ListTransactionsAsync(Guid accountId, CancellationToken cancellationToken);
 }

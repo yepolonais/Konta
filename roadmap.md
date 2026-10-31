@@ -23,7 +23,7 @@ L'application doit être organisée autour de deux espaces complémentaires, plu
 ### Budget
 
 - Le budget prévisionnel annuel est l'écran d'accueil et le parcours principal.
-- Les postes et montants prévisionnels, leur ajustement en cours d'année, les budgets, les échéances et les contributions aux objectifs d'épargne relèvent de cet espace.
+- Les postes et montants prévisionnels, leur ajustement en cours d'année, et les contributions aux objectifs d'épargne relèvent de cet espace.
 - La comparaison mensuelle prévu/réalisé est présentée dans le contexte du budget, afin de montrer les écarts et d'aider à ajuster les mois restants.
 
 ### Opérations réelles
@@ -32,12 +32,10 @@ L'application doit être organisée autour de deux espaces complémentaires, plu
 - Les opérations détaillées sont consultables depuis les montants réalisés de la comparaison budgétaire, sans faire de leur liste un écran d'accueil.
 - L'alignement du solde de référence d'un compte reste dans cet espace, comme outil de rapprochement du compte.
 
-### À redistribuer depuis « Planification »
+### Suppression de l'onglet « Planification »
 
-- [ ] Intégrer les budgets mensuels et dérogations dans le parcours Budget, ou les faire évoluer en montants prévisionnels par poste et par mois.
-- [ ] Intégrer les échéances prévisionnelles dans le budget, sans les confondre avec les opérations réelles.
-- [ ] Intégrer les contributions aux objectifs d'épargne dans le budget et leur comparaison au réalisé.
-- [ ] Déplacer l'alignement du solde de référence dans Opérations réelles.
+- [X] Supprimer l'onglet « Planification » (budgets par catégorie, échéances, objectifs d'épargne) : le budget annuel couvre ces besoins.
+- [X] Déplacer l'alignement du solde de référence dans l'import CSV (opération par défaut : la dernière du compte).
 - [ ] Conserver les écrans Synthèses et Règles, qui sont utiles dans l'organisation actuelle.
 - [X] Permettre de supprimer définitivement un poste de revenus ou de dépenses saisi par erreur (remplace l'archivage).
 
@@ -89,7 +87,7 @@ Relier les opérations importées au plan budgétaire et rendre les écarts visi
 - [X] Afficher, pour les revenus et dépenses rapprochés, le prévisionnel, le réalisé et l'écart mensuel (réalisé − prévu).
 - [X] Afficher séparément les totaux mensuels prévisionnels et réels des revenus et dépenses de consommation.
 - [X] Comparer les contributions d'épargne prévues aux transferts réellement effectués (catégories rattachées, côté sortant du virement), sans les classer comme dépenses de consommation ni les compter deux fois.
-- [X] Compléter ces totaux avec l'épargne et le disponible du mois : prévu = revenus + extras − dépenses − épargne ; réel = revenus − dépenses de consommation − versements d'épargne (transferts exclus).
+- [X] Compléter ces totaux avec l'épargne et le disponible du mois : prévu = revenus − dépenses − épargne ; réel = revenus − dépenses de consommation − versements d'épargne (transferts exclus).
 - [X] Permettre d'ouvrir les opérations réelles qui composent un montant réalisé.
 - [X] Signaler les opérations non classées ou non rapprochées au lieu de les omettre silencieusement.
 - [X] Vérifier tous les calculs avec des données connues, notamment les mois sans budget, sans opération et en dépassement (tests d'intégration).

@@ -18,10 +18,6 @@ class KontaApp extends HTMLElement {
     this.editingRuleId = null;
     this.editingCategoryId = null;
     this.transactions = [];
-    this.planningBudgets = [];
-    this.forecasts = [];
-    this.savingsGoals = [];
-    this.editingSavingsGoalId = null;
     this.annualBudget = null;
     this.annualBudgetCategories = [];
     this.annualBudgetMonth = null;
@@ -47,7 +43,6 @@ class KontaApp extends HTMLElement {
     this.loadAnnualBudget();
     this.loadTransactions();
     this.phase2DataPromise = this.loadPhase2Data();
-    this.loadPlanningData();
   }
 
   disconnectedCallback() {
@@ -63,11 +58,11 @@ class KontaApp extends HTMLElement {
         <header class="topbar">
           <a class="brand" href="/" aria-label="Konta, accueil"><span class="brand-mark">K</span>Konta</a>
           <nav class="nav" aria-label="Navigation principale">
-            <a href="#budget" aria-current="page">Budget</a>
+            <a class="nav-plan" href="#budget" aria-current="page"><span class="nav-plan-kicker">Prévisionnel</span>Budget</a>
+            <span class="nav-separator" aria-hidden="true"></span>
             <a href="#monthly">Suivi mensuel</a>
             <a href="#summary">Synthèses</a>
             <a href="#category-rules">Règles</a>
-            <a href="#planning">Planification</a>
             <a href="#import">Import CSV</a>
             <button class="theme-toggle" type="button" aria-label="Activer le mode sombre" aria-pressed="false">
               <span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Sombre</span>
@@ -159,61 +154,6 @@ class KontaApp extends HTMLElement {
               <section class="summary-details" id="summary-details" aria-live="polite" hidden></section>
             </div>
           </section>
-          <section class="panel planning-panel" id="planning" data-page="planning" aria-labelledby="planning-title">
-            <div class="panel-head"><h2 id="planning-title">Budgets, échéances et soldes</h2></div>
-            <div class="planning-grid">
-              <section class="planning-section" aria-labelledby="budgets-title">
-                <h3 id="budgets-title">Budgets mensuels</h3>
-                <form class="planning-form" id="budget-form">
-                  <label>Catégorie<select id="budget-category" required></select></label>
-                  <label>Budget mensuel (€)<input id="budget-amount" type="number" min="0.01" step="0.01" required></label>
-                  <button type="submit">Ajouter</button>
-                </form>
-                <div id="budget-list" class="planning-list"></div>
-              </section>
-              <section class="planning-section" aria-labelledby="forecasts-title">
-                <h3 id="forecasts-title">Échéances prévisionnelles</h3>
-                <form class="planning-form forecast-form" id="forecast-form">
-                  <label>Nom<input id="forecast-name" maxlength="100" required></label>
-                  <label>Motif du libellé<input id="forecast-pattern" maxlength="200" required></label>
-                  <label>Compte<select id="forecast-account" required></select></label>
-                  <label>Montant prévu (€)<input id="forecast-amount" type="number" min="0.01" step="0.01" required></label>
-                  <label>Type<select id="forecast-type"><option value="Expense">Dépense</option><option value="Income">Revenu</option></select></label>
-                  <label>Jour du mois<input id="forecast-day" type="number" min="1" max="31" value="1" required></label>
-                  <label>Récurrence<select id="forecast-frequency"><option value="Monthly">Mensuelle</option><option value="Annual">Annuelle</option></select></label>
-                  <label>Début<input id="forecast-start" type="date" required></label>
-                  <label>Catégorie<select id="forecast-category"></select></label>
-                  <button type="submit">Ajouter l’échéance</button>
-                </form>
-                <div id="forecast-list" class="planning-list"></div>
-                <h4>Échéances du mois</h4>
-                <div id="occurrence-list" class="planning-list"></div>
-              </section>
-              <section class="planning-section" aria-labelledby="balances-title">
-                <h3 id="balances-title">Soldes des comptes</h3>
-                <form class="planning-form balance-form" id="balance-form">
-                  <label>Compte<select id="balance-account" required></select></label>
-                  <label>Opération de référence<select id="balance-transaction" required></select></label>
-                  <label>Solde juste après l’opération (€)<input id="reference-balance" type="number" step="0.01" required></label>
-                  <button type="submit">Définir le solde de référence</button>
-                </form>
-                <p id="balance-result" class="balance-result" role="status"></p>
-              </section>
-              <section class="planning-section" aria-labelledby="savings-goals-title">
-                <h3 id="savings-goals-title">Objectifs d’épargne</h3>
-                <form class="planning-form savings-goal-form" id="savings-goal-form">
-                  <label>Nom<input id="savings-goal-name" maxlength="100" required></label>
-                  <label>Compte d’épargne<select id="savings-goal-account" required></select></label>
-                  <label>Montant cible (€)<input id="savings-goal-target" type="number" min="0.01" step="0.01" required></label>
-                  <label>Contribution mensuelle prévue (€)<input id="savings-goal-contribution" type="number" min="0.01" step="0.01" required></label>
-                  <button id="savings-goal-submit" type="submit">Créer l’objectif</button>
-                  <button id="savings-goal-cancel" class="secondary-button" type="button" hidden>Annuler</button>
-                </form>
-                <div id="savings-goal-list" class="planning-list"></div>
-              </section>
-            </div>
-            <p class="feedback" id="planning-feedback" role="status" aria-live="polite" hidden></p>
-          </section>
           <div class="content-grid">
             <section class="panel" id="transactions" data-page="transactions" aria-labelledby="transactions-title">
               <div class="panel-head"><h2 id="transactions-title">Dernières opérations</h2><span class="count" id="transaction-count">…</span></div>
@@ -240,12 +180,25 @@ class KontaApp extends HTMLElement {
             <div class="panel-head"><h2 id="preview-title">Aperçu du fichier</h2><span class="count" id="preview-count"></span></div>
             <p class="preview-summary" id="preview-summary"></p>
             <div class="table-wrap"><table class="preview-table">
-              <thead><tr><th>Date</th><th>Libellé</th><th>Motif</th><th>Compte Konta</th><th>Catégorie / suggestion</th><th style="text-align:right">Montant (€)</th><th>Inclure</th></tr></thead>
+              <thead><tr><th>Date</th><th>Détails</th><th>Compte Konta</th><th>Catégorie / suggestion</th><th style="text-align:right">Montant (€)</th><th>Inclure</th></tr></thead>
               <tbody id="preview-body"></tbody>
             </table></div>
             <div class="account-setup" id="account-setup" hidden></div>
             <div class="preview-actions"><button id="commit-button" type="button" disabled>Enregistrer les opérations</button></div>
             <div class="errors" id="preview-errors" hidden></div>
+          </section>
+          <section class="panel balance-panel" id="account-balance" data-page="import" aria-labelledby="balance-title">
+            <div class="eyebrow">Après l’import</div>
+            <h2 id="balance-title">Solde constaté d’un compte</h2>
+            <p>Facultatif : le solde est repris automatiquement de l’en-tête des relevés CSV récents. Sinon, indiquez le solde réel de votre compte juste après une opération (par défaut, la dernière).</p>
+            <form class="balance-form" id="balance-form">
+              <label>Compte<select id="balance-account" required></select></label>
+              <label>Opération de référence<select id="balance-transaction" required></select></label>
+              <label>Solde juste après l’opération (€)<input id="reference-balance" type="number" step="0.01" required></label>
+              <button type="submit">Définir le solde</button>
+            </form>
+            <p id="balance-result" class="balance-result" role="status"></p>
+            <p class="feedback" id="balance-feedback" role="status" aria-live="polite" hidden></p>
           </section>
           <section class="panel rules-panel" id="category-rules" data-page="category-rules" aria-labelledby="rules-title">
             <div class="panel-head"><h2 id="rules-title">Règles de catégorisation</h2><span class="count" id="rules-count"></span></div>
@@ -353,21 +306,11 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#category-cancel").addEventListener("click", () => this.resetCategoryForm());
     this.shadowRoot.querySelector("#rule-list").addEventListener("click", event => this.handleRuleAction(event));
     this.shadowRoot.querySelector("#category-list").addEventListener("click", event => this.handleCategoryAction(event));
-    this.shadowRoot.querySelector("#budget-form").addEventListener("submit", event => this.createBudget(event));
-    this.shadowRoot.querySelector("#budget-list").addEventListener("click", event => this.handleBudgetAction(event));
-    this.shadowRoot.querySelector("#forecast-form").addEventListener("submit", event => this.createForecast(event));
-    this.shadowRoot.querySelector("#forecast-list").addEventListener("click", event => this.handleForecastAction(event));
     this.shadowRoot.querySelector("#balance-form").addEventListener("submit", event => this.setBalanceReference(event));
-    this.shadowRoot.querySelector("#savings-goal-form").addEventListener("submit", event => this.saveSavingsGoal(event));
-    this.shadowRoot.querySelector("#savings-goal-list").addEventListener("click", event => this.handleSavingsGoalAction(event));
-    this.shadowRoot.querySelector("#savings-goal-cancel").addEventListener("click", () => this.resetSavingsGoalForm());
     this.shadowRoot.querySelector("#balance-account").addEventListener("change", () => {
-      this.renderBalanceTransactions();
+      this.renderBalanceTransactions(true);
       this.loadBalance();
     });
-    this.shadowRoot.querySelector("#balance-transaction").addEventListener("change", () => this.loadBalance());
-    this.shadowRoot.querySelector("#summary-year").addEventListener("change", () => this.loadPlanningData());
-    this.shadowRoot.querySelector("#summary-month").addEventListener("change", () => this.loadPlanningData());
     this.shadowRoot.querySelector("#preview-body").addEventListener("change", event => {
       if (event.target.matches("[data-category]")) {
         this.updateReviewCategory(event.target);
@@ -376,11 +319,9 @@ class KontaApp extends HTMLElement {
           row.dataset.createSubcategoryRule = "true";
         }
         this.syncMatchingReviewRows(row);
+        this.refreshPendingCategoryOptions();
       }
-      if (event.target.matches("[data-forecast-match]")) {
-        const row = event.target.closest("tr");
-        row.dataset.confirmForecast = event.target.value;
-      }
+      if (event.target.matches("[data-new-category]")) this.refreshPendingCategoryOptions();
     });
     this.shadowRoot.querySelector("#preview-body").addEventListener("input", event => {
       if (event.target.matches("[data-amount]")) this.updateReviewAmount(event.target);
@@ -398,7 +339,6 @@ class KontaApp extends HTMLElement {
     const annualYear = this.shadowRoot.querySelector("#annual-budget-year");
     annualYear.value = year.value;
     this.shadowRoot.querySelector("#monthly-review-year").value = this.selectedMonthlyYear;
-    this.shadowRoot.querySelector("#forecast-start").value = new Date().toISOString().slice(0, 10);
     const month = this.shadowRoot.querySelector("#summary-month");
     const monthlyMonth = this.shadowRoot.querySelector("#monthly-review-month");
     for (let value = 1; value <= 12; value++) {
@@ -419,8 +359,7 @@ class KontaApp extends HTMLElement {
       transactions: ["Opérations", "Consultez les mouvements enregistrés sur vos comptes."],
       summary: ["Synthèses", "Comparez les revenus et les dépenses par mois ou par année."],
       import: ["Import CSV", "Prévisualisez, vérifiez et confirmez l’import de vos relevés."],
-      "category-rules": ["Règles", "Gérez vos catégories et les règles de catégorisation automatique."],
-      planning: ["Planification", "Suivez vos budgets, échéances, soldes et objectifs d’épargne."]
+      "category-rules": ["Règles", "Gérez vos catégories et les règles de catégorisation automatique."]
     };
     if (!Object.hasOwn(pages, page)) page = "budget";
     this.currentPage = page;
@@ -1271,7 +1210,7 @@ class KontaApp extends HTMLElement {
       empty.hidden = transactions.length > 0;
       body.replaceChildren();
       for (const transaction of transactions) body.append(this.transactionRow(transaction));
-      this.renderBalanceTransactions();
+      this.renderBalanceForm();
     } catch (exception) {
       error.textContent = exception.message;
       error.hidden = false;
@@ -1309,409 +1248,96 @@ class KontaApp extends HTMLElement {
     }
   }
 
-  async loadPlanningData() {
-    const feedback = this.shadowRoot.querySelector("#planning-feedback");
-    const year = Number(this.shadowRoot.querySelector("#summary-year").value);
-    const month = Number(this.shadowRoot.querySelector("#summary-month").value || new Date().getMonth() + 1);
-    const firstDate = `${year}-${String(month).padStart(2, "0")}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const lastDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-    feedback.hidden = true;
-    try {
-      const [
-        accountResponse,
-        transactionResponse,
-        budgetResponse,
-        forecastResponse,
-        occurrenceResponse,
-        savingsGoalResponse
-      ] = await Promise.all([
-        fetch("/api/accounts"),
-        fetch("/api/transactions"),
-        fetch(`/api/planning/budgets?year=${year}&month=${month}`),
-        fetch("/api/planning/forecasts"),
-        fetch(`/api/planning/occurrences?startDate=${firstDate}&endDate=${lastDate}`),
-        fetch(`/api/savings-goals?year=${year}&month=${month}`)
-      ]);
-      if (![accountResponse, transactionResponse, budgetResponse, forecastResponse, occurrenceResponse, savingsGoalResponse]
-        .every(response => response.ok)) {
-        throw new Error("Impossible de charger les données de planification.");
-      }
-      [
-        this.accounts,
-        this.transactions,
-        this.planningBudgets,
-        this.forecasts,
-        this.occurrences,
-        this.savingsGoals
-      ] = await Promise.all([
-        accountResponse.json(),
-        transactionResponse.json(),
-        budgetResponse.json(),
-        forecastResponse.json(),
-        occurrenceResponse.json(),
-        savingsGoalResponse.json()
-      ]);
-      this.renderPlanningData();
-      await this.loadBalance();
-    } catch (exception) {
-      feedback.className = "feedback error";
-      feedback.textContent = exception.message;
-      feedback.hidden = false;
+  renderBalanceForm() {
+    const select = this.shadowRoot.querySelector("#balance-account");
+    const selected = select.value;
+    select.replaceChildren(this.option("", "Choisir un compte"));
+    for (const account of this.accounts.filter(item => item.isActive)) {
+      select.append(this.option(account.id, account.name));
     }
+    const hasSelection = [...select.options].some(option => option.value === selected);
+    select.value = hasSelection ? selected : "";
+    this.renderBalanceTransactions(!hasSelection);
+    if (hasSelection) this.loadBalance();
   }
 
-  renderPlanningData() {
-    this.renderCategoryOptions(this.shadowRoot.querySelector("#budget-category"));
-    this.renderCategoryOptions(this.shadowRoot.querySelector("#forecast-category"), "Sans catégorie");
-    for (const selector of ["#forecast-account", "#balance-account", "#savings-goal-account"]) {
-      const select = this.shadowRoot.querySelector(selector);
-      const selected = select.value;
-      select.replaceChildren(this.option("", "Choisir un compte"));
-      for (const account of this.accounts.filter(item => item.isActive)) {
-        select.append(this.option(account.id, account.name));
-      }
-      if ([...select.options].some(option => option.value === selected)) select.value = selected;
-    }
-    this.renderBalanceTransactions();
-    this.renderBudgets();
-    this.renderForecasts();
-    this.renderOccurrences();
-    this.renderSavingsGoals();
+  latestAccountTransaction(accountId) {
+    return this.transactions
+      .filter(item => item.accountId === accountId)
+      .reduce((latest, item) => (!latest || item.date >= latest.date ? item : latest), null);
   }
 
-  renderBudgets() {
-    const list = this.shadowRoot.querySelector("#budget-list");
-    list.replaceChildren();
-    for (const budget of this.planningBudgets) {
-      const item = document.createElement("article");
-      item.className = "planning-item";
-      const summary = document.createElement("div");
-      summary.className = "planning-item-summary";
-      const title = document.createElement("strong");
-      title.textContent = budget.categoryName;
-      const status = document.createElement("span");
-      status.textContent = `${this.formatCurrency(budget.expenseTotal)} dépensés · ${this.formatCurrency(budget.remainingAmount)} restants`;
-      summary.append(title, status);
-      const overrideForm = document.createElement("div");
-      overrideForm.className = "budget-override";
-      const amount = document.createElement("input");
-      amount.type = "number";
-      amount.min = "0.01";
-      amount.step = "0.01";
-      amount.value = budget.hasMonthlyOverride ? budget.effectiveAmount : "";
-      amount.placeholder = `Récurrent : ${budget.recurringAmount}`;
-      amount.setAttribute("aria-label", `Dérogation du mois pour ${budget.categoryName}`);
-      const action = document.createElement("button");
-      action.type = "button";
-      action.className = "secondary-button";
-      action.dataset.budgetOverride = budget.id;
-      action.textContent = "Appliquer";
-      overrideForm.append(amount, action);
-      if (budget.hasMonthlyOverride) {
-        const reset = document.createElement("button");
-        reset.type = "button";
-        reset.className = "secondary-button";
-        reset.dataset.budgetReset = budget.id;
-        reset.textContent = "Récurrent";
-        overrideForm.append(reset);
-      }
-      item.append(summary, overrideForm);
-      list.append(item);
-    }
-    if (this.planningBudgets.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty";
-      empty.textContent = "Aucun budget récurrent défini.";
-      list.append(empty);
-    }
-  }
-
-  renderForecasts() {
-    const list = this.shadowRoot.querySelector("#forecast-list");
-    list.replaceChildren();
-    for (const forecast of this.forecasts) {
-      const item = document.createElement("article");
-      item.className = "planning-item";
-      const description = document.createElement("div");
-      description.className = "planning-item-summary";
-      const title = document.createElement("strong");
-      title.textContent = forecast.name;
-      const detail = document.createElement("span");
-      detail.textContent = `${this.formatCurrency(forecast.amount)} · ${forecast.frequency === "Annual" ? "annuelle" : "mensuelle"} le ${forecast.dayOfMonth} · ${forecast.accountName} · libellé « ${forecast.labelPattern} »`;
-      const status = document.createElement("span");
-      status.textContent = `Prévision uniquement — ne modifie pas les opérations ni le solde constaté.`;
-      description.append(title, detail, status);
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "secondary-button danger-button";
-      remove.dataset.deleteForecast = forecast.id;
-      remove.textContent = "Désactiver";
-      item.append(description, remove);
-      list.append(item);
-    }
-  }
-
-  renderOccurrences() {
-    const list = this.shadowRoot.querySelector("#occurrence-list");
-    list.replaceChildren();
-    for (const occurrence of this.occurrences ?? []) {
-      const item = document.createElement("article");
-      item.className = "planning-item";
-      const text = document.createElement("div");
-      text.className = "planning-item-summary";
-      const title = document.createElement("strong");
-      title.textContent = `${this.formatDate(occurrence.scheduledDate)} · ${occurrence.name}`;
-      const details = document.createElement("span");
-      details.textContent = occurrence.isCompleted
-        ? `Réalisée : ${this.formatCurrency(occurrence.actualAmount)}`
-        : `Prévue : ${this.formatCurrency(occurrence.forecastAmount)} · ${occurrence.accountName}`;
-      text.append(title, details);
-      item.append(text);
-      list.append(item);
-    }
-    if ((this.occurrences ?? []).length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty";
-      empty.textContent = "Aucune échéance prévue ce mois.";
-      list.append(empty);
-    }
-  }
-
-  renderSavingsGoals() {
-    const list = this.shadowRoot.querySelector("#savings-goal-list");
-    list.replaceChildren();
-    for (const goal of this.savingsGoals ?? []) {
-      const item = document.createElement("article");
-      item.className = "planning-item";
-      const description = document.createElement("div");
-      description.className = "planning-item-summary";
-      const title = document.createElement("strong");
-      title.textContent = goal.name;
-      const details = document.createElement("span");
-      details.textContent =
-        `${goal.accountName} · cible ${this.formatCurrency(goal.targetAmount)} · ` +
-        `${this.formatCurrency(goal.realizedMonthlyContribution)} réalisés · ` +
-        `${this.formatCurrency(goal.plannedMonthlyContribution)} prévus ce mois`;
-      const progress = document.createElement("span");
-      progress.textContent =
-        `${this.formatCurrency(goal.totalContributions)} de versements suivis · ${this.formatPercent(goal.progressPercent)} % de l’objectif`;
-      description.append(title, details, progress);
-      const actions = document.createElement("div");
-      actions.className = "rule-actions";
-      const edit = document.createElement("button");
-      edit.type = "button";
-      edit.className = "secondary-button";
-      edit.dataset.editSavingsGoal = goal.id;
-      edit.textContent = "Modifier";
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "secondary-button danger-button";
-      remove.dataset.deleteSavingsGoal = goal.id;
-      remove.textContent = "Désactiver";
-      actions.append(edit, remove);
-      item.append(description, actions);
-      list.append(item);
-    }
-    if ((this.savingsGoals ?? []).length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty";
-      empty.textContent = "Aucun objectif d’épargne défini.";
-      list.append(empty);
-    }
-  }
-
-  renderBalanceTransactions() {
-    const accountSelect = this.shadowRoot.querySelector("#balance-account");
+  renderBalanceTransactions(selectLatest = false) {
+    const accountId = this.shadowRoot.querySelector("#balance-account").value;
     const transactionSelect = this.shadowRoot.querySelector("#balance-transaction");
-    if (!accountSelect || !transactionSelect) return;
     const selected = transactionSelect.value;
-    const accountId = accountSelect.value;
+    const transactions = this.transactions
+      .filter(item => item.accountId === accountId)
+      .sort((left, right) => right.date.localeCompare(left.date));
     transactionSelect.replaceChildren(this.option("", "Choisir une opération"));
-    for (const transaction of this.transactions.filter(item => item.accountId === accountId)) {
+    for (const transaction of transactions) {
       transactionSelect.append(this.option(
         transaction.id,
-        `${this.formatDate(transaction.date)} · ${transaction.label} · ${this.formatCurrency(transaction.amount)}`
+        `${this.formatDate(transaction.date)} · ${transaction.label} · ${this.formatSignedCurrency(transaction.type === "Income" ? transaction.amount : -transaction.amount)}`
       ));
     }
-    if ([...transactionSelect.options].some(option => option.value === selected)) transactionSelect.value = selected;
-  }
-
-  async createBudget(event) {
-    event.preventDefault();
-    await this.planningRequest("/api/planning/budgets", "POST", {
-      categoryId: this.shadowRoot.querySelector("#budget-category").value,
-      amount: Number(this.shadowRoot.querySelector("#budget-amount").value)
-    }, "Budget récurrent ajouté.");
-    this.shadowRoot.querySelector("#budget-form").reset();
-  }
-
-  async handleBudgetAction(event) {
-    const button = event.target.closest("[data-budget-override], [data-budget-reset]");
-    if (!button) return;
-    const year = this.shadowRoot.querySelector("#summary-year").value;
-    const month = this.shadowRoot.querySelector("#summary-month").value || String(new Date().getMonth() + 1);
-    if (button.dataset.budgetOverride) {
-      const amount = Number(button.parentElement.querySelector("input").value);
-      if (!amount || amount <= 0) return;
-      await this.planningRequest(
-        `/api/planning/budgets/${button.dataset.budgetOverride}/overrides/${year}/${month}`,
-        "PUT",
-        { amount },
-        "Dérogation budgétaire appliquée."
-      );
-    } else {
-      await this.planningRequest(
-        `/api/planning/budgets/${button.dataset.budgetReset}/overrides/${year}/${month}`,
-        "DELETE",
-        null,
-        "Budget récurrent rétabli pour ce mois."
-      );
+    const latest = this.latestAccountTransaction(accountId);
+    if (!selectLatest && [...transactionSelect.options].some(option => option.value === selected)) {
+      transactionSelect.value = selected;
+    } else if (latest) {
+      transactionSelect.value = latest.id;
     }
   }
 
-  async createForecast(event) {
-    event.preventDefault();
-    const startDate = this.shadowRoot.querySelector("#forecast-start").value;
-    const categoryId = this.shadowRoot.querySelector("#forecast-category").value || null;
-    const succeeded = await this.planningRequest("/api/planning/forecasts", "POST", {
-      name: this.shadowRoot.querySelector("#forecast-name").value.trim(),
-      labelPattern: this.shadowRoot.querySelector("#forecast-pattern").value.trim(),
-      accountId: this.shadowRoot.querySelector("#forecast-account").value,
-      amount: Number(this.shadowRoot.querySelector("#forecast-amount").value),
-      type: this.shadowRoot.querySelector("#forecast-type").value,
-      dayOfMonth: Number(this.shadowRoot.querySelector("#forecast-day").value),
-      frequency: this.shadowRoot.querySelector("#forecast-frequency").value,
-      startDate,
-      categoryId
-    }, "Échéance prévisionnelle ajoutée.");
-    if (succeeded) {
-      this.shadowRoot.querySelector("#forecast-form").reset();
-      this.shadowRoot.querySelector("#forecast-start").value = new Date().toISOString().slice(0, 10);
-    }
-  }
-
-  async saveSavingsGoal(event) {
-    event.preventDefault();
-    const year = Number(this.shadowRoot.querySelector("#summary-year").value);
-    const month = Number(this.shadowRoot.querySelector("#summary-month").value || new Date().getMonth() + 1);
-    const succeeded = await this.planningRequest(
-      this.editingSavingsGoalId ? `/api/savings-goals/${this.editingSavingsGoalId}` : "/api/savings-goals",
-      this.editingSavingsGoalId ? "PUT" : "POST",
-      {
-        name: this.shadowRoot.querySelector("#savings-goal-name").value.trim(),
-        accountId: this.shadowRoot.querySelector("#savings-goal-account").value,
-        targetAmount: Number(this.shadowRoot.querySelector("#savings-goal-target").value),
-        plannedMonthlyContribution: Number(this.shadowRoot.querySelector("#savings-goal-contribution").value),
-        year,
-        month
-      },
-      this.editingSavingsGoalId ? "Objectif d’épargne mis à jour." : "Objectif d’épargne créé."
-    );
-    if (succeeded) this.resetSavingsGoalForm();
-  }
-
-  async handleSavingsGoalAction(event) {
-    const editButton = event.target.closest("[data-edit-savings-goal]");
-    if (editButton) {
-      const goal = this.savingsGoals.find(item => item.id === editButton.dataset.editSavingsGoal);
-      if (!goal) return;
-      this.editingSavingsGoalId = goal.id;
-      this.shadowRoot.querySelector("#savings-goal-name").value = goal.name;
-      this.shadowRoot.querySelector("#savings-goal-account").value = goal.accountId;
-      this.shadowRoot.querySelector("#savings-goal-target").value = goal.targetAmount;
-      this.shadowRoot.querySelector("#savings-goal-contribution").value = goal.plannedMonthlyContribution;
-      this.shadowRoot.querySelector("#savings-goal-submit").textContent = "Enregistrer";
-      this.shadowRoot.querySelector("#savings-goal-cancel").hidden = false;
-      this.shadowRoot.querySelector("#savings-goal-name").focus();
-      return;
-    }
-
-    const deleteButton = event.target.closest("[data-delete-savings-goal]");
-    if (deleteButton) {
-      await this.planningRequest(
-        `/api/savings-goals/${deleteButton.dataset.deleteSavingsGoal}`,
-        "DELETE",
-        null,
-        "Objectif d’épargne désactivé."
-      );
-    }
-  }
-
-  resetSavingsGoalForm() {
-    this.editingSavingsGoalId = null;
-    this.shadowRoot.querySelector("#savings-goal-form").reset();
-    this.shadowRoot.querySelector("#savings-goal-submit").textContent = "Créer l’objectif";
-    this.shadowRoot.querySelector("#savings-goal-cancel").hidden = true;
-  }
-
-  async handleForecastAction(event) {
-    const button = event.target.closest("[data-delete-forecast]");
-    if (!button) return;
-    await this.planningRequest(`/api/planning/forecasts/${button.dataset.deleteForecast}`, "DELETE", null, "Échéance désactivée.");
+  showBalanceFeedback(message, isError) {
+    const feedback = this.shadowRoot.querySelector("#balance-feedback");
+    feedback.className = `feedback ${isError ? "error" : "success"}`;
+    feedback.textContent = message;
+    feedback.hidden = false;
   }
 
   async setBalanceReference(event) {
     event.preventDefault();
-    await this.planningRequest(
-      `/api/accounts/${this.shadowRoot.querySelector("#balance-account").value}/balances/reference`,
-      "PUT",
-      {
-        transactionId: this.shadowRoot.querySelector("#balance-transaction").value,
-        balanceAfterTransaction: Number(this.shadowRoot.querySelector("#reference-balance").value)
-      },
-      "Solde de référence enregistré."
-    );
-    await this.loadBalance();
+    const accountId = this.shadowRoot.querySelector("#balance-account").value;
+    try {
+      const response = await fetch(`/api/accounts/${accountId}/balances/reference`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionId: this.shadowRoot.querySelector("#balance-transaction").value,
+          balanceAfterTransaction: Number(this.shadowRoot.querySelector("#reference-balance").value)
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’enregistrer le solde.");
+      this.showBalanceFeedback("Solde enregistré.", false);
+      this.renderBalanceResult(result);
+    } catch (exception) {
+      this.showBalanceFeedback(exception.message, true);
+    }
   }
 
   async loadBalance() {
-    const accountId = this.shadowRoot.querySelector("#balance-account")?.value;
-    if (!accountId) return;
+    const accountId = this.shadowRoot.querySelector("#balance-account").value;
+    if (!accountId) {
+      this.shadowRoot.querySelector("#balance-result").textContent = "";
+      return;
+    }
     try {
-      const year = Number(this.shadowRoot.querySelector("#summary-year").value);
-      const month = Number(this.shadowRoot.querySelector("#summary-month").value || new Date().getMonth() + 1);
-      const lastDay = new Date(year, month, 0).getDate();
-      const throughDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-      const response = await fetch(`/api/accounts/${accountId}/balances?throughDate=${throughDate}`);
+      const response = await fetch(`/api/accounts/${accountId}/balances`);
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de charger le solde.");
-      const output = this.shadowRoot.querySelector("#balance-result");
-      if (result.actualBalance === null) {
-        output.textContent = "Aucun solde de référence défini pour ce compte.";
-      } else {
-        output.textContent = `Solde constaté : ${this.formatCurrency(result.actualBalance)} · Solde prévisionnel (jusqu’au ${this.formatDate(result.throughDate)}) : ${this.formatCurrency(result.forecastBalance)}. L’opération de référence n’est pas recomptée.`;
-      }
+      this.renderBalanceResult(result);
     } catch (exception) {
-      const feedback = this.shadowRoot.querySelector("#planning-feedback");
-      feedback.className = "feedback error";
-      feedback.textContent = exception.message;
-      feedback.hidden = false;
+      this.showBalanceFeedback(exception.message, true);
     }
   }
 
-  async planningRequest(url, method, body, successMessage) {
-    const feedback = this.shadowRoot.querySelector("#planning-feedback");
-    try {
-      const options = { method };
-      if (body) {
-        options.headers = { "Content-Type": "application/json" };
-        options.body = JSON.stringify(body);
-      }
-      const response = await fetch(url, options);
-      const result = response.status === 204 ? null : await response.json();
-      if (!response.ok) throw new Error(result?.detail ?? result?.title ?? "L'opération de planification a échoué.");
-      await this.loadPlanningData();
-      feedback.className = "feedback success";
-      feedback.textContent = successMessage;
-      feedback.hidden = false;
-      return true;
-    } catch (exception) {
-      feedback.className = "feedback error";
-      feedback.textContent = exception.message;
-      feedback.hidden = false;
-      return false;
-    }
+  renderBalanceResult(result) {
+    const output = this.shadowRoot.querySelector("#balance-result");
+    output.textContent = result.actualBalance === null
+      ? "Aucun solde défini pour ce compte."
+      : `Solde constaté : ${this.formatCurrency(result.actualBalance)} (référence du ${this.formatDate(result.referenceDate)} : ${this.formatCurrency(result.referenceBalance)}).`;
   }
 
   renderPhase2Data() {
@@ -1724,6 +1350,7 @@ class KontaApp extends HTMLElement {
     }
     this.renderCategoryRules();
     this.renderCategories();
+    this.renderBalanceForm();
   }
 
   renderCategoryOptions(select, placeholder = "Choisir une catégorie") {
@@ -2264,14 +1891,13 @@ class KontaApp extends HTMLElement {
       const response = await fetch("/api/imports/commit", { method: "POST", body: formData });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "L'import a échoué.");
-      const commitMessage = `${result.importedCount} opération${result.importedCount === 1 ? "" : "s"} ajoutée${result.importedCount === 1 ? "" : "s"}, ${result.excludedCount} exclue${result.excludedCount === 1 ? "" : "s"}, ${result.duplicateCount} doublon${result.duplicateCount === 1 ? "" : "s"} ignoré${result.duplicateCount === 1 ? "" : "s"}, ${result.errors.length} erreur${result.errors.length === 1 ? "" : "s"}.`;
+      const commitMessage = `${result.importedCount} opération${result.importedCount === 1 ? "" : "s"} ajoutée${result.importedCount === 1 ? "" : "s"}, ${result.excludedCount} exclue${result.excludedCount === 1 ? "" : "s"}, ${result.duplicateCount} doublon${result.duplicateCount === 1 ? "" : "s"} ignoré${result.duplicateCount === 1 ? "" : "s"}, ${result.errors.length} erreur${result.errors.length === 1 ? "" : "s"}.${result.balanceApplied ? " Solde du compte mis à jour d’après le relevé." : ""}`;
       feedback.className = "feedback success";
       feedback.textContent = commitMessage;
       feedback.hidden = false;
       await this.loadTransactions();
       this.phase2DataPromise = this.loadPhase2Data();
       await this.phase2DataPromise;
-      await this.loadPlanningData();
       await this.requestPreview(this.selectedFile);
       if (!feedback.classList.contains("error")) {
         feedback.className = "feedback success";
@@ -2296,7 +1922,6 @@ class KontaApp extends HTMLElement {
     return [...this.shadowRoot.querySelectorAll("#preview-body tr")].map(row => {
       const categorySelect = row.querySelector("[data-category]");
       const newCategoryInput = row.querySelector("[data-new-category]");
-      const forecastMatch = row.querySelector("[data-forecast-match]")?.value;
       const transferMatch = row.querySelector("[data-transfer-match]")?.value;
       const amount = Number(row.querySelector("[data-amount]").value.replace(",", "."));
       const subcategoryName = row.querySelector("[data-subcategory]").value.trim();
@@ -2310,9 +1935,6 @@ class KontaApp extends HTMLElement {
         categoryName: newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim(),
         subcategoryName,
         createSubcategoryRule: row.dataset.createSubcategoryRule === "true" && Boolean(subcategoryName),
-        confirmForecastMatch: Boolean(forecastMatch),
-        forecastId: forecastMatch ? JSON.parse(forecastMatch).forecastId : null,
-        forecastDate: forecastMatch ? JSON.parse(forecastMatch).scheduledDate : null,
         confirmTransferMatch: Boolean(transferMatch),
         transferTransactionId: transferMatch ? JSON.parse(transferMatch).transactionId : null,
         transferRowNumber: transferMatch ? JSON.parse(transferMatch).rowNumber : null
@@ -2414,27 +2036,6 @@ class KontaApp extends HTMLElement {
       suggestion.textContent = `Suggestion · ${transaction.categorySuggestion.ruleName} (${transaction.categorySuggestion.pattern})`;
       categoryContent.append(suggestion);
     }
-    if (transaction.forecastMatchCandidates?.length) {
-      const forecastSelect = document.createElement("select");
-      forecastSelect.dataset.forecastMatch = "";
-      forecastSelect.setAttribute("aria-label", `Rapprochement d'échéance, ligne ${transaction.rowNumber}`);
-      forecastSelect.append(this.option("", "Échéance à rapprocher ?"));
-      for (const candidate of transaction.forecastMatchCandidates) {
-        const label = `${candidate.forecastName} · ${this.formatDate(candidate.scheduledDate)} · prévu ${this.formatCurrency(candidate.forecastAmount)} · écart ${this.formatCurrency(candidate.amountDifference)}`;
-        const option = this.option(JSON.stringify({
-          forecastId: candidate.forecastId,
-          scheduledDate: candidate.scheduledDate
-        }), label);
-        forecastSelect.append(option);
-      }
-      const matchNote = document.createElement("small");
-      matchNote.className = "forecast-suggestion";
-      const firstCandidate = transaction.forecastMatchCandidates[0];
-      matchNote.textContent = firstCandidate.isAmbiguous
-        ? "Plusieurs échéances correspondent — choisissez explicitement."
-        : `Même compte et libellé proche; écart de montant : ${this.formatCurrency(firstCandidate.amountDifference)}. Confirmez pour marquer l'échéance réalisée.`;
-      categoryContent.append(forecastSelect, matchNote);
-    }
     const transferCandidates = (transaction.transferMatchCandidates ?? []).filter(candidate =>
       candidate.rowNumber === null
       || !this.preview.transactions.find(item => item.rowNumber === candidate.rowNumber)?.isDuplicate
@@ -2461,14 +2062,38 @@ class KontaApp extends HTMLElement {
     }
     row.append(
       this.cell(this.formatDate(transaction.transactionDate), "date"),
-      this.cell(transaction.label, "preview-label"),
-      this.cell(transaction.motif ?? "", "preview-motif"),
+      this.detailsCell(transaction.fullLabel || transaction.label),
       this.cell(`${accountName} · ${transaction.accountNumber}`),
       this.controlCell(categoryContent, "category"),
       this.controlCell(amountInput, "review-amount"),
       this.controlCell(includeControl, "review-include")
     );
     return row;
+  }
+
+  refreshPendingCategoryOptions() {
+    const known = new Set(this.categories.map(category => category.name.toLocaleLowerCase("fr-FR")));
+    const pending = new Map();
+    for (const input of this.shadowRoot.querySelectorAll("#preview-body [data-new-category]")) {
+      const name = input.hidden ? "" : input.value.trim();
+      const key = name.toLocaleLowerCase("fr-FR");
+      if (name && !known.has(key) && !pending.has(key)) pending.set(key, name);
+    }
+
+    for (const select of this.shadowRoot.querySelectorAll("#preview-body [data-category]")) {
+      const selected = select.value;
+      for (const option of [...select.options]) {
+        if (option.hasAttribute("data-pending-category") && option.value !== selected) option.remove();
+      }
+      const addOption = select.querySelector("[data-add-category]");
+      for (const name of pending.values()) {
+        if ([...select.options].some(option => option.value === name)) continue;
+        const option = this.option(name, name);
+        option.dataset.pendingCategory = "";
+        select.insertBefore(option, addOption);
+      }
+      select.value = selected;
+    }
   }
 
   updateReviewCategory(select) {
@@ -2535,6 +2160,24 @@ class KontaApp extends HTMLElement {
     cell.className = className;
     cell.append(control);
     return cell;
+  }
+
+  detailsCell(detail) {
+    const cell = document.createElement("td");
+    cell.className = "preview-details";
+    for (const line of this.splitDetailLines(detail)) {
+      const element = document.createElement("div");
+      element.textContent = line;
+      cell.append(element);
+    }
+    return cell;
+  }
+
+  splitDetailLines(detail) {
+    const text = detail.replace(/\s+/g, " ").trim();
+    const card = /^(CARTE X\d+ \d{2}\/\d{2}) (.*?) (\d{10,}[A-Z0-9]*)$/.exec(text);
+    if (card) return [card[1], card[2], card[3]];
+    return text.split(/ (?=[A-ZÉ]{2,}:)/).map(line => line.trim()).filter(Boolean);
   }
 
   cell(text, className = "") {

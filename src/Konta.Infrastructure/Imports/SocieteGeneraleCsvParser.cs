@@ -25,6 +25,14 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
         ["pointee"] = "Pointée"
     };
 
+    private static readonly IReadOnlyDictionary<string, string> SummaryFormatHeaders = new Dictionary<string, string>
+    {
+        ["date"] = "Date de l'opération",
+        ["libelle"] = "Libellé",
+        ["detail"] = "Détail de l'écriture",
+        ["montant"] = "Montant de l'opération"
+    };
+
     public ImportPreview Parse(Stream csvStream)
     {
         var transactions = new List<ImportedTransaction>();
@@ -44,7 +52,18 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
             return new ImportPreview(transactions, [new CsvRowError(1, "Le fichier est vide.")], []);
         }
 
-        var headerIndexes = ReadHeaderIndexes(csv);
+        var statement = ReadStatementSummary(csv);
+        if (statement is not null && !csv.Read())
+        {
+            return new ImportPreview(transactions, [new CsvRowError(2, "En-têtes CSV manquants après la ligne de résumé du compte.")], [], statement);
+        }
+
+        if (statement is not null)
+        {
+            return ParseSummaryFormat(csv, statement);
+        }
+
+        var headerIndexes = ReadHeaderIndexes(csv, RequiredHeaders);
         if (headerIndexes is null)
         {
             return new ImportPreview(transactions, [new CsvRowError(1, "En-têtes CSV manquants ou non reconnus. Vérifiez le format Société Générale exporté.")], []);
@@ -104,7 +123,83 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
         return new ImportPreview(transactions, errors, []);
     }
 
-    private static Dictionary<string, int>? ReadHeaderIndexes(CsvReader csv)
+    private static ImportPreview ParseSummaryFormat(CsvReader csv, StatementBalance statement)
+    {
+        var transactions = new List<ImportedTransaction>();
+        var errors = new List<CsvRowError>();
+        var headerIndexes = ReadHeaderIndexes(csv, SummaryFormatHeaders);
+        if (headerIndexes is null)
+        {
+            return new ImportPreview(transactions, [new CsvRowError(csv.Context.Parser?.Row ?? 2, "En-têtes CSV manquants ou non reconnus. Vérifiez le format Société Générale exporté.")], [], statement);
+        }
+
+        var accountLabel = $"Compte {statement.AccountNumber}";
+        while (csv.Read())
+        {
+            var rowNumber = csv.Context.Parser?.Row ?? 0;
+            try
+            {
+                var date = ParseDate(GetField(csv, headerIndexes, "date"));
+                var label = GetField(csv, headerIndexes, "libelle");
+                var detail = GetField(csv, headerIndexes, "detail");
+                if (string.IsNullOrWhiteSpace(label))
+                {
+                    label = detail;
+                }
+
+                if (string.IsNullOrWhiteSpace(label))
+                {
+                    throw new FormatException("Le libellé de l'opération est manquant.");
+                }
+
+                var amount = ParseAmount(GetField(csv, headerIndexes, "montant"));
+                transactions.Add(new ImportedTransaction(
+                    rowNumber,
+                    date,
+                    date,
+                    statement.AccountNumber,
+                    accountLabel,
+                    label,
+                    string.IsNullOrWhiteSpace(detail) ? label : detail,
+                    null,
+                    null,
+                    Math.Abs(amount),
+                    amount < 0 ? TransactionType.Expense : TransactionType.Income,
+                    false,
+                    Motif: ExtractMotif(detail)));
+            }
+            catch (Exception exception) when (exception is FormatException or CsvHelperException or IndexOutOfRangeException or ArgumentException)
+            {
+                errors.Add(new CsvRowError(rowNumber, exception.Message));
+            }
+        }
+
+        return new ImportPreview(transactions, errors, [], statement);
+    }
+
+    // Les exports récents commencent par : numéro de compte;début;fin;nombre d'opérations;date du solde;solde EUR
+    private static StatementBalance? ReadStatementSummary(CsvReader csv)
+    {
+        var parser = csv.Context.Parser;
+        if (parser is null || parser.Count < 6)
+        {
+            return null;
+        }
+
+        var accountNumber = (csv.GetField(0) ?? string.Empty).Trim().TrimStart('\uFEFF');
+        var balanceToken = (csv.GetField(5) ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+        if (accountNumber.Length == 0
+            || !accountNumber.All(char.IsDigit)
+            || !DateOnly.TryParseExact(csv.GetField(4)?.Trim(), "dd/MM/yyyy", FrenchCulture, DateTimeStyles.None, out var balanceDate)
+            || !decimal.TryParse(balanceToken.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var balance))
+        {
+            return null;
+        }
+
+        return new StatementBalance(accountNumber, balanceDate, balance);
+    }
+
+    private static Dictionary<string, int>? ReadHeaderIndexes(CsvReader csv, IReadOnlyDictionary<string, string> requiredHeaders)
     {
         var normalizedHeaders = new Dictionary<string, int>(StringComparer.Ordinal);
         var parser = csv.Context.Parser;
@@ -122,12 +217,13 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
             }
         }
 
-        if (RequiredHeaders.Keys.Any(header => !normalizedHeaders.ContainsKey(header)))
+        var requiredKeys = requiredHeaders.ToDictionary(header => NormalizeHeader(header.Value), header => header.Key);
+        if (requiredKeys.Keys.Any(header => !normalizedHeaders.ContainsKey(header)))
         {
             return null;
         }
 
-        return RequiredHeaders.Keys.ToDictionary(header => header, header => normalizedHeaders[header]);
+        return requiredKeys.ToDictionary(header => header.Value, header => normalizedHeaders[header.Key]);
     }
 
     private static string GetField(CsvReader csv, IReadOnlyDictionary<string, int> indexes, string header)
