@@ -31,7 +31,6 @@ dotnet test Konta.sln
 - `GET /api/annual-budgets/{year}/months/{month}` : comparer le prévu au réalisé pour un mois, avec le report prévisionnel, le détail des opérations et les opérations non rapprochées.
 - `POST /api/annual-budgets/posts/{id}/months/{month}/copy-forward` : recopier le montant d'un mois sur les mois suivants.
 - `PUT /api/annual-budgets/{year}/posts/order` : définir l'ordre des postes actifs dans une même section.
-- `POST /api/annual-budgets/{year}/extras` et `DELETE /api/annual-budgets/extras/{id}` : ajouter ou supprimer un extra ponctuel.
 - `POST /api/annual-budgets/{year}/posts` : ajouter un poste de revenu, dépense ou épargne planifiée.
 - `PUT /api/annual-budgets/posts/{id}` et `DELETE /api/annual-budgets/posts/{id}` : modifier ou supprimer définitivement un poste (avec ses montants mensuels).
 - `PUT /api/annual-budgets/posts/{id}/months/{month}` et `DELETE /api/annual-budgets/posts/{id}/months/{month}` : définir ou effacer la prévision d'un mois. Un montant nul explicite est différent d'une prévision absente.

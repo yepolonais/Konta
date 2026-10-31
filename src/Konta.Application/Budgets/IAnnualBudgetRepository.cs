@@ -13,10 +13,6 @@ public interface IAnnualBudgetRepository
     Task DeletePostAsync(AnnualBudgetPost post, CancellationToken cancellationToken);
     Task SetPostOrderAsync(IReadOnlyList<Guid> postIds, CancellationToken cancellationToken);
     Task SetMonthlyAmountAsync(Guid postId, int month, decimal? amount, CancellationToken cancellationToken);
-    Task<IReadOnlyList<BudgetExtra>> ListExtrasAsync(int year, CancellationToken cancellationToken);
-    Task<IReadOnlyList<BudgetExtra>> ListExtrasBeforeYearAsync(int year, CancellationToken cancellationToken);
-    Task AddExtraAsync(BudgetExtra extra, CancellationToken cancellationToken);
-    Task<bool> DeleteExtraAsync(Guid id, CancellationToken cancellationToken);
     Task SetCategoryMappingsAsync(
         Guid postId,
         IReadOnlyCollection<Guid> categoryIds,

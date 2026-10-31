@@ -34,13 +34,6 @@ public interface IAnnualBudgetService
         Guid id,
         int month,
         CancellationToken cancellationToken);
-    Task<BudgetExtraItem> AddExtraAsync(
-        int year,
-        int month,
-        string label,
-        decimal amount,
-        CancellationToken cancellationToken);
-    Task<bool> DeleteExtraAsync(Guid id, CancellationToken cancellationToken);
     Task<AnnualBudgetPostItem?> SetCategoryMappingsAsync(
         Guid id,
         IReadOnlyCollection<Guid> categoryIds,

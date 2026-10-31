@@ -79,7 +79,11 @@ class KontaApp extends HTMLElement {
           <section class="panel annual-budget-panel" id="budget" data-page="budget" aria-labelledby="annual-budget-title">
             <div class="panel-head annual-budget-heading">
               <div><span class="section-kicker">Prévision annuelle</span><h2 id="annual-budget-title">Budget du foyer</h2></div>
-              <label class="budget-year-label">Année<input id="annual-budget-year" type="number" min="1" max="9998" required></label>
+              <div class="budget-year-label" role="group" aria-label="Année du budget">
+                <button type="button" class="secondary-button" id="annual-budget-year-prev" aria-label="Année précédente">‹</button>
+                <input id="annual-budget-year" type="number" min="1" max="9998" aria-label="Année" required>
+                <button type="button" class="secondary-button" id="annual-budget-year-next" aria-label="Année suivante">›</button>
+              </div>
             </div>
             <div class="annual-budget-totals" id="annual-budget-totals" aria-live="polite"></div>
             <form class="annual-budget-form" id="annual-budget-form">
@@ -95,10 +99,6 @@ class KontaApp extends HTMLElement {
               </select></label>
               <button type="submit">Ajouter un poste</button>
             </form>
-            <div class="annual-budget-toolbar">
-              <p>Les montants prévus sont séparés des opérations réellement importées.</p>
-              <label class="budget-month-label">Mois à suivre<select id="annual-budget-month"></select></label>
-            </div>
             <p class="feedback" id="annual-budget-feedback" role="status" aria-live="polite" hidden></p>
             <div class="table-wrap annual-budget-table-wrap">
               <table class="annual-budget-table">
@@ -108,17 +108,6 @@ class KontaApp extends HTMLElement {
               </table>
             </div>
             <p class="empty" id="annual-budget-empty" hidden>Ajoutez vos premiers postes prévisionnels pour construire le budget de l’année.</p>
-            <section class="budget-extras" aria-labelledby="budget-extras-title">
-              <div><span class="section-kicker">Ajustement</span><h3 id="budget-extras-title">Extras ponctuels</h3>
-              <p>Argent ajouté en plus du plan, une seule fois. Il est comptabilisé à part des revenus réguliers.</p></div>
-              <form class="budget-extra-form" id="budget-extra-form">
-                <label>Mois<select id="budget-extra-month" required></select></label>
-                <label>Motif<input id="budget-extra-label" maxlength="200" placeholder="Ex. Apport après dépassement" required></label>
-                <label>Montant (€)<input id="budget-extra-amount" type="number" min="0.01" step="0.01" required></label>
-                <button type="submit">Ajouter l’extra</button>
-              </form>
-              <ul class="budget-extra-list" id="budget-extra-list"></ul>
-            </section>
           </section>
           <section class="panel budget-monthly-panel" id="monthly" data-page="monthly" aria-labelledby="budget-monthly-title" hidden>
             <section class="budget-monthly-review" aria-labelledby="budget-monthly-title">
@@ -302,19 +291,22 @@ class KontaApp extends HTMLElement {
       this.shadowRoot.querySelector("#annual-budget-expense-kind-field").hidden = event.target.value !== "Expense";
     });
     this.shadowRoot.querySelector("#annual-budget-year").addEventListener("change", () => this.loadAnnualBudget());
-    for (const selector of ["#annual-budget-month", "#monthly-review-month"]) {
-      this.shadowRoot.querySelector(selector).addEventListener("change", event => {
-        this.selectedBudgetMonth = Number(event.target.value);
-        this.shadowRoot.querySelector("#annual-budget-month").value = event.target.value;
-        this.shadowRoot.querySelector("#monthly-review-month").value = event.target.value;
-        this.renderAnnualBudget();
-        this.loadAnnualBudgetMonth();
+    for (const [selector, step] of [["#annual-budget-year-prev", -1], ["#annual-budget-year-next", 1]]) {
+      this.shadowRoot.querySelector(selector).addEventListener("click", () => {
+        const input = this.shadowRoot.querySelector("#annual-budget-year");
+        const year = Number(input.value) + step;
+        if (year < 1 || year > 9998) return;
+        input.value = year;
+        this.loadAnnualBudget();
       });
     }
+    this.shadowRoot.querySelector("#monthly-review-month").addEventListener("change", event => {
+      this.selectedBudgetMonth = Number(event.target.value);
+      this.renderAnnualBudget();
+      this.loadAnnualBudgetMonth();
+    });
     this.shadowRoot.querySelector("#budget-monthly-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
-    this.shadowRoot.querySelector("#budget-extra-form").addEventListener("submit", event => this.addBudgetExtra(event));
-    this.shadowRoot.querySelector("#budget-extra-list").addEventListener("click", event => this.deleteBudgetExtra(event));
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("focusin", event => {
       const input = event.target.closest("[data-month-amount]");
       if (input) input.closest("[data-post-id]").dataset.sourceMonth = input.dataset.month;
@@ -383,7 +375,6 @@ class KontaApp extends HTMLElement {
     annualYear.value = year.value;
     this.shadowRoot.querySelector("#forecast-start").value = new Date().toISOString().slice(0, 10);
     const month = this.shadowRoot.querySelector("#summary-month");
-    const budgetMonth = this.shadowRoot.querySelector("#annual-budget-month");
     const monthlyMonth = this.shadowRoot.querySelector("#monthly-review-month");
     for (let value = 1; value <= 12; value++) {
       const option = document.createElement("option");
@@ -391,10 +382,8 @@ class KontaApp extends HTMLElement {
       const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(2026, value - 1, 1));
       option.textContent = monthName;
       month.append(option.cloneNode(true));
-      budgetMonth.append(option.cloneNode(true));
       monthlyMonth.append(option);
     }
-    budgetMonth.value = String(this.selectedBudgetMonth);
     monthlyMonth.value = String(this.selectedBudgetMonth);
   }
 
@@ -555,7 +544,6 @@ class KontaApp extends HTMLElement {
     }
 
     this.renderAnnualBudgetTotals(months);
-    this.renderBudgetExtras();
     this.shadowRoot.querySelector("#annual-budget-empty").hidden = budget.posts.length > 0;
     this.shadowRoot.querySelector(".annual-budget-table-wrap").hidden = false;
     this.shadowRoot.querySelector("#budget-monthly-title").textContent =
@@ -715,11 +703,9 @@ class KontaApp extends HTMLElement {
     const incomeTotal = this.annualBudgetTypeTotal("Income");
     const expenseTotal = this.annualBudgetTypeTotal("Expense");
     const savingsTotal = this.annualBudgetTypeTotal("Savings");
-    const extraTotal = this.annualBudgetExtraTotal();
     const availableTotal = this.annualBudget.availableTotal;
     const types = [
       ["Income", "Total revenus"],
-      ["Extra", "Total extras"],
       ["Expense", "Total dépenses"],
       ["Savings", "Total épargne prévue"],
       ["Available", "Disponible prévisionnel"]
@@ -739,11 +725,9 @@ class KontaApp extends HTMLElement {
         ? availableTotal
         : type === "Income"
           ? incomeTotal
-          : type === "Extra"
-            ? extraTotal
-            : type === "Expense"
-              ? expenseTotal
-              : savingsTotal;
+          : type === "Expense"
+            ? expenseTotal
+            : savingsTotal;
       row.append(this.budgetCell(this.formatCurrency(annualTotal), "td"));
       row.lastChild.className = "amount";
       row.append(this.budgetCell("", "td"));
@@ -771,7 +755,6 @@ class KontaApp extends HTMLElement {
     cards.replaceChildren();
     for (const [label, amount, style] of [
       ["Revenus prévus", incomeTotal, "income"],
-      ["Extras prévus", extraTotal, "income"],
       ["Dépenses prévues", expenseTotal, "expense"],
       ["Épargne prévue", savingsTotal, "savings"],
       ["Disponible annuel", availableTotal, "available"]
@@ -817,18 +800,10 @@ class KontaApp extends HTMLElement {
       .reduce((total, post) => total + Math.round(post.annualTotal * 100), 0) / 100;
   }
 
-  annualBudgetExtraTotal() {
-    return (this.annualBudget.extras ?? [])
-      .reduce((total, extra) => total + Math.round(extra.amount * 100), 0) / 100;
-  }
-
   monthlyBudgetTotal(type, month) {
     if (type === "CarryForward") {
       return this.annualBudget.plannedCarryForwardAmounts[month - 1];
     }
-    const extra = (this.annualBudget.extras ?? [])
-      .filter(item => item.month === month)
-      .reduce((total, item) => total + Math.round(item.amount * 100), 0);
     const totalFor = postType => this.annualBudget.posts
       .filter(post => post.isActive && post.type === postType)
       .reduce((total, post) => total + Math.round((post.monthlyAmounts[month - 1] ?? 0) * 100), 0);
@@ -836,10 +811,9 @@ class KontaApp extends HTMLElement {
     const expense = totalFor("Expense");
     const savings = totalFor("Savings");
     const total = type === "Income" ? income
-      : type === "Extra" ? extra
       : type === "Expense" ? expense
         : type === "Savings" ? savings
-          : income + extra - expense - savings;
+          : income - expense - savings;
     return total / 100;
   }
 
@@ -854,7 +828,6 @@ class KontaApp extends HTMLElement {
     for (const [label, planned, actual, style] of [
       ["Revenus", summary.plannedIncomeTotal, summary.actualIncomeTotal, "income"],
       ["Dépenses", summary.plannedExpenseTotal, summary.actualExpenseTotal, "expense"],
-      ["Extras", summary.plannedExtraTotal, null, "income"],
       ["Épargne", summary.plannedSavingsTotal, summary.actualSavingsTotal, "savings"],
       ["Disponible", summary.plannedAvailableTotal, summary.actualAvailableTotal, "available"]
     ]) {
@@ -1233,84 +1206,6 @@ class KontaApp extends HTMLElement {
       const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" })
         .format(new Date(post.year, Number(source.dataset.month) - 1, 1));
       this.setAnnualBudgetFeedback(`Montant de ${monthName} recopié sur les mois suivants pour « ${post.name} ».`);
-    } catch (exception) {
-      this.setAnnualBudgetFeedback(exception.message, true);
-      button.disabled = false;
-    }
-  }
-
-  renderBudgetExtras() {
-    const monthSelect = this.shadowRoot.querySelector("#budget-extra-month");
-    if (monthSelect.options.length === 0) {
-      for (let month = 1; month <= 12; month++) {
-        monthSelect.append(this.option(String(month), new Intl.DateTimeFormat("fr-FR", { month: "long" })
-          .format(new Date(2000, month - 1, 1))));
-      }
-      monthSelect.value = String(this.selectedBudgetMonth);
-    }
-
-    const list = this.shadowRoot.querySelector("#budget-extra-list");
-    list.replaceChildren();
-    const extras = this.annualBudget.extras ?? [];
-    if (extras.length === 0) {
-      const empty = document.createElement("li");
-      empty.className = "muted";
-      empty.textContent = "Aucun extra pour cette année.";
-      list.append(empty);
-    }
-    for (const extra of extras) {
-      const item = document.createElement("li");
-      item.dataset.extraId = extra.id;
-      const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" })
-        .format(new Date(extra.year, extra.month - 1, 1));
-      const text = document.createElement("span");
-      text.textContent = `${monthName} · ${extra.label} · +${this.formatCurrency(extra.amount)}`;
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "secondary-button";
-      remove.textContent = "Supprimer";
-      remove.dataset.deleteExtra = "";
-      remove.setAttribute("aria-label", `Supprimer l’extra ${extra.label}`);
-      item.append(text, remove);
-      list.append(item);
-    }
-  }
-
-  async addBudgetExtra(event) {
-    event.preventDefault();
-    const year = Number(this.shadowRoot.querySelector("#annual-budget-year").value);
-    const labelInput = this.shadowRoot.querySelector("#budget-extra-label");
-    const amountInput = this.shadowRoot.querySelector("#budget-extra-amount");
-    try {
-      const response = await fetch(`/api/annual-budgets/${year}/extras`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          month: Number(this.shadowRoot.querySelector("#budget-extra-month").value),
-          label: labelInput.value.trim(),
-          amount: Number(amountInput.value)
-        })
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’ajouter l’extra.");
-      labelInput.value = "";
-      amountInput.value = "";
-      await this.loadAnnualBudget();
-      this.setAnnualBudgetFeedback("Extra ajouté.");
-    } catch (exception) {
-      this.setAnnualBudgetFeedback(exception.message, true);
-    }
-  }
-
-  async deleteBudgetExtra(event) {
-    const button = event.target.closest("[data-delete-extra]");
-    if (!button) return;
-    button.disabled = true;
-    try {
-      const response = await fetch(`/api/annual-budgets/extras/${button.closest("[data-extra-id]").dataset.extraId}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Impossible de supprimer l’extra.");
-      await this.loadAnnualBudget();
-      this.setAnnualBudgetFeedback("Extra supprimé.");
     } catch (exception) {
       this.setAnnualBudgetFeedback(exception.message, true);
       button.disabled = false;

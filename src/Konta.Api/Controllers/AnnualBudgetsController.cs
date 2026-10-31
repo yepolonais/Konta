@@ -281,36 +281,6 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         }
     }
 
-    [HttpPost("{year:int}/extras")]
-    [ProducesResponseType<BudgetExtraItem>(StatusCodes.Status201Created)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<BudgetExtraItem>> AddExtra(
-        int year,
-        AddBudgetExtraRequest request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var extra = await annualBudgetService.AddExtraAsync(
-                year,
-                request.Month!.Value,
-                request.Label,
-                request.Amount!.Value,
-                cancellationToken);
-            return Created($"/api/annual-budgets/extras/{extra.Id}", extra);
-        }
-        catch (ArgumentException exception)
-        {
-            return BadRequest(InvalidRequest(exception));
-        }
-    }
-
-    [HttpDelete("extras/{id:guid}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteExtra(Guid id, CancellationToken cancellationToken) =>
-        await annualBudgetService.DeleteExtraAsync(id, cancellationToken) ? NoContent() : NotFound();
-
     [HttpDelete("posts/{id:guid}/months/{month:int}")]
     [ProducesResponseType<AnnualBudgetPostItem>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -380,18 +350,6 @@ public sealed record ReorderAnnualBudgetPostsRequest
 public sealed record SetMonthlyAmountRequest
 {
     [Required, Range(0, double.MaxValue)]
-    public decimal? Amount { get; init; }
-}
-
-public sealed record AddBudgetExtraRequest
-{
-    [Required, Range(1, 12)]
-    public int? Month { get; init; }
-
-    [Required, StringLength(200)]
-    public required string Label { get; init; }
-
-    [Required, Range(0.01, double.MaxValue)]
     public decimal? Amount { get; init; }
 }
 

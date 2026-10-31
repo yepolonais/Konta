@@ -101,7 +101,6 @@ Relier les opérations importées au plan budgétaire et rendre les écarts visi
 Permettre de réagir aux écarts sans effacer le plan passé.
 
 - [X] Modifier les montants prévus d'un ou plusieurs mois futurs sans altérer les mois déjà écoulés (saisie, recopie vers l'avant).
-- [X] Ajouter un extra ponctuel et l'afficher séparément des revenus réguliers (ligne d'extra par mois, total et disponible prévisionnel distincts).
 - [X] Modifier ou remettre à zéro les montants prévus d'un poste variable pour les mois futurs, par édition directe des cellules.
 - [X] Tester qu'une révision future ne réécrit pas les valeurs antérieures et que les totaux restent justes.
 

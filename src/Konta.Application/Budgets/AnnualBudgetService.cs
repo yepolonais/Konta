@@ -28,26 +28,19 @@ public sealed class AnnualBudgetService(
             .Where(post => post.Type == AnnualBudgetPostType.Savings)
             .Sum(post => post.AnnualTotal);
 
-        var budgetExtras = await repository.ListExtrasAsync(year, cancellationToken);
         var previousPosts = await repository.ListPostsBeforeYearAsync(year, cancellationToken);
-        var previousExtras = await repository.ListExtrasBeforeYearAsync(year, cancellationToken);
         var carryForwardAmounts = GetPlannedCarryForwardAmounts(
             year,
-            previousPosts.Concat(budgetPosts).ToArray(),
-            previousExtras.Concat(budgetExtras).ToArray());
-        var extras = budgetExtras.Select(ToExtraItem).ToArray();
-        var extraTotal = extras.Sum(extra => extra.Amount);
+            previousPosts.Concat(budgetPosts).ToArray());
 
         return new AnnualBudgetSummary(
             year,
             incomeTotal,
             expenseTotal,
             savingsTotal,
-            extraTotal,
-            incomeTotal + extraTotal - expenseTotal - savingsTotal,
+            incomeTotal - expenseTotal - savingsTotal,
             carryForwardAmounts,
-            posts,
-            extras);
+            posts);
     }
 
     public async Task<AnnualBudgetMonthSummary> GetMonthAsync(
@@ -133,16 +126,9 @@ public sealed class AnnualBudgetService(
         var plannedIncomeTotal = SumPlanned(activePosts, AnnualBudgetPostType.Income, month);
         var plannedExpenseTotal = SumPlanned(activePosts, AnnualBudgetPostType.Expense, month);
         var plannedSavingsTotal = SumPlanned(activePosts, AnnualBudgetPostType.Savings, month);
-        var budgetExtras = await repository.ListExtrasAsync(year, cancellationToken);
         var carryForwardAmounts = GetPlannedCarryForwardAmounts(
             year,
-            (await repository.ListPostsBeforeYearAsync(year, cancellationToken)).Concat(posts).ToArray(),
-            (await repository.ListExtrasBeforeYearAsync(year, cancellationToken)).Concat(budgetExtras).ToArray());
-        var monthExtras = budgetExtras
-            .Where(extra => extra.Month == month)
-            .Select(ToExtraItem)
-            .ToArray();
-        var extraTotal = monthExtras.Sum(extra => extra.Amount);
+            (await repository.ListPostsBeforeYearAsync(year, cancellationToken)).Concat(posts).ToArray());
         var actualIncomeTotal = transactions
             .Where(transaction => transaction.Type == TransactionType.Income)
             .Sum(transaction => transaction.Amount);
@@ -156,10 +142,9 @@ public sealed class AnnualBudgetService(
             plannedIncomeTotal,
             plannedExpenseTotal,
             plannedSavingsTotal,
-            extraTotal,
             carryForwardAmounts[month - 1],
             actualSavingsTotal,
-            plannedIncomeTotal + extraTotal - plannedExpenseTotal - plannedSavingsTotal,
+            plannedIncomeTotal - plannedExpenseTotal - plannedSavingsTotal,
             actualIncomeTotal - actualExpenseTotal - actualSavingsTotal,
             actualIncomeTotal,
             actualExpenseTotal,
@@ -167,8 +152,7 @@ public sealed class AnnualBudgetService(
             unassignedTransactions.Where(transaction => transaction.Type == TransactionType.Expense).Sum(transaction => transaction.Amount),
             unassignedTransactions.Length,
             unassignedTransactions,
-            postItems,
-            monthExtras);
+            postItems);
     }
 
     public async Task<AnnualBudgetPostItem> CreatePostAsync(
@@ -339,22 +323,6 @@ public sealed class AnnualBudgetService(
         return ToItem(await repository.GetPostAsync(id, cancellationToken) ?? post);
     }
 
-    public async Task<BudgetExtraItem> AddExtraAsync(
-        int year,
-        int month,
-        string label,
-        decimal amount,
-        CancellationToken cancellationToken)
-    {
-        ValidateYear(year);
-        var extra = new BudgetExtra(year, month, label, amount);
-        await repository.AddExtraAsync(extra, cancellationToken);
-        return ToExtraItem(extra);
-    }
-
-    public Task<bool> DeleteExtraAsync(Guid id, CancellationToken cancellationToken) =>
-        repository.DeleteExtraAsync(id, cancellationToken);
-
     public async Task<AnnualBudgetPostItem?> SetCategoryMappingsAsync(
         Guid id,
         IReadOnlyCollection<Guid> categoryIds,
@@ -436,24 +404,19 @@ public sealed class AnnualBudgetService(
 
     private static decimal[] GetPlannedCarryForwardAmounts(
         int year,
-        IReadOnlyCollection<AnnualBudgetPost> posts,
-        IReadOnlyCollection<BudgetExtra> extras)
+        IReadOnlyCollection<AnnualBudgetPost> posts)
     {
         var earliestYear = posts.Select(post => post.Year)
-            .Concat(extras.Select(extra => extra.Year))
             .DefaultIfEmpty(year)
             .Min();
         var postsByYear = posts.GroupBy(post => post.Year).ToDictionary(group => group.Key, group => group.ToArray());
-        var extrasByYear = extras.GroupBy(extra => extra.Year).ToDictionary(group => group.Key, group => group.ToArray());
         var carryForwardAmounts = new decimal[12];
         var available = 0m;
 
         for (var budgetYear = earliestYear; budgetYear <= year; budgetYear++)
         {
             postsByYear.TryGetValue(budgetYear, out var yearPosts);
-            extrasByYear.TryGetValue(budgetYear, out var yearExtras);
             var activePosts = (yearPosts ?? []).Where(post => post.IsActive).ToArray();
-            yearExtras ??= [];
 
             for (var month = 1; month <= 12; month++)
             {
@@ -463,7 +426,6 @@ public sealed class AnnualBudgetService(
                 }
 
                 available += SumPlanned(activePosts, AnnualBudgetPostType.Income, month)
-                    + yearExtras.Where(extra => extra.Month == month).Sum(extra => extra.Amount)
                     - SumPlanned(activePosts, AnnualBudgetPostType.Expense, month)
                     - SumPlanned(activePosts, AnnualBudgetPostType.Savings, month);
             }
@@ -485,9 +447,6 @@ public sealed class AnnualBudgetService(
 
         return name.Trim();
     }
-
-    private static BudgetExtraItem ToExtraItem(BudgetExtra extra) =>
-        new(extra.Id, extra.Year, extra.Month, extra.Label, extra.Amount);
 
     private static AnnualBudgetExpenseKind? ResolveExpenseKind(
         AnnualBudgetPostType type,

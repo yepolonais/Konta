@@ -89,40 +89,6 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<BudgetExtra>> ListExtrasAsync(int year, CancellationToken cancellationToken) =>
-        await dbContext.BudgetExtras
-            .Where(extra => extra.Year == year)
-            .OrderBy(extra => extra.Month)
-            .ThenBy(extra => extra.Label)
-            .ToArrayAsync(cancellationToken);
-
-    public async Task<IReadOnlyList<BudgetExtra>> ListExtrasBeforeYearAsync(
-        int year,
-        CancellationToken cancellationToken) =>
-        await dbContext.BudgetExtras
-            .AsNoTracking()
-            .Where(extra => extra.Year < year)
-            .ToArrayAsync(cancellationToken);
-
-    public async Task AddExtraAsync(BudgetExtra extra, CancellationToken cancellationToken)
-    {
-        dbContext.BudgetExtras.Add(extra);
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task<bool> DeleteExtraAsync(Guid id, CancellationToken cancellationToken)
-    {
-        var extra = await dbContext.BudgetExtras.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
-        if (extra is null)
-        {
-            return false;
-        }
-
-        dbContext.BudgetExtras.Remove(extra);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-
     public async Task UpdatePostAsync(AnnualBudgetPost post, CancellationToken cancellationToken)
     {
         dbContext.AnnualBudgetPosts.Update(post);

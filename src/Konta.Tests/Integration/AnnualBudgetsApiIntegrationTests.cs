@@ -403,75 +403,6 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
-    public async Task AddExtra_IncludesExtraSeparatelyInTotals_WhenExtraIsCreated()
-    {
-        // Arrange
-        using var dataDirectory = new TemporaryDirectory();
-        using var factory = CreateFactory(dataDirectory);
-        using var client = factory.CreateClient();
-        var incomeId = await CreatePostAsync(client, 2026, "Salaires", "Income");
-        await SetMonthlyAmountAsync(client, incomeId, 3, 3000m);
-
-        // Act
-        using var createResponse = await client.PostAsync(
-            "/api/annual-budgets/2026/extras",
-            JsonContent("""{"month":3,"label":"Apport","amount":500}"""));
-        using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
-        using var monthResponse = await client.GetAsync("/api/annual-budgets/2026/months/3");
-
-        // Assert
-        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
-        using var year = JsonDocument.Parse(await yearResponse.Content.ReadAsStringAsync());
-        Assert.Equal(3000m, year.RootElement.GetProperty("incomeTotal").GetDecimal());
-        Assert.Equal(500m, year.RootElement.GetProperty("extraTotal").GetDecimal());
-        Assert.Equal(3500m, year.RootElement.GetProperty("availableTotal").GetDecimal());
-        Assert.Single(year.RootElement.GetProperty("extras").EnumerateArray());
-        using var month = JsonDocument.Parse(await monthResponse.Content.ReadAsStringAsync());
-        Assert.Equal(500m, month.RootElement.GetProperty("plannedExtraTotal").GetDecimal());
-        Assert.Equal(3000m, month.RootElement.GetProperty("plannedIncomeTotal").GetDecimal());
-    }
-
-    [Fact]
-    public async Task AddExtra_ReturnsBadRequest_WhenAmountIsNotPositive()
-    {
-        // Arrange
-        using var dataDirectory = new TemporaryDirectory();
-        using var factory = CreateFactory(dataDirectory);
-        using var client = factory.CreateClient();
-
-        // Act
-        using var response = await client.PostAsync(
-            "/api/annual-budgets/2026/extras",
-            JsonContent("""{"month":3,"label":"Apport","amount":0}"""));
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task DeleteExtra_RemovesExtraFromTotals_WhenExtraExists()
-    {
-        // Arrange
-        using var dataDirectory = new TemporaryDirectory();
-        using var factory = CreateFactory(dataDirectory);
-        using var client = factory.CreateClient();
-        using var createResponse = await client.PostAsync(
-            "/api/annual-budgets/2026/extras",
-            JsonContent("""{"month":6,"label":"Prime","amount":800}"""));
-        using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
-        var extraId = created.RootElement.GetProperty("id").GetGuid();
-
-        // Act
-        using var deleteResponse = await client.DeleteAsync($"/api/annual-budgets/extras/{extraId}");
-        using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
-
-        // Assert
-        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
-        using var year = JsonDocument.Parse(await yearResponse.Content.ReadAsStringAsync());
-        Assert.Equal(0m, year.RootElement.GetProperty("extraTotal").GetDecimal());
-    }
-
-    [Fact]
     public async Task GetMonth_ComputesPlannedAndActualAvailable_WhenMonthHasPlanAndOperations()
     {
         // Arrange
@@ -488,10 +419,6 @@ public sealed class AnnualBudgetsApiIntegrationTests
         await SetMonthlyAmountAsync(client, incomeId, 9, 2000m);
         await SetMonthlyAmountAsync(client, expenseId, 9, 500m);
         await SetMonthlyAmountAsync(client, savingsId, 9, 200m);
-        using var extraResponse = await client.PostAsync(
-            "/api/annual-budgets/2026/extras",
-            JsonContent("""{"month":9,"label":"Apport","amount":100}"""));
-        extraResponse.EnsureSuccessStatusCode();
         using var mappingResponse = await client.PutAsync(
             $"/api/annual-budgets/posts/{savingsId}/categories",
             JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { savingsCategoryId } })));
@@ -508,7 +435,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         // Assert
         response.EnsureSuccessStatusCode();
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal(1400m, payload.RootElement.GetProperty("plannedAvailableTotal").GetDecimal());
+        Assert.Equal(1300m, payload.RootElement.GetProperty("plannedAvailableTotal").GetDecimal());
         Assert.Equal(1650m, payload.RootElement.GetProperty("actualAvailableTotal").GetDecimal());
     }
 
@@ -690,15 +617,11 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var copyResponse = await client.PostAsync(
             $"/api/annual-budgets/posts/{groceriesPostId}/months/4/copy-forward",
             content: null);
-        using var extraResponse = await client.PostAsync(
-            "/api/annual-budgets/2026/extras",
-            JsonContent("""{"month":4,"label":"Apport","amount":80}"""));
         using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
         using var marchAfterResponse = await client.GetAsync("/api/annual-budgets/2026/months/3");
 
         // Assert
         copyResponse.EnsureSuccessStatusCode();
-        extraResponse.EnsureSuccessStatusCode();
         using var march = JsonDocument.Parse(await marchResponse.Content.ReadAsStringAsync());
         var marchPost = march.RootElement.GetProperty("posts").EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == "Courses");
@@ -708,8 +631,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var year = JsonDocument.Parse(await yearResponse.Content.ReadAsStringAsync());
         var expectedExpenses = 3 * 400m + 9 * 320m;
         Assert.Equal(expectedExpenses, year.RootElement.GetProperty("expenseTotal").GetDecimal());
-        Assert.Equal(80m, year.RootElement.GetProperty("extraTotal").GetDecimal());
-        Assert.Equal(24000m + 80m - expectedExpenses, year.RootElement.GetProperty("availableTotal").GetDecimal());
+        Assert.Equal(24000m - expectedExpenses, year.RootElement.GetProperty("availableTotal").GetDecimal());
         using var marchAfter = JsonDocument.Parse(await marchAfterResponse.Content.ReadAsStringAsync());
         var marchAfterPost = marchAfter.RootElement.GetProperty("posts").EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == "Courses");

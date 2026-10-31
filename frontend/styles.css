@@ -219,7 +219,10 @@ button:disabled { cursor: wait; opacity: .65; }
   min-height: 38px;
   padding: 0 8px;
 }
-.budget-year-label input { width: 96px; }
+.budget-year-label { gap: 6px; }
+.budget-year-label input { appearance: textfield; -moz-appearance: textfield; text-align: center; width: 72px; }
+.budget-year-label input::-webkit-inner-spin-button, .budget-year-label input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.budget-year-label button { font-size: 18px; line-height: 1; min-height: 38px; padding: 0 12px; }
 .annual-budget-totals { display: grid; gap: 10px; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 18px 22px; }
 .annual-budget-total { background: var(--surface-soft); border: 1px solid var(--line); border-top: 3px solid #bbc8bd; border-radius: 5px; display: grid; gap: 6px; min-width: 0; padding: 12px; }
 .annual-budget-total span { color: var(--muted); font-size: 10px; font-weight: 700; }
@@ -243,15 +246,10 @@ button:disabled { cursor: wait; opacity: .65; }
   width: 100%;
 }
 .annual-budget-form button { min-height: 40px; width: auto; white-space: nowrap; }
-.annual-budget-toolbar { align-items: center; display: flex; justify-content: space-between; padding: 12px 22px; }
-.annual-budget-toolbar p { color: var(--muted); font-size: 11px; margin: 0; }
+main[data-current-page="budget"] { max-width: 1560px; }
 .budget-month-label select { text-transform: capitalize; }
-main[data-current-page="budget"] { max-width: none; }
 .budget-monthly-panel .budget-monthly-review { border-top: 0; margin-top: 0; }
 .annual-budget-table { min-width: 1450px; }
-@media (min-width: 1800px) {
-  .annual-budget-table { min-width: 0; width: 100%; }
-}
 .annual-budget-table th { background: var(--surface-subtle); white-space: nowrap; }
 .annual-budget-table th:first-child { min-width: 210px; }
 .annual-budget-table td { padding: 7px 8px; }
@@ -454,7 +452,6 @@ main[data-current-page="budget"] { max-width: none; }
   .annual-budget-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 16px; padding-right: 16px; }
   .annual-budget-form { grid-template-columns: 1fr 1fr; padding-left: 16px; padding-right: 16px; }
   .annual-budget-form button { grid-column: 1 / -1; width: 100%; }
-  .annual-budget-toolbar { align-items: start; flex-direction: column; gap: 10px; padding: 12px 16px; }
   .annual-budget-table { min-width: 0; table-layout: fixed; }
   .annual-budget-table th:first-child, .annual-budget-table td:first-child { min-width: 0; width: 28%; }
   .annual-budget-table th:nth-child(2), .annual-budget-table td:nth-child(2) { width: 20%; }
@@ -491,7 +488,6 @@ main[data-current-page="budget"] { max-width: none; }
   .summary-filters, .rule-form { padding-left: 16px; padding-right: 16px; }
   .annual-budget-heading { align-items: center; gap: 8px; padding: 12px 16px; }
   .annual-budget-total { padding: 10px; }
-  .annual-budget-toolbar p { line-height: 1.5; }
   .budget-monthly-heading { align-items: start; flex-direction: column; gap: 8px; padding-left: 16px; padding-right: 16px; }
   .budget-monthly-totals { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; }
   .budget-savings-note { line-height: 1.5; padding-left: 16px; padding-right: 16px; }
@@ -515,13 +511,3 @@ main[data-current-page="budget"] { max-width: none; }
 .annual-budget-total strong, .summary-total strong, .budget-month-total strong,
 .annual-budget-table tfoot th, .annual-budget-table tfoot td,
 .section-kicker, td.amount { font-weight: 500; }
-
-.budget-extras { display: grid; gap: 12px; padding: 0 22px 16px; }
-.budget-extras p { margin: 4px 0 0; color: var(--muted); }
-.budget-extra-form { display: grid; gap: 10px; grid-template-columns: 1fr 2fr 1fr auto; align-items: end; }
-.budget-extra-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.budget-extra-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-@media (max-width: 800px) {
-  .budget-extras { padding-left: 16px; padding-right: 16px; }
-  .budget-extra-form { grid-template-columns: 1fr; }
-}

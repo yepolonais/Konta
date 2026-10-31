@@ -112,7 +112,7 @@ Le besoin principal est couvert lorsque l'utilisateur peut :
 1. bâtir un budget annuel avec des revenus et des dépenses nommés librement, détaillés mois par mois ;
 2. voir les totaux et le résultat prévisionnel par mois et pour l'année ;
 3. modifier le plan pour l'avenir sans écraser les montants historiques ;
-4. ajouter un extra ponctuel et ajuster, réaffecter ou suspendre des postes variables ;
+4. ajuster, réaffecter ou suspendre des postes variables ;
 5. importer les opérations réelles et les rattacher aux postes budgétaires ;
 6. comparer prévu et réalisé, par poste et par mois, et repérer les écarts ;
 7. consulter à la fois le réalisé des mois passés et le budget révisé des mois à venir ;
