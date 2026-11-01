@@ -68,7 +68,7 @@ public sealed class CategoriesApiIntegrationTests
             JsonContent("{ \"name\": \"Compte commun\", \"bankAccountNumber\": \"0001\", \"bankLabel\": \"Compte Commun\", \"kind\": \"Current\" }"));
         accountResponse.EnsureSuccessStatusCode();
         const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
-            + "25/09/2026;25/09/2026;0001;Compte Commun;BOULANGERIE;BOULANGERIE;;;-3,00;Non\n";
+            + "25/09/2026;25/09/2026;0001;Compte Commun;CARTE X4468 25/09;CARTE X4468 25/09 BOULANGERIE 110630301772261IOPD;;;-3,00;Non\n";
         using var content = new MultipartFormDataContent();
         using var csvContent = new ByteArrayContent(Encoding.Latin1.GetBytes(csv));
         csvContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");

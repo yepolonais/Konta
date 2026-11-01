@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Konta.Application.CategoryRules;
+using Konta.Domain.Categories;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Konta.Api.Controllers;
@@ -38,6 +39,7 @@ public sealed class CategoryRulesController(ICategoryRuleService categoryRuleSer
                 request.Name,
                 request.Pattern,
                 request.CategoryId,
+                request.OperationType,
                 cancellationToken);
             return CreatedAtAction(nameof(GetById), new { id = rule.Id }, rule);
         }
@@ -78,6 +80,7 @@ public sealed class CategoryRulesController(ICategoryRuleService categoryRuleSer
                 request.Name,
                 request.Pattern,
                 request.CategoryId,
+                request.OperationType,
                 cancellationToken);
             return rule is null ? NotFound() : Ok(rule);
         }
@@ -121,6 +124,8 @@ public sealed record CreateCategoryRuleRequest
 
     [Required]
     public required Guid CategoryId { get; init; }
+
+    public OperationType? OperationType { get; init; }
 }
 
 public sealed record UpdateCategoryRuleRequest
@@ -133,4 +138,6 @@ public sealed record UpdateCategoryRuleRequest
 
     [Required]
     public required Guid CategoryId { get; init; }
+
+    public OperationType? OperationType { get; init; }
 }

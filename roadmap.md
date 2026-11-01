@@ -133,6 +133,11 @@ Cette évolution ne doit pas retarder le budget annuel et la comparaison des con
   - [X] Rendre les postes budgétaires et leurs rapprochements indépendants de l'année (les années sont portées par les montants mensuels ; la suppression d'un poste, confirmée dans l'interface, le retire pour toutes les années).
   - [X] Endpoint des catégories orphelines (utilisées par des opérations, sans poste rattaché), avec nombre d'opérations et montant.
   - [X] Onglet « Rapprochement » : postes avec leurs catégories rattachées (ajout/retrait) et zone « À rattacher » pour les catégories orphelines.
+- [X] Catégoriser les opérations importées à partir d'une clé extraite du « Libellé complet » selon le type d'opération :
+  - [X] Extraire la clé : commerçant (carte), `DE:` (virement reçu, prélèvement), `POUR:` nom + compte (virement émis), `ECHEANCE PRET N°…` (prêt), `COMMISSION D'INTERVENTION` (frais bancaires). Chèques et formats inconnus : aucune clé, catégorie manuelle.
+  - [X] Règles génériques (motif → catégorie) avec type d'opération optionnel : comparaison normalisée (casse, accents, espaces), règle typée prioritaire, puis motif le plus long.
+  - [X] Import : affichage du type et de la clé détectés ; « Mémoriser » crée une règle sur la clé et le type détectés.
+  - [ ] Gérer les formats restants au fil des besoins (retrait DAB, `COTISATION MENSUELLE`) ; déjà ajoutés : `PRLV EUROP PONCTUEL`, remboursement carte `REMBT`, `INTERETS DEBITEURS`.
 - [ ] Faire évoluer le « Suivi mensuel » en « Suivi », avec le choix d'une vue au mois ou à l'année pour consulter le prévu et le réalisé sur la période souhaitée.
 - [ ] Lors de la préparation du budget de l'année suivante, afficher pour chaque poste la moyenne mensuelle réalisée sur l'année précédente, afin d'aider à ajuster le prévisionnel.
 - [ ] Réaffecter un montant d'un poste à un autre pour un mois donné (formulaire « de… vers… montant… mois »), avec l'effet visible sur le résultat prévisionnel. Le disponible annuel reste inchangé. Une variante avec traçabilité et annulation, comme les extras, est possible.

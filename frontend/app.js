@@ -1,3 +1,22 @@
+const OPERATION_TYPES = {
+  Card: "Carte",
+  TransferReceived: "Virement reçu",
+  TransferSent: "Virement émis",
+  DirectDebit: "Prélèvement",
+  Loan: "Prêt",
+  BankFee: "Frais bancaires"
+};
+
+const OPERATION_TYPE_ICONS = {
+  Card: ["M3 6h18v12H3z", "M3 10h18", "M6 15h4"],
+  TransferReceived: ["M12 4v12", "M7 11l5 5 5-5", "M5 20h14"],
+  TransferSent: ["M12 16V4", "M7 9l5-5 5 5", "M5 20h14"],
+  DirectDebit: ["M4 12a8 8 0 0 1 14-5", "M18 3v4h-4", "M20 12a8 8 0 0 1-14 5", "M6 21v-4h4"],
+  Loan: ["M4 11l8-7 8 7", "M6 10v10h12V10", "M10 20v-5h4v5"],
+  BankFee: ["M3 9l9-5 9 5", "M5 9v8", "M9 9v8", "M15 9v8", "M19 9v8", "M3 20h18"],
+  Any: ["M12 5v14", "M5 8.5l14 7", "M19 8.5l-14 7"]
+};
+
 const BUDGET_GROUPS = [
   { type: "Income", label: "Revenus", emptyLabel: "Aucun poste de revenus", typeLabel: "Revenu" },
   { type: "Expense", expenseKind: "Fixed", label: "Charges fixes", emptyLabel: "Aucune charge fixe", typeLabel: "Dépense" },
@@ -212,10 +231,13 @@ class KontaApp extends HTMLElement {
           </section>
           <section class="panel rules-panel" id="category-rules" data-page="category-rules" aria-labelledby="rules-title">
             <div class="panel-head"><h2 id="rules-title">Règles de catégorisation</h2><span class="count" id="rules-count"></span></div>
-            <p class="rules-intro">Une règle associe automatiquement une catégorie aux libellés correspondants. En cas de plusieurs correspondances, le motif le plus long est prioritaire.</p>
+            <p class="rules-intro">Une règle associe une catégorie à une clé extraite du détail de l’opération (commerçant d’un paiement carte, émetteur d’un virement ou d’un prélèvement…). Une règle limitée à un type est prioritaire, puis le motif le plus long.</p>
             <form class="rule-form" id="category-rule-form">
-              <label>Nom de la règle<input id="rule-name" name="name" maxlength="100" required></label>
               <label>Motif à rechercher<input id="rule-pattern" name="pattern" maxlength="200" required></label>
+              <label>Type d’opération<select id="rule-operation-type" name="operationType">
+                <option value="">Tous les types</option>
+                ${Object.entries(OPERATION_TYPES).map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}
+              </select></label>
               <label>Catégorie<select id="rule-category" name="categoryId" required></select></label>
               <div class="rule-form-actions"><button id="rule-submit" type="submit">Créer la règle</button><button id="rule-cancel" type="button" class="secondary-button" hidden>Annuler</button></div>
             </form>
@@ -226,7 +248,6 @@ class KontaApp extends HTMLElement {
             </form>
             <div class="category-list" id="category-list" aria-label="Catégories actives"></div>
             <p class="feedback" id="rules-feedback" role="status" aria-live="polite" hidden></p>
-            <div class="rule-list" id="rule-list"></div>
           </section>
         </main>
       </div>`;
@@ -313,9 +334,11 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#rule-cancel").addEventListener("click", () => this.resetRuleForm());
     this.shadowRoot.querySelector("#category-form").addEventListener("submit", event => this.createCategory(event));
     this.shadowRoot.querySelector("#category-cancel").addEventListener("click", () => this.resetCategoryForm());
-    this.shadowRoot.querySelector("#rule-list").addEventListener("click", event => this.handleRuleAction(event));
     this.shadowRoot.querySelector("#mapping").addEventListener("click", event => this.handleMappingClick(event));
-    this.shadowRoot.querySelector("#category-list").addEventListener("click", event => this.handleCategoryAction(event));
+    this.shadowRoot.querySelector("#category-list").addEventListener("click", event => {
+      this.handleRuleAction(event);
+      this.handleCategoryAction(event);
+    });
     this.shadowRoot.querySelector("#balance-form").addEventListener("submit", event => this.setBalanceReference(event));
     this.shadowRoot.querySelector("#balance-account").addEventListener("change", () => {
       this.renderBalanceTransactions(true);
@@ -1475,43 +1498,8 @@ class KontaApp extends HTMLElement {
   }
 
   renderCategoryRules() {
-    const list = this.shadowRoot.querySelector("#rule-list");
-    list.replaceChildren();
     this.shadowRoot.querySelector("#rules-count").textContent =
       `${this.categoryRules.length} règle${this.categoryRules.length === 1 ? "" : "s"}`;
-    if (this.categoryRules.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty";
-      empty.textContent = "Aucune règle active. Créez-en une pour suggérer automatiquement une catégorie lors des imports.";
-      list.append(empty);
-      return;
-    }
-    for (const rule of this.categoryRules) {
-      const row = document.createElement("article");
-      row.className = "rule-item";
-      const description = document.createElement("div");
-      const name = document.createElement("strong");
-      name.textContent = rule.name;
-      const details = document.createElement("span");
-      const category = this.categories.find(item => item.id === rule.categoryId)?.name ?? "Catégorie indisponible";
-      details.textContent = `Motif « ${rule.pattern} » · ${category}`;
-      description.append(name, details);
-      const actions = document.createElement("div");
-      actions.className = "rule-actions";
-      const edit = document.createElement("button");
-      edit.type = "button";
-      edit.className = "secondary-button";
-      edit.dataset.editRule = rule.id;
-      edit.textContent = "Modifier";
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "secondary-button danger-button";
-      remove.dataset.deleteRule = rule.id;
-      remove.textContent = "Désactiver";
-      actions.append(edit, remove);
-      row.append(description, actions);
-      list.append(row);
-    }
   }
 
   renderCategories() {
@@ -1519,10 +1507,12 @@ class KontaApp extends HTMLElement {
     list.replaceChildren();
     if (this.categories.length === 0) return;
     const heading = document.createElement("h3");
-    heading.textContent = "Catégories actives";
+    heading.textContent = "Catégories et motifs";
     list.append(heading);
     for (const category of this.categories.filter(item => item.isActive)) {
-      const row = document.createElement("article");
+      const group = document.createElement("article");
+      group.className = "category-group";
+      const row = document.createElement("div");
       row.className = "category-item";
       const name = document.createElement("strong");
       name.textContent = category.name;
@@ -1540,8 +1530,65 @@ class KontaApp extends HTMLElement {
       remove.textContent = "Désactiver";
       actions.append(edit, remove);
       row.append(name, actions);
-      list.append(row);
+      group.append(row);
+      const rules = this.categoryRules.filter(rule => rule.categoryId === category.id);
+      if (rules.length > 0) {
+        const patterns = document.createElement("ul");
+        patterns.className = "pattern-list";
+        for (const rule of rules) patterns.append(this.createRuleItem(rule));
+        group.append(patterns);
+      }
+      list.append(group);
     }
+  }
+
+  createRuleItem(rule) {
+    const item = document.createElement("li");
+    item.className = "pattern-item";
+    const text = document.createElement("span");
+    text.className = "pattern-text";
+    const typeLabel = OPERATION_TYPES[rule.operationType] ?? "Tous les types";
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("viewBox", "0 0 24 24");
+    icon.setAttribute("class", "pattern-type-icon");
+    icon.setAttribute("role", "img");
+    icon.setAttribute("aria-label", typeLabel);
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    title.textContent = typeLabel;
+    icon.append(title);
+    for (const definition of OPERATION_TYPE_ICONS[rule.operationType] ?? OPERATION_TYPE_ICONS.Any) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", definition);
+      icon.append(path);
+    }
+    text.append(icon, rule.pattern);
+    const actions = document.createElement("div");
+    actions.className = "rule-actions";
+    const edit = this.budgetIconButton({
+      label: `Modifier le motif ${rule.pattern}`,
+      title: "Modifier",
+      dataAttribute: "editRule",
+      paths: ["M4 20h4l10-10-4-4L4 16z", "M13 7l4 4"]
+    });
+    edit.dataset.editRule = rule.id;
+    const remove = this.budgetIconButton({
+      label: `Supprimer le motif ${rule.pattern}`,
+      title: "Supprimer",
+      dataAttribute: "deleteRule",
+      paths: ["M4 7h16", "M10 11v6", "M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3"]
+    });
+    remove.dataset.deleteRule = rule.id;
+    remove.classList.add("danger-button");
+    actions.append(edit, remove);
+    item.append(text, actions);
+    return item;
+  }
+
+  // Le nom reste exigé et unique côté API ; il est dérivé de la catégorie, du type et du motif.
+  buildRuleName(categoryId, pattern, operationType) {
+    const category = this.categories.find(item => item.id === categoryId)?.name ?? "";
+    const type = OPERATION_TYPES[operationType];
+    return [category, type, pattern].filter(Boolean).join(" · ").slice(0, 100);
   }
 
   async saveCategoryRule(event) {
@@ -1550,10 +1597,14 @@ class KontaApp extends HTMLElement {
     const button = this.shadowRoot.querySelector("#rule-submit");
     button.disabled = true;
     try {
+      const pattern = this.shadowRoot.querySelector("#rule-pattern").value.trim();
+      const operationType = this.shadowRoot.querySelector("#rule-operation-type").value || null;
+      const categoryId = this.shadowRoot.querySelector("#rule-category").value;
       const rule = {
-        name: this.shadowRoot.querySelector("#rule-name").value.trim(),
-        pattern: this.shadowRoot.querySelector("#rule-pattern").value.trim(),
-        categoryId: this.shadowRoot.querySelector("#rule-category").value
+        name: this.buildRuleName(categoryId, pattern, operationType),
+        pattern,
+        operationType,
+        categoryId
       };
       const isEditing = Boolean(this.editingRuleId);
       const response = await fetch(
@@ -1593,12 +1644,13 @@ class KontaApp extends HTMLElement {
       const rule = this.categoryRules.find(item => item.id === editButton.dataset.editRule);
       if (!rule) return;
       this.editingRuleId = rule.id;
-      this.shadowRoot.querySelector("#rule-name").value = rule.name;
       this.shadowRoot.querySelector("#rule-pattern").value = rule.pattern;
+      this.shadowRoot.querySelector("#rule-operation-type").value = rule.operationType ?? "";
       this.shadowRoot.querySelector("#rule-category").value = rule.categoryId;
       this.shadowRoot.querySelector("#rule-submit").textContent = "Enregistrer";
       this.shadowRoot.querySelector("#rule-cancel").hidden = false;
-      this.shadowRoot.querySelector("#rule-name").focus();
+      this.shadowRoot.querySelector("#rule-pattern").focus();
+      this.shadowRoot.querySelector("#category-rule-form").scrollIntoView({ block: "center" });
       return;
     }
 
@@ -1610,10 +1662,10 @@ class KontaApp extends HTMLElement {
       const response = await fetch(`/api/category-rules/${deleteButton.dataset.deleteRule}`, { method: "DELETE" });
       if (!response.ok) {
         const problem = await response.json();
-        throw new Error(problem.detail ?? problem.title ?? "Impossible de désactiver la règle.");
+        throw new Error(problem.detail ?? problem.title ?? "Impossible de supprimer la règle.");
       }
       feedback.className = "feedback success";
-      feedback.textContent = "Règle désactivée.";
+      feedback.textContent = "Règle supprimée.";
       feedback.hidden = false;
       await this.loadPhase2Data();
     } catch (exception) {
@@ -2068,6 +2120,7 @@ class KontaApp extends HTMLElement {
     row.dataset.rowNumber = transaction.rowNumber;
     row.dataset.transactionDate = transaction.transactionDate;
     row.dataset.label = transaction.label;
+    row.dataset.operation = transaction.operation ? `${transaction.operation.type}|${transaction.operation.key}` : "";
     if (transaction.isDuplicate) row.className = "duplicate-row";
     const accountName = transaction.accountName ?? `À associer · ${transaction.accountLabel}`;
     const amountInput = document.createElement("input");
@@ -2120,14 +2173,23 @@ class KontaApp extends HTMLElement {
     rememberRule.dataset.rememberRule = "";
     const rememberLabel = document.createElement("label");
     rememberLabel.className = "remember-rule";
-    rememberLabel.append(rememberRule, " Mémoriser pour ce libellé");
+    rememberLabel.append(rememberRule, transaction.operation
+      ? "Mémoriser la règle"
+      : "Aucune clé reconnue");
+    rememberRule.disabled = !transaction.operation;
     const categoryContent = document.createElement("div");
     categoryContent.className = "preview-category";
+    if (transaction.operation) {
+      const operation = document.createElement("small");
+      operation.className = "operation-key";
+      operation.textContent = `${OPERATION_TYPES[transaction.operation.type] ?? transaction.operation.type} · ${transaction.operation.key}`;
+      categoryContent.append(operation);
+    }
     categoryContent.append(categorySelect, newCategoryInput, rememberLabel);
     if (transaction.categorySuggestion) {
       const suggestion = document.createElement("small");
       suggestion.className = "category-suggestion";
-      suggestion.textContent = `Suggestion · ${transaction.categorySuggestion.ruleName} (${transaction.categorySuggestion.pattern})`;
+      suggestion.textContent = `Suggestion · ${transaction.categorySuggestion.ruleName} (${transaction.categorySuggestion.pattern}${transaction.categorySuggestion.operationType ? ` · ${OPERATION_TYPES[transaction.categorySuggestion.operationType]}` : ""})`;
       categoryContent.append(suggestion);
     }
     const transferCandidates = (transaction.transferMatchCandidates ?? []).filter(candidate =>
@@ -2201,10 +2263,10 @@ class KontaApp extends HTMLElement {
 
   syncMatchingReviewRows(sourceRow) {
     if (this.syncingPreviewRows) return;
-    const label = sourceRow.dataset.label.trim();
-    if (!label) return;
+    const operation = sourceRow.dataset.operation;
+    if (!operation) return;
 
-    const normalizedLabel = label.toLocaleLowerCase("fr-FR");
+    const normalizedLabel = operation.toLocaleLowerCase("fr-FR");
     const categorySelect = sourceRow.querySelector("[data-category]");
     const newCategoryInput = sourceRow.querySelector("[data-new-category]");
     const categoryName = newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim();
@@ -2213,7 +2275,7 @@ class KontaApp extends HTMLElement {
     try {
       for (const row of this.shadowRoot.querySelectorAll("#preview-body tr")) {
         if (row === sourceRow
-            || row.dataset.label.trim().toLocaleLowerCase("fr-FR") !== normalizedLabel) {
+            || row.dataset.operation.toLocaleLowerCase("fr-FR") !== normalizedLabel) {
           continue;
         }
 

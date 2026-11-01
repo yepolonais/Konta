@@ -258,7 +258,8 @@ public sealed class ImportPreviewService(
         foreach (var transaction in preview.Transactions)
         {
             var categoryName = transaction.CategoryName;
-            var match = await categoryRuleService.FindBestMatchAsync(transaction.Label, cancellationToken);
+            var operation = OperationKeyExtractor.Extract(transaction.FullLabel);
+            var match = await categoryRuleService.FindBestMatchAsync(operation, cancellationToken);
             if (match is not null)
             {
                 categoryName = match.CategoryName;
@@ -266,10 +267,11 @@ public sealed class ImportPreviewService(
 
             transactions.Add(transaction with
             {
+                Operation = operation,
                 CategoryName = categoryName,
                 CategorySuggestion = match is null
                     ? transaction.CategorySuggestion
-                    : new CategoryRuleSuggestion(match.RuleId, match.RuleName, match.CategoryName, match.Pattern)
+                    : new CategoryRuleSuggestion(match.RuleId, match.RuleName, match.CategoryName, match.Pattern, match.OperationType)
             });
         }
 
@@ -380,9 +382,14 @@ public sealed class ImportPreviewService(
                     errors.Add($"La ligne {transaction.RowNumber} doit avoir une catégorie pour créer une règle.");
                 }
 
-                if (decision.Label?.Length > 200)
+                var operationKey = OperationKeyExtractor.Extract(transaction.FullLabel);
+                if (operationKey is null)
                 {
-                    errors.Add($"Le libellé de la ligne {transaction.RowNumber} dépasse 200 caractères et ne peut pas servir de motif.");
+                    errors.Add($"La ligne {transaction.RowNumber} n'a pas de clé reconnue : aucune règle ne peut être créée.");
+                }
+                else if (operationKey.Key.Length > 200)
+                {
+                    errors.Add($"La clé de la ligne {transaction.RowNumber} dépasse 200 caractères et ne peut pas servir de motif.");
                 }
             }
 

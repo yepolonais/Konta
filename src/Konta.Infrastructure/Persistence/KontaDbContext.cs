@@ -71,7 +71,8 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.Property(rule => rule.Name).HasMaxLength(100).IsRequired();
             entity.Property(rule => rule.Pattern).HasMaxLength(200).IsRequired();
             entity.Property(rule => rule.CategoryId).IsRequired();
-            entity.HasIndex(rule => rule.Pattern).IsUnique();
+            entity.Property(rule => rule.OperationType).HasConversion<string>().HasMaxLength(32);
+            entity.HasIndex(rule => new { rule.Pattern, rule.OperationType }).IsUnique();
             entity.HasIndex(rule => rule.Name).IsUnique();
         });
 

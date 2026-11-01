@@ -1,4 +1,5 @@
 using Konta.Application.Categories;
+using Konta.Application.Imports;
 using Konta.Domain.Categories;
 
 namespace Konta.Application.CategoryRules;
@@ -23,6 +24,7 @@ public sealed class CategoryRuleService(
         string name,
         string pattern,
         Guid categoryId,
+        OperationType? operationType,
         CancellationToken cancellationToken)
     {
         var normalizedName = NormalizeName(name);
@@ -32,13 +34,13 @@ public sealed class CategoryRuleService(
             throw new DuplicateCategoryRuleException(normalizedName);
         }
 
-        if (await repository.ExistsByPatternAsync(normalizedPattern, null, cancellationToken))
+        if (await repository.ExistsByPatternAsync(normalizedPattern, operationType, null, cancellationToken))
         {
             throw new DuplicateCategoryRuleException(normalizedPattern);
         }
 
         await EnsureCategoryExistsAsync(categoryId, cancellationToken);
-        var rule = new CategoryRule(normalizedName, normalizedPattern, categoryId);
+        var rule = new CategoryRule(normalizedName, normalizedPattern, categoryId, operationType);
         await repository.AddAsync(rule, cancellationToken);
         return ToListItem(rule);
     }
@@ -48,6 +50,7 @@ public sealed class CategoryRuleService(
         string name,
         string pattern,
         Guid categoryId,
+        OperationType? operationType,
         CancellationToken cancellationToken)
     {
         var rule = await repository.GetAsync(id, cancellationToken);
@@ -64,14 +67,13 @@ public sealed class CategoryRuleService(
             throw new DuplicateCategoryRuleException(normalizedName);
         }
 
-        if (!string.Equals(rule.Pattern, normalizedPattern, StringComparison.OrdinalIgnoreCase)
-            && await repository.ExistsByPatternAsync(normalizedPattern, rule.Id, cancellationToken))
+        if (await repository.ExistsByPatternAsync(normalizedPattern, operationType, rule.Id, cancellationToken))
         {
             throw new DuplicateCategoryRuleException(normalizedPattern);
         }
 
         await EnsureCategoryExistsAsync(categoryId, cancellationToken);
-        rule.Update(normalizedName, normalizedPattern, categoryId);
+        rule.Update(normalizedName, normalizedPattern, categoryId, operationType);
         rule.SetActive(true);
         await repository.UpdateAsync(rule, cancellationToken);
         return ToListItem(rule);
@@ -90,17 +92,22 @@ public sealed class CategoryRuleService(
         return true;
     }
 
-    public async Task<CategoryRuleMatchResult?> FindBestMatchAsync(string label, CancellationToken cancellationToken)
+    public async Task<CategoryRuleMatchResult?> FindBestMatchAsync(
+        OperationKey? operation,
+        CancellationToken cancellationToken)
     {
-        var normalizedLabel = label?.Trim();
-        if (string.IsNullOrWhiteSpace(normalizedLabel))
+        if (operation is null)
         {
             return null;
         }
 
-        var matches = await repository.FindMatchingAsync(normalizedLabel, cancellationToken);
-        var bestMatch = matches
-            .OrderByDescending(rule => rule.Pattern.Length)
+        var normalizedKey = OperationKeyExtractor.Normalize(operation.Key);
+        var rules = await repository.ListAsync(cancellationToken);
+        var bestMatch = rules
+            .Where(rule => (rule.OperationType is null || rule.OperationType == operation.Type)
+                && normalizedKey.Contains(OperationKeyExtractor.Normalize(rule.Pattern), StringComparison.Ordinal))
+            .OrderByDescending(rule => rule.OperationType.HasValue)
+            .ThenByDescending(rule => rule.Pattern.Length)
             .ThenBy(rule => rule.Name, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
 
@@ -120,7 +127,8 @@ public sealed class CategoryRuleService(
             bestMatch.CategoryId,
             category.Name,
             bestMatch.Name,
-            bestMatch.Pattern);
+            bestMatch.Pattern,
+            bestMatch.OperationType);
     }
 
     private async Task EnsureCategoryExistsAsync(Guid categoryId, CancellationToken cancellationToken)
@@ -159,5 +167,6 @@ public sealed class CategoryRuleService(
         rule.Name,
         rule.Pattern,
         rule.CategoryId,
+        rule.OperationType,
         rule.IsActive);
 }

@@ -275,29 +275,31 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
         var ruleNames = rules.Select(rule => rule.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var transaction in requested)
         {
-            var pattern = transaction.Label.Trim();
-            if (pattern.Length is 0 or > 200
+            var operation = OperationKeyExtractor.Extract(transaction.FullLabel);
+            var pattern = operation?.Key ?? string.Empty;
+            if (operation is null || pattern.Length > 200
                 || string.IsNullOrWhiteSpace(transaction.CategoryName)
                 || !categoryLookup.TryGetValue(transaction.CategoryName.Trim(), out var categoryId))
             {
                 throw new InvalidOperationException("La règle de catégorie demandée n'est pas valide.");
             }
 
-            var existingRule = rules.FirstOrDefault(rule =>
-                string.Equals(rule.Pattern, pattern, StringComparison.OrdinalIgnoreCase));
+            var normalizedPattern = OperationKeyExtractor.Normalize(pattern);
+            var existingRule = rules.FirstOrDefault(rule => rule.OperationType == operation.Type
+                && OperationKeyExtractor.Normalize(rule.Pattern) == normalizedPattern);
             var baseName = transaction.CategoryName.Trim();
             baseName = baseName.Length > 100 ? baseName[..100] : baseName;
             var name = CreateUniqueRuleName(baseName, ruleNames, existingRule?.Name);
             if (existingRule is null)
             {
-                existingRule = new CategoryRule(name, pattern, categoryId);
+                existingRule = new CategoryRule(name, pattern, categoryId, operation.Type);
                 dbContext.CategoryRules.Add(existingRule);
                 rules.Add(existingRule);
             }
             else
             {
                 ruleNames.Remove(existingRule.Name);
-                existingRule.Update(name, pattern, categoryId);
+                existingRule.Update(name, pattern, categoryId, operation.Type);
                 existingRule.SetActive(true);
             }
 

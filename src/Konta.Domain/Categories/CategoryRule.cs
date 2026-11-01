@@ -6,7 +6,7 @@ public sealed class CategoryRule
     {
     }
 
-    public CategoryRule(string name, string pattern, Guid categoryId)
+    public CategoryRule(string name, string pattern, Guid categoryId, OperationType? operationType = null)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -22,6 +22,7 @@ public sealed class CategoryRule
         Name = name.Trim();
         Pattern = pattern.Trim();
         CategoryId = categoryId;
+        OperationType = operationType;
         IsActive = true;
     }
 
@@ -29,9 +30,10 @@ public sealed class CategoryRule
     public string Name { get; private set; } = string.Empty;
     public string Pattern { get; private set; } = string.Empty;
     public Guid CategoryId { get; private set; }
+    public OperationType? OperationType { get; private set; }
     public bool IsActive { get; private set; }
 
-    public void Update(string name, string pattern, Guid categoryId)
+    public void Update(string name, string pattern, Guid categoryId, OperationType? operationType)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -46,6 +48,7 @@ public sealed class CategoryRule
         Name = name.Trim();
         Pattern = pattern.Trim();
         CategoryId = categoryId;
+        OperationType = operationType;
     }
 
     public void SetActive(bool isActive) => IsActive = isActive;

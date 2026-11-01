@@ -39,7 +39,7 @@ dotnet test Konta.sln
 - `PUT /api/annual-budgets/posts/{id}/categories` : associer une ou plusieurs catégories réelles à un poste de revenu ou dépense (une catégorie par poste actif et par année).
 - L’écran d’accueil propose une grille annuelle pour consulter et modifier les prévisions. Un onglet « Suivi mensuel » compare le prévu au réalisé des revenus et dépenses catégorisés. L’onglet « Rapprochement » rattache les catégories réelles aux postes et liste, avec un badge, les catégories « à rattacher » (sans poste). Les enveloppes d'épargne sont rapprochées comme les autres postes, via des catégories rattachées : seuls les versements sortants comptent, sans gonfler les dépenses.
 - Les opérations réelles restent distinctes du budget et sont consultables depuis les montants réalisés.
-- L'import CSV Société Générale prend en charge la prévisualisation, la validation, la catégorisation et la détection des doublons.
+- L'import CSV Société Générale prend en charge la prévisualisation, la validation, la catégorisation et la détection des doublons. La catégorisation repose sur une clé extraite du libellé complet selon le type d'opération (carte, virement, prélèvement, prêt, frais bancaires) ; les règles associent un motif, éventuellement limité à un type, à une catégorie. Les chèques et formats non reconnus restent à catégoriser manuellement.
 
 ## Limites métier connues
 

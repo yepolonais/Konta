@@ -22,4 +22,5 @@ public sealed record ImportedTransaction(
     IReadOnlyList<TransferMatchCandidate>? TransferMatchCandidates = null,
     TransferMatchConfirmation? TransferMatchConfirmation = null,
     bool CreateCategoryRule = false,
-    string? Motif = null);
+    string? Motif = null,
+    OperationKey? Operation = null);

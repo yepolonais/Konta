@@ -202,6 +202,10 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("OperationType")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Pattern")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -212,7 +216,7 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.HasIndex("Pattern")
+                    b.HasIndex("Pattern", "OperationType")
                         .IsUnique();
 
                     b.ToTable("CategoryRules");

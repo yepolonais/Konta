@@ -1,3 +1,5 @@
+using Konta.Domain.Categories;
+
 namespace Konta.Application.CategoryRules;
 
 public sealed record CategoryRuleMatchResult(
@@ -5,4 +7,5 @@ public sealed record CategoryRuleMatchResult(
     Guid CategoryId,
     string CategoryName,
     string RuleName,
-    string Pattern);
+    string Pattern,
+    OperationType? OperationType);

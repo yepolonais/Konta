@@ -124,7 +124,7 @@ public sealed class ImportPreviewServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_AppliesMatchingCategoryRule_WhenLabelMatchesPattern()
+    public async Task PreviewAsync_AppliesMatchingCategoryRule_WhenOperationKeyMatchesPattern()
     {
         // Arrange
         var fixture = CreateFixture();
@@ -136,7 +136,7 @@ public sealed class ImportPreviewServiceTests
         var accountNumber = fixture.Create<string>();
         var transaction = fixture.Build<ImportedTransaction>()
             .With(importedTransaction => importedTransaction.AccountNumber, accountNumber)
-            .With(importedTransaction => importedTransaction.Label, "Paiement CARTE VISA")
+            .With(importedTransaction => importedTransaction.FullLabel, "CARTE X4468 29/10 MARIE BLACHERE 110630301772261IOPD")
             .With(importedTransaction => importedTransaction.CategoryName, (string?)null)
             .Create();
         var account = fixture.Build<Account>()
@@ -151,8 +151,8 @@ public sealed class ImportPreviewServiceTests
                 It.Is<IReadOnlyCollection<string>>(numbers => numbers.Contains(accountNumber)),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<string, Account> { [accountNumber] = account });
-        categoryRuleRepository.Setup(repository => repository.FindMatchingAsync(transaction.Label, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new[] { new CategoryRule("Carte", "CARTE VISA", category.Id) });
+        categoryRuleRepository.Setup(repository => repository.ListAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new CategoryRule("Boulangerie", "BLACHERE", category.Id) });
         categoryRepository.Setup(repository => repository.GetAsync(category.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(category);
         commitRepository.Setup(repository => repository.FindDuplicateRowNumbersAsync(

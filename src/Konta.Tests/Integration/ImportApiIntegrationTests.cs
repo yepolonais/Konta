@@ -175,7 +175,7 @@ public sealed class ImportApiIntegrationTests
         using var client = factory.CreateClient();
         await CreateAccountAsync(client, "Compte commun", "0001", "Compte Commun", "Current");
         const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
-            + "25/09/2026;25/09/2026;0001;Compte Commun;CARTE X9734 MACHINE;CARTE X9734 MACHINE;;;-0,35;Non\n";
+            + "25/09/2026;25/09/2026;0001;Compte Commun;CARTE X9734 25/09;CARTE X9734 25/09 MACHINE 110630301772261IOPD;;;-0,35;Non\n";
         using var content = CsvContent(csv);
         content.Add(new StringContent("""
             [{
@@ -194,7 +194,8 @@ public sealed class ImportApiIntegrationTests
         using var rulesResponse = await client.GetAsync("/api/category-rules");
         using var rules = JsonDocument.Parse(await rulesResponse.Content.ReadAsStringAsync());
         var rule = Assert.Single(rules.RootElement.EnumerateArray());
-        Assert.Equal("CARTE X9734 MACHINE", rule.GetProperty("pattern").GetString());
+        Assert.Equal("MACHINE", rule.GetProperty("pattern").GetString());
+        Assert.Equal("Card", rule.GetProperty("operationType").GetString());
 
         using var previewResponse = await PostCsvAsync(client, "/api/imports/preview", csv);
         previewResponse.EnsureSuccessStatusCode();
@@ -347,7 +348,7 @@ public sealed class ImportApiIntegrationTests
                 "application/json"));
         ruleResponse.EnsureSuccessStatusCode();
         const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
-            + "25/09/2026;25/09/2026;0001;Compte Commun;PAIEMENT AMAZON;PAIEMENT AMAZON;;;-25,00;Non\n";
+            + "25/09/2026;25/09/2026;0001;Compte Commun;CARTE X4468 25/09;CARTE X4468 25/09 AMAZON EU SARL 110630301772261IOPD;;;-25,00;Non\n";
 
         // Act
         using var previewContent = CsvContent(csv);

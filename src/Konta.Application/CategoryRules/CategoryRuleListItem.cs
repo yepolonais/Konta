@@ -1,3 +1,5 @@
+using Konta.Domain.Categories;
+
 namespace Konta.Application.CategoryRules;
 
 public sealed record CategoryRuleListItem(
@@ -5,4 +7,5 @@ public sealed record CategoryRuleListItem(
     string Name,
     string Pattern,
     Guid CategoryId,
+    OperationType? OperationType,
     bool IsActive);
