@@ -64,8 +64,8 @@ class KontaApp extends HTMLElement {
             <span class="nav-separator" aria-hidden="true"></span>
             <a href="#monthly">Suivi mensuel</a>
             <a href="#summary">Synthèses</a>
-            <a href="#category-rules">Règles</a>
             <a href="#mapping">Rapprochement<span class="nav-badge" id="mapping-badge" hidden></span></a>
+            <a href="#category-rules">Règles</a>
             <a href="#import">Import CSV</a>
             <button class="theme-toggle" type="button" aria-label="Activer le mode sombre" aria-pressed="false">
               <span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Sombre</span>

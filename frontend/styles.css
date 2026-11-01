@@ -57,7 +57,7 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .nav { align-items: center; display: flex; flex: 1; gap: 26px; height: 100%; }
 .nav a { align-items: center; border-bottom: 2px solid transparent; color: var(--muted); display: flex; font-size: 13px; font-weight: 700; height: 100%; text-decoration: none; }
 .nav a[aria-current="page"] { border-color: var(--wine); color: var(--wine-dark); }
-.nav a[href="#import"] { margin-left: auto; }
+.nav a[href="#category-rules"] { margin-left: auto; }
 .nav-plan { flex-direction: column; gap: 1px; justify-content: center; }
 .nav-plan-kicker { color: var(--muted); font-family: "DM Mono", monospace; font-size: 9px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
 .nav a.nav-plan[aria-current="page"] .nav-plan-kicker { color: var(--wine); }
