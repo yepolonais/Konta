@@ -273,6 +273,41 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
+    public async Task ListOrphans_ReturnsCategoriesWithoutPost_AndTheirTransactionTotals()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte courant", "orphans-test");
+        var mappedId = await CreateCategoryAsync(client, "Alimentation");
+        await CreateCategoryAsync(client, "Boulangerie");
+        var postId = await CreatePostAsync(client, "Courses", "Expense");
+        using var mappingResponse = await client.PutAsync(
+            $"/api/annual-budgets/posts/{postId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { mappedId } })));
+        mappingResponse.EnsureSuccessStatusCode();
+        using var importResponse = await PostCsvAsync(client,
+            Csv("11/09/2026", "orphans-test", "Boulangerie", "Boulangerie", "-10,00")
+            + Csv("12/09/2026", "orphans-test", "Boulangerie", "Boulangerie", "-5,50"));
+        importResponse.EnsureSuccessStatusCode();
+
+        // Act
+        using var before = JsonDocument.Parse(await client.GetStringAsync("/api/categories/orphans"));
+        using var deleteResponse = await client.DeleteAsync($"/api/annual-budgets/posts/{postId}");
+        using var after = JsonDocument.Parse(await client.GetStringAsync("/api/categories/orphans"));
+
+        // Assert
+        var orphan = before.RootElement.EnumerateArray().Single();
+        Assert.Equal("Boulangerie", orphan.GetProperty("name").GetString());
+        Assert.Equal(2, orphan.GetProperty("transactionCount").GetInt32());
+        Assert.Equal(15.5m, orphan.GetProperty("totalAmount").GetDecimal());
+        Assert.Equal(
+            new[] { "Alimentation", "Boulangerie" },
+            after.RootElement.EnumerateArray().Select(item => item.GetProperty("name").GetString()).ToArray());
+    }
+
+    [Fact]
     public async Task SetCategoryMappings_ReturnsConflict_WhenCategoryAlreadyBelongsToAnotherPost()
     {
         // Arrange

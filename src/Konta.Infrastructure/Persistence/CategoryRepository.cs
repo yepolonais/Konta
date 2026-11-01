@@ -37,6 +37,32 @@ public sealed class CategoryRepository(KontaDbContext dbContext) : ICategoryRepo
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<OrphanCategoryItem>> ListOrphansAsync(CancellationToken cancellationToken)
+    {
+        var categories = await dbContext.Categories
+            .AsNoTracking()
+            .Where(category => category.IsActive
+                && !dbContext.BudgetPostCategoryMappings.Any(mapping => mapping.CategoryId == category.Id))
+            .Select(category => new { category.Id, category.Name })
+            .ToListAsync(cancellationToken);
+        var ids = categories.Select(category => category.Id).ToArray();
+        var amounts = await dbContext.Transactions
+            .AsNoTracking()
+            .Where(transaction => transaction.CategoryId != null && ids.Contains(transaction.CategoryId.Value))
+            .Select(transaction => new { CategoryId = transaction.CategoryId!.Value, transaction.Amount })
+            .ToListAsync(cancellationToken);
+        var totals = amounts
+            .GroupBy(item => item.CategoryId)
+            .ToDictionary(group => group.Key, group => (Count: group.Count(), Total: group.Sum(item => item.Amount)));
+
+        return categories
+            .Select(category => totals.TryGetValue(category.Id, out var total)
+                ? new OrphanCategoryItem(category.Id, category.Name, total.Count, total.Total)
+                : new OrphanCategoryItem(category.Id, category.Name, 0, 0m))
+            .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+    }
+
     public Task<int> CountTransactionsAsync(Guid categoryId, CancellationToken cancellationToken) =>
         dbContext.Transactions.CountAsync(transaction => transaction.CategoryId == categoryId, cancellationToken);
 

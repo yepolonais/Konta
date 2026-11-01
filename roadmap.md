@@ -126,13 +126,13 @@ Cette évolution ne doit pas retarder le budget annuel et la comparaison des con
 
 ## Évolutions possibles (non planifiées)
 
-- [ ] Séparer les catégories d'opérations des postes budgétaires et ajouter un onglet « Rapprochement » :
+- [X] Séparer les catégories d'opérations des postes budgétaires et ajouter un onglet « Rapprochement » :
   - [X] Supprimer les sous-catégories (domaine, règles, import, API, frontend, migration) ; l'import propose « Mémoriser pour ce libellé » pour créer une règle de catégorie.
   - [X] Interdire la suppression d'une catégorie liée à des opérations (409 avec le nombre d'opérations) ; le renommage reste possible. La suppression d'une catégorie supprime ses règles.
   - [X] Conserver les catégories quand un poste budgétaire est supprimé : elles deviennent orphelines et doivent être réaffectées.
   - [X] Rendre les postes budgétaires et leurs rapprochements indépendants de l'année (les années sont portées par les montants mensuels ; la suppression d'un poste, confirmée dans l'interface, le retire pour toutes les années).
-  - [ ] Endpoint des catégories orphelines (utilisées par des opérations, sans poste rattaché), avec nombre d'opérations et montant.
-  - [ ] Onglet « Rapprochement » : postes avec leurs catégories rattachées (ajout/retrait) et zone « À rattacher » pour les catégories orphelines.
+  - [X] Endpoint des catégories orphelines (utilisées par des opérations, sans poste rattaché), avec nombre d'opérations et montant.
+  - [X] Onglet « Rapprochement » : postes avec leurs catégories rattachées (ajout/retrait) et zone « À rattacher » pour les catégories orphelines.
 - [ ] Faire évoluer le « Suivi mensuel » en « Suivi », avec le choix d'une vue au mois ou à l'année pour consulter le prévu et le réalisé sur la période souhaitée.
 - [ ] Lors de la préparation du budget de l'année suivante, afficher pour chaque poste la moyenne mensuelle réalisée sur l'année précédente, afin d'aider à ajuster le prévisionnel.
 - [ ] Réaffecter un montant d'un poste à un autre pour un mois donné (formulaire « de… vers… montant… mois »), avec l'effet visible sur le résultat prévisionnel. Le disponible annuel reste inchangé. Une variante avec traçabilité et annulation, comme les extras, est possible.

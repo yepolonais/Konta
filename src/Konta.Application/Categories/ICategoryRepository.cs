@@ -9,6 +9,7 @@ public interface ICategoryRepository
     Task<bool> ExistsByNameAsync(string name, CancellationToken cancellationToken);
     Task AddAsync(Category category, CancellationToken cancellationToken);
     Task UpdateAsync(Category category, CancellationToken cancellationToken);
+    Task<IReadOnlyList<OrphanCategoryItem>> ListOrphansAsync(CancellationToken cancellationToken);
     Task<int> CountTransactionsAsync(Guid categoryId, CancellationToken cancellationToken);
     Task DeactivateWithDependenciesAsync(Guid categoryId, CancellationToken cancellationToken);
 }

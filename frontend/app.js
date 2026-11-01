@@ -20,6 +20,8 @@ class KontaApp extends HTMLElement {
     this.transactions = [];
     this.annualBudget = null;
     this.annualBudgetCategories = [];
+    this.mappingPosts = [];
+    this.mappingOrphans = [];
     this.annualBudgetMonth = null;
     this.draggedBudgetPostId = null;
     this.selectedBudgetMonth = new Date().getMonth() + 1;
@@ -63,6 +65,7 @@ class KontaApp extends HTMLElement {
             <a href="#monthly">Suivi mensuel</a>
             <a href="#summary">Synthèses</a>
             <a href="#category-rules">Règles</a>
+            <a href="#mapping">Rapprochement<span class="nav-badge" id="mapping-badge" hidden></span></a>
             <a href="#import">Import CSV</a>
             <button class="theme-toggle" type="button" aria-label="Activer le mode sombre" aria-pressed="false">
               <span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Sombre</span>
@@ -125,7 +128,7 @@ class KontaApp extends HTMLElement {
               <p class="budget-savings-note">Les virements entre vos comptes ne sont comptés ni dans les revenus ni dans les dépenses. Le réalisé d’une enveloppe d’épargne correspond aux versements sortants des catégories rattachées.</p>
               <div class="table-wrap">
                 <table class="budget-monthly-table">
-                  <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th>Écart réalisé − prévu</th><th>Catégories réelles</th></tr></thead>
+                  <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th>Écart réalisé − prévu</th></tr></thead>
                   <tbody id="budget-monthly-body"></tbody>
                 </table>
               </div>
@@ -199,6 +202,13 @@ class KontaApp extends HTMLElement {
             </form>
             <p id="balance-result" class="balance-result" role="status"></p>
             <p class="feedback" id="balance-feedback" role="status" aria-live="polite" hidden></p>
+          </section>
+          <section class="panel mapping-panel" id="mapping" data-page="mapping" aria-labelledby="mapping-title">
+            <div class="panel-head"><h2 id="mapping-title">Rapprochement catégories / postes</h2></div>
+            <p class="rules-intro">Une catégorie réelle alimente au plus un poste budgétaire. Une catégorie sans poste est « à rattacher » : ses opérations ne sont pas rapprochées du budget.</p>
+            <p class="feedback" id="mapping-feedback" role="status" aria-live="polite" hidden></p>
+            <div class="mapping-orphans" id="mapping-orphans"></div>
+            <div class="mapping-posts" id="mapping-posts"></div>
           </section>
           <section class="panel rules-panel" id="category-rules" data-page="category-rules" aria-labelledby="rules-title">
             <div class="panel-head"><h2 id="rules-title">Règles de catégorisation</h2><span class="count" id="rules-count"></span></div>
@@ -304,6 +314,7 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#category-form").addEventListener("submit", event => this.createCategory(event));
     this.shadowRoot.querySelector("#category-cancel").addEventListener("click", () => this.resetCategoryForm());
     this.shadowRoot.querySelector("#rule-list").addEventListener("click", event => this.handleRuleAction(event));
+    this.shadowRoot.querySelector("#mapping").addEventListener("click", event => this.handleMappingClick(event));
     this.shadowRoot.querySelector("#category-list").addEventListener("click", event => this.handleCategoryAction(event));
     this.shadowRoot.querySelector("#balance-form").addEventListener("submit", event => this.setBalanceReference(event));
     this.shadowRoot.querySelector("#balance-account").addEventListener("change", () => {
@@ -353,6 +364,7 @@ class KontaApp extends HTMLElement {
       transactions: ["Opérations", "Consultez les mouvements enregistrés sur vos comptes."],
       summary: ["Synthèses", "Comparez les revenus et les dépenses par mois ou par année."],
       import: ["Import CSV", "Prévisualisez, vérifiez et confirmez l’import de vos relevés."],
+      mapping: ["Rapprochement", "Rattachez les catégories réelles aux postes budgétaires."],
       "category-rules": ["Règles", "Gérez vos catégories et les règles de catégorisation automatique."]
     };
     if (!Object.hasOwn(pages, page)) page = "budget";
@@ -633,37 +645,6 @@ class KontaApp extends HTMLElement {
     return button;
   }
 
-  budgetCategoryMappings(post) {
-    const details = document.createElement("details");
-    details.className = "budget-category-mappings";
-    const summary = document.createElement("summary");
-    summary.textContent = `Catégories réelles (${post.categories.length})`;
-    details.append(summary);
-    const list = document.createElement("div");
-    list.className = "budget-category-mapping-list";
-    if (this.annualBudgetCategories.length === 0) {
-      const empty = document.createElement("p");
-      empty.textContent = "Aucune catégorie active. Créez-en depuis Règles.";
-      list.append(empty);
-    }
-    for (const category of this.annualBudgetCategories) {
-      const label = document.createElement("label");
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = post.categories.some(mapped => mapped.id === category.id);
-      checkbox.dataset.categoryMapping = "";
-      checkbox.value = category.id;
-      checkbox.disabled = !post.isActive;
-      checkbox.setAttribute("aria-label", `Rattacher la catégorie ${category.name} au poste ${post.name}`);
-      const name = document.createElement("span");
-      name.textContent = category.name;
-      label.append(checkbox, name);
-      list.append(label);
-    }
-    details.append(list);
-    return details;
-  }
-
   renderAnnualBudgetTotals(months) {
     const incomeTotal = this.annualBudgetTypeTotal("Income");
     const expenseTotal = this.annualBudgetTypeTotal("Expense");
@@ -833,7 +814,7 @@ class KontaApp extends HTMLElement {
       const sectionRow = document.createElement("tr");
       sectionRow.className = `budget-section-row ${type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
       const sectionCell = this.budgetCell(label, "th");
-      sectionCell.colSpan = 6;
+      sectionCell.colSpan = 5;
       sectionRow.append(sectionCell);
       body.append(sectionRow);
 
@@ -842,7 +823,7 @@ class KontaApp extends HTMLElement {
       if (posts.length === 0) {
         const row = document.createElement("tr");
         const emptyCell = this.budgetCell(emptyLabel, "td");
-        emptyCell.colSpan = 6;
+        emptyCell.colSpan = 5;
         row.append(emptyCell);
         body.append(row);
       }
@@ -877,11 +858,6 @@ class KontaApp extends HTMLElement {
           }
         }
         row.append(varianceCell);
-        const mappingCell = document.createElement("td");
-        mappingCell.className = "budget-mapping-cell";
-        const budgetPost = this.monthlyBudget?.posts.find(item => item.id === post.id);
-        if (budgetPost) mappingCell.append(this.budgetCategoryMappings(budgetPost));
-        row.append(mappingCell);
         row.dataset.postId = post.id;
         body.append(row);
       }
@@ -965,10 +941,6 @@ class KontaApp extends HTMLElement {
     const post = this.annualBudget?.posts.find(item => item.id === row.dataset.postId)
       ?? this.monthlyBudget?.posts.find(item => item.id === row.dataset.postId);
     if (!post) return;
-    if (input.matches("[data-category-mapping]")) {
-      await this.handleBudgetCategoryMappingChange(row, post);
-      return;
-    }
     try {
       let response;
       if (input.matches("[data-post-name]")) {
@@ -1013,9 +985,139 @@ class KontaApp extends HTMLElement {
     }
   }
 
-  async handleBudgetCategoryMappingChange(row, post) {
-    const categoryIds = [...row.querySelectorAll("[data-category-mapping]:checked")]
-      .map(checkbox => checkbox.value);
+  async loadMapping() {
+    try {
+      const year = this.annualBudget?.year ?? new Date().getFullYear();
+      const [budgetResponse, orphansResponse] = await Promise.all([
+        fetch(`/api/annual-budgets/${year}`),
+        fetch("/api/categories/orphans")
+      ]);
+      if (!budgetResponse.ok || !orphansResponse.ok) throw new Error("Impossible de charger le rapprochement.");
+      const [budget, orphans] = await Promise.all([budgetResponse.json(), orphansResponse.json()]);
+      this.mappingPosts = budget.posts.filter(post => post.isActive);
+      this.mappingOrphans = orphans;
+      this.renderMapping();
+    } catch (exception) {
+      this.setMappingFeedback(exception.message, true);
+    }
+  }
+
+  setMappingFeedback(message, isError = false) {
+    const feedback = this.shadowRoot.querySelector("#mapping-feedback");
+    feedback.textContent = message;
+    feedback.className = isError ? "feedback error" : "feedback";
+    feedback.hidden = !message;
+  }
+
+  renderMapping() {
+    const badge = this.shadowRoot.querySelector("#mapping-badge");
+    badge.textContent = String(this.mappingOrphans.length);
+    badge.hidden = this.mappingOrphans.length === 0;
+
+    const orphans = this.shadowRoot.querySelector("#mapping-orphans");
+    orphans.replaceChildren();
+    const orphansTitle = document.createElement("h3");
+    orphansTitle.textContent = `À rattacher (${this.mappingOrphans.length})`;
+    orphans.append(orphansTitle);
+    if (this.mappingOrphans.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "mapping-empty";
+      empty.textContent = "Toutes les catégories sont rattachées à un poste.";
+      orphans.append(empty);
+    }
+    for (const orphan of this.mappingOrphans) {
+      const row = document.createElement("div");
+      row.className = "mapping-orphan";
+      row.dataset.categoryId = orphan.id;
+      const name = document.createElement("strong");
+      name.textContent = orphan.name;
+      const detail = document.createElement("span");
+      detail.textContent = `${orphan.transactionCount} opération${orphan.transactionCount === 1 ? "" : "s"} · ${this.formatCurrency(orphan.totalAmount)}`;
+      const select = document.createElement("select");
+      select.dataset.mappingPostSelect = "";
+      select.setAttribute("aria-label", `Poste pour la catégorie ${orphan.name}`);
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Choisir un poste…";
+      select.append(placeholder);
+      for (const post of this.mappingPosts) {
+        const option = document.createElement("option");
+        option.value = post.id;
+        option.textContent = post.name;
+        select.append(option);
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary-button";
+      button.dataset.attachCategory = "";
+      button.textContent = "Rattacher";
+      row.append(name, detail, select, button);
+      orphans.append(row);
+    }
+
+    const posts = this.shadowRoot.querySelector("#mapping-posts");
+    posts.replaceChildren();
+    for (const { type, label } of [
+      { type: "Income", label: "Revenus" },
+      { type: "Expense", label: "Dépenses" },
+      { type: "Savings", label: "Épargne" }
+    ]) {
+      const group = this.mappingPosts.filter(post => post.type === type);
+      if (group.length === 0) continue;
+      const title = document.createElement("h3");
+      title.textContent = label;
+      posts.append(title);
+      for (const post of group) {
+        const row = document.createElement("div");
+        row.className = "mapping-post";
+        const name = document.createElement("strong");
+        name.textContent = post.name;
+        const pills = document.createElement("div");
+        pills.className = "mapping-pills";
+        if (post.categories.length === 0) {
+          const none = document.createElement("span");
+          none.className = "mapping-empty";
+          none.textContent = "Aucune catégorie rattachée";
+          pills.append(none);
+        }
+        for (const category of post.categories) {
+          const pill = document.createElement("span");
+          pill.className = "mapping-pill";
+          pill.append(document.createTextNode(category.name));
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.dataset.detachCategory = category.id;
+          remove.dataset.postId = post.id;
+          remove.textContent = "×";
+          remove.setAttribute("aria-label", `Détacher ${category.name} du poste ${post.name}`);
+          pill.append(remove);
+          pills.append(pill);
+        }
+        row.append(name, pills);
+        posts.append(row);
+      }
+    }
+  }
+
+  async handleMappingClick(event) {
+    const attach = event.target.closest("[data-attach-category]");
+    const detach = event.target.closest("[data-detach-category]");
+    if (attach) {
+      const row = attach.closest("[data-category-id]");
+      const postId = row.querySelector("[data-mapping-post-select]").value;
+      if (!postId) {
+        this.setMappingFeedback("Choisissez un poste avant de rattacher la catégorie.", true);
+        return;
+      }
+      const post = this.mappingPosts.find(item => item.id === postId);
+      await this.saveMapping(post, [...post.categories.map(category => category.id), row.dataset.categoryId]);
+    } else if (detach) {
+      const post = this.mappingPosts.find(item => item.id === detach.dataset.postId);
+      await this.saveMapping(post, post.categories.map(category => category.id).filter(id => id !== detach.dataset.detachCategory));
+    }
+  }
+
+  async saveMapping(post, categoryIds) {
     try {
       const response = await fetch(`/api/annual-budgets/posts/${post.id}/categories`, {
         method: "PUT",
@@ -1024,22 +1126,12 @@ class KontaApp extends HTMLElement {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’enregistrer le rapprochement.");
-      let found = false;
-      for (const budget of [this.annualBudget, this.monthlyBudget]) {
-        const index = budget?.posts.findIndex(item => item.id === result.id) ?? -1;
-        if (index >= 0) {
-          budget.posts[index] = result;
-          found = true;
-        }
-      }
-      if (!found) throw new Error("Le poste rapproché est absent du budget affiché.");
-      this.renderAnnualBudget();
-      await this.loadAnnualBudgetMonth();
-      this.setAnnualBudgetFeedback("Rapprochement des catégories enregistré.");
+      this.setMappingFeedback("Rapprochement enregistré.");
     } catch (exception) {
-      this.setAnnualBudgetFeedback(exception.message, true);
-      await this.loadAnnualBudget();
+      this.setMappingFeedback(exception.message, true);
     }
+    await this.loadMapping();
+    if (this.annualBudget) await this.loadAnnualBudgetMonth();
   }
 
   async handleAnnualBudgetAction(event) {
@@ -1248,6 +1340,7 @@ class KontaApp extends HTMLElement {
       ]);
       this.annualBudgetCategories = this.categories.filter(category => category.isActive);
       this.renderPhase2Data();
+      await this.loadMapping();
       await this.loadSummary();
       if (this.annualBudget) {
         this.renderAnnualBudget();

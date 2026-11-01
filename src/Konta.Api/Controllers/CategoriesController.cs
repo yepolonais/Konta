@@ -15,6 +15,13 @@ public sealed class CategoriesController(ICategoryService categoryService) : Con
         return Ok(await categoryService.ListAsync(cancellationToken));
     }
 
+    [HttpGet("orphans")]
+    [ProducesResponseType<IReadOnlyList<OrphanCategoryItem>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<OrphanCategoryItem>>> GetOrphans(CancellationToken cancellationToken)
+    {
+        return Ok(await categoryService.ListOrphansAsync(cancellationToken));
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType<CategoryListItem>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

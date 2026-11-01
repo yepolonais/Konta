@@ -10,6 +10,9 @@ public sealed class CategoryService(ICategoryRepository repository) : ICategoryS
         return categories.Select(ToListItem).ToArray();
     }
 
+    public Task<IReadOnlyList<OrphanCategoryItem>> ListOrphansAsync(CancellationToken cancellationToken) =>
+        repository.ListOrphansAsync(cancellationToken);
+
     public async Task<CategoryListItem?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var category = await repository.GetAsync(id, cancellationToken);
