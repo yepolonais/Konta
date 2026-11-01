@@ -37,6 +37,28 @@ public sealed class CategoryRepository(KontaDbContext dbContext) : ICategoryRepo
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public Task<int> CountTransactionsAsync(Guid categoryId, CancellationToken cancellationToken) =>
+        dbContext.Transactions.CountAsync(transaction => transaction.CategoryId == categoryId, cancellationToken);
+
+    public async Task DeactivateWithDependenciesAsync(Guid categoryId, CancellationToken cancellationToken)
+    {
+        var category = await dbContext.Categories.FirstAsync(item => item.Id == categoryId, cancellationToken);
+        category.SetActive(false);
+        var rules = await dbContext.CategoryRules
+            .Where(rule => rule.CategoryId == categoryId && rule.IsActive)
+            .ToListAsync(cancellationToken);
+        foreach (var rule in rules)
+        {
+            rule.SetActive(false);
+        }
+
+        var mappings = await dbContext.BudgetPostCategoryMappings
+            .Where(mapping => mapping.CategoryId == categoryId)
+            .ToListAsync(cancellationToken);
+        dbContext.BudgetPostCategoryMappings.RemoveRange(mappings);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task UpdateAsync(Category category, CancellationToken cancellationToken)
     {
         dbContext.Categories.Update(category);

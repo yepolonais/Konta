@@ -56,6 +56,62 @@ public sealed class CategoriesApiIntegrationTests
         Assert.Equal(System.Net.HttpStatusCode.Conflict, secondResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Delete_ReturnsConflict_WhenTransactionsUseTheCategory()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        using var accountResponse = await client.PostAsync(
+            "/api/accounts",
+            JsonContent("{ \"name\": \"Compte commun\", \"bankAccountNumber\": \"0001\", \"bankLabel\": \"Compte Commun\", \"kind\": \"Current\" }"));
+        accountResponse.EnsureSuccessStatusCode();
+        const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
+            + "25/09/2026;25/09/2026;0001;Compte Commun;BOULANGERIE;BOULANGERIE;;;-3,00;Non\n";
+        using var content = new MultipartFormDataContent();
+        using var csvContent = new ByteArrayContent(Encoding.Latin1.GetBytes(csv));
+        csvContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+        content.Add(csvContent, "file", "transactions.csv");
+        content.Add(new StringContent("[{ \"rowNumber\": 2, \"include\": true, \"categoryName\": \"Boulangerie\", \"createCategoryRule\": true }]"), "review");
+        using var commitResponse = await client.PostAsync("/api/imports/commit", content);
+        commitResponse.EnsureSuccessStatusCode();
+        using var categories = JsonDocument.Parse(await client.GetStringAsync("/api/categories"));
+        var categoryId = categories.RootElement.EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        // Act
+        using var response = await client.DeleteAsync($"/api/categories/{categoryId}");
+
+        // Assert
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, response.StatusCode);
+        using var after = JsonDocument.Parse(await client.GetStringAsync("/api/categories"));
+        Assert.Single(after.RootElement.EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Delete_RemovesUnusedCategory_AndItsRules()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        using var createResponse = await client.PostAsync("/api/categories", JsonContent("{ \"name\": \"Boulangerie\" }"));
+        using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var categoryId = created.RootElement.GetProperty("id").GetGuid();
+        using var ruleResponse = await client.PostAsync(
+            "/api/category-rules",
+            JsonContent($"{{ \"name\": \"Pain\", \"pattern\": \"BOULANGERIE\", \"categoryId\": \"{categoryId}\" }}"));
+        ruleResponse.EnsureSuccessStatusCode();
+
+        // Act
+        using var response = await client.DeleteAsync($"/api/categories/{categoryId}");
+
+        // Assert
+        Assert.Equal(System.Net.HttpStatusCode.NoContent, response.StatusCode);
+        using var rules = JsonDocument.Parse(await client.GetStringAsync("/api/category-rules"));
+        Assert.Empty(rules.RootElement.EnumerateArray());
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory("konta-api-test-");

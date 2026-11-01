@@ -94,10 +94,23 @@ public sealed class CategoriesController(ICategoryService categoryService) : Con
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var deleted = await categoryService.DeleteAsync(id, cancellationToken);
-        return deleted ? NoContent() : NotFound();
+        try
+        {
+            var deleted = await categoryService.DeleteAsync(id, cancellationToken);
+            return deleted ? NoContent() : NotFound();
+        }
+        catch (CategoryInUseException exception)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Catégorie utilisée",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            });
+        }
     }
 }
 

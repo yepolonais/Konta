@@ -121,8 +121,7 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
                     source: TransactionSource.Import,
                     accountId: transaction.AccountId,
                     importFingerprint: transaction.Fingerprint,
-                    importOccurrence: nextOccurrence,
-                    subcategoryName: transaction.SubcategoryName);
+                    importOccurrence: nextOccurrence);
                 newTransactions.Add(newEntity);
                 importedTransactions.Add(transaction.RowNumber, (transaction, newEntity));
             }
@@ -186,7 +185,7 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
 
         dbContext.Transactions.AddRange(newTransactions);
         dbContext.AccountTransfers.AddRange(accountTransfers);
-        await SaveRequestedSubcategoryRulesAsync(
+        await SaveRequestedCategoryRulesAsync(
             importedTransactions.Values.Select(imported => imported.Import).ToArray(),
             categoryLookup,
             cancellationToken);
@@ -259,13 +258,13 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
             : null;
     }
 
-    private async Task SaveRequestedSubcategoryRulesAsync(
+    private async Task SaveRequestedCategoryRulesAsync(
         IReadOnlyCollection<ImportedTransaction> transactions,
         IReadOnlyDictionary<string, Guid> categoryLookup,
         CancellationToken cancellationToken)
     {
         var requested = transactions
-            .Where(transaction => transaction.CreateSubcategoryRule)
+            .Where(transaction => transaction.CreateCategoryRule)
             .ToArray();
         if (requested.Length == 0)
         {
@@ -277,29 +276,28 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
         foreach (var transaction in requested)
         {
             var pattern = transaction.Label.Trim();
-            var subcategoryName = transaction.SubcategoryName?.Trim();
             if (pattern.Length is 0 or > 200
-                || string.IsNullOrWhiteSpace(subcategoryName)
                 || string.IsNullOrWhiteSpace(transaction.CategoryName)
                 || !categoryLookup.TryGetValue(transaction.CategoryName.Trim(), out var categoryId))
             {
-                throw new InvalidOperationException("La règle de sous-catégorie demandée n'est pas valide.");
+                throw new InvalidOperationException("La règle de catégorie demandée n'est pas valide.");
             }
 
             var existingRule = rules.FirstOrDefault(rule =>
                 string.Equals(rule.Pattern, pattern, StringComparison.OrdinalIgnoreCase));
-            var baseName = subcategoryName.Length > 100 ? subcategoryName[..100] : subcategoryName;
+            var baseName = transaction.CategoryName.Trim();
+            baseName = baseName.Length > 100 ? baseName[..100] : baseName;
             var name = CreateUniqueRuleName(baseName, ruleNames, existingRule?.Name);
             if (existingRule is null)
             {
-                existingRule = new CategoryRule(name, pattern, categoryId, subcategoryName);
+                existingRule = new CategoryRule(name, pattern, categoryId);
                 dbContext.CategoryRules.Add(existingRule);
                 rules.Add(existingRule);
             }
             else
             {
                 ruleNames.Remove(existingRule.Name);
-                existingRule.Update(name, pattern, categoryId, subcategoryName);
+                existingRule.Update(name, pattern, categoryId);
                 existingRule.SetActive(true);
             }
 

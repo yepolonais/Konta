@@ -21,7 +21,6 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 transaction.AccountLabel,
                 transaction.Account == null ? null : transaction.Account.Name,
                 transaction.Category == null ? null : transaction.Category.Name,
-                transaction.SubcategoryName,
                 transaction.AccountId,
                 transaction.CategoryId,
                 dbContext.AccountTransfers.Any(transfer =>
@@ -63,7 +62,6 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 transaction.AccountLabel,
                 transaction.Account == null ? null : transaction.Account.Name,
                 transaction.Category == null ? null : transaction.Category.Name,
-                transaction.SubcategoryName,
                 transaction.AccountId,
                 transaction.CategoryId,
                 dbContext.AccountTransfers.Any(transfer =>

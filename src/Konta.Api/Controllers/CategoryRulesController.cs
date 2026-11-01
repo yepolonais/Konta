@@ -38,7 +38,6 @@ public sealed class CategoryRulesController(ICategoryRuleService categoryRuleSer
                 request.Name,
                 request.Pattern,
                 request.CategoryId,
-                request.SubcategoryName,
                 cancellationToken);
             return CreatedAtAction(nameof(GetById), new { id = rule.Id }, rule);
         }
@@ -79,7 +78,6 @@ public sealed class CategoryRulesController(ICategoryRuleService categoryRuleSer
                 request.Name,
                 request.Pattern,
                 request.CategoryId,
-                request.SubcategoryName,
                 cancellationToken);
             return rule is null ? NotFound() : Ok(rule);
         }
@@ -123,9 +121,6 @@ public sealed record CreateCategoryRuleRequest
 
     [Required]
     public required Guid CategoryId { get; init; }
-
-    [StringLength(200)]
-    public string? SubcategoryName { get; init; }
 }
 
 public sealed record UpdateCategoryRuleRequest
@@ -138,7 +133,4 @@ public sealed record UpdateCategoryRuleRequest
 
     [Required]
     public required Guid CategoryId { get; init; }
-
-    [StringLength(200)]
-    public string? SubcategoryName { get; init; }
 }

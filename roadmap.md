@@ -83,7 +83,7 @@ Permettre de créer un plan pour une année, distinct des transactions bancaires
 
 Relier les opérations importées au plan budgétaire et rendre les écarts visibles.
 
-- [X] Décision : un poste budgétaire peut agréger plusieurs catégories réelles ; une catégorie ne peut alimenter qu'un poste actif par année. Le rapprochement se fait par catégorie, pas encore par sous-catégorie.
+- [X] Fonctionnement actuel : un poste budgétaire peut agréger plusieurs catégories réelles ; une catégorie ne peut alimenter qu'un poste actif par année. Les sous-catégories ont été supprimées : seules les catégories classent les opérations.
 - [X] Afficher, pour les revenus et dépenses rapprochés, le prévisionnel, le réalisé et l'écart mensuel (réalisé − prévu).
 - [X] Afficher séparément les totaux mensuels prévisionnels et réels des revenus et dépenses de consommation.
 - [X] Comparer les contributions d'épargne prévues aux transferts réellement effectués (catégories rattachées, côté sortant du virement), sans les classer comme dépenses de consommation ni les compter deux fois.
@@ -108,6 +108,7 @@ Permettre de réagir aux écarts sans effacer le plan passé.
 
 Les contributions planifiées et leur comparaison au réalisé font partie des phases 1 et 2. Cette phase complémentaire concerne un suivi plus détaillé des objectifs ou des soldes détenus.
 
+- [ ] Associer chaque enveloppe d'épargne à son compte de destination, afin de savoir où sont versées les sommes prévues (par exemple : « Impôts » vers le LDD de Jen).
 - [ ] Décider s'il faut suivre le solde réel de chaque enveloppe ou seulement les contributions prévues et réalisées.
 - [ ] Si nécessaire, rapprocher les transferts, les soldes des comptes d'épargne et les dépenses finales associées aux objectifs.
 - [ ] Tester les rapprochements sans compter deux fois un transfert puis une dépense issue de cette épargne.
@@ -125,6 +126,14 @@ Cette évolution ne doit pas retarder le budget annuel et la comparaison des con
 
 ## Évolutions possibles (non planifiées)
 
+- [ ] Séparer les catégories d'opérations des postes budgétaires et ajouter un onglet « Rapprochement » :
+  - [X] Supprimer les sous-catégories (domaine, règles, import, API, frontend, migration) ; l'import propose « Mémoriser pour ce libellé » pour créer une règle de catégorie.
+  - [X] Interdire la suppression d'une catégorie liée à des opérations (409 avec le nombre d'opérations) ; le renommage reste possible. La suppression d'une catégorie supprime ses règles.
+  - [ ] Conserver les catégories quand un poste budgétaire est supprimé : elles deviennent orphelines et doivent être réaffectées.
+  - [ ] Endpoint des catégories orphelines (utilisées par des opérations, sans poste actif pour l'année), avec nombre d'opérations et montant.
+  - [ ] Onglet « Rapprochement » : postes avec leurs catégories rattachées (ajout/retrait) et zone « À rattacher » pour les catégories orphelines.
+- [ ] Faire évoluer le « Suivi mensuel » en « Suivi », avec le choix d'une vue au mois ou à l'année pour consulter le prévu et le réalisé sur la période souhaitée.
+- [ ] Lors de la préparation du budget de l'année suivante, afficher pour chaque poste la moyenne mensuelle réalisée sur l'année précédente, afin d'aider à ajuster le prévisionnel.
 - [ ] Réaffecter un montant d'un poste à un autre pour un mois donné (formulaire « de… vers… montant… mois »), avec l'effet visible sur le résultat prévisionnel. Le disponible annuel reste inchangé. Une variante avec traçabilité et annulation, comme les extras, est possible.
 - [ ] Distinguer le plan initial, le plan révisé et le réalisé en conservant le plan de départ, pour mesurer les dérives en fin d'année.
 - [ ] Rendre les ajustements du budget futur accessibles depuis le suivi mensuel, sans modifier les prévisions passées.

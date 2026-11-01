@@ -12,8 +12,7 @@ public sealed record ImportTransactionReview(
     Guid? AccountId = null,
     string? AccountName = null,
     string? CategoryName = null,
-    string? SubcategoryName = null,
     bool ConfirmTransferMatch = false,
     Guid? TransferTransactionId = null,
     int? TransferRowNumber = null,
-    bool CreateSubcategoryRule = false);
+    bool CreateCategoryRule = false);

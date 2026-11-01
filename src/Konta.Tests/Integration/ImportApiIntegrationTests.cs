@@ -82,7 +82,7 @@ public sealed class ImportApiIntegrationTests
         content.Add(csvContent, "file", "transactions.csv");
         content.Add(new StringContent($$"""
             [
-              { "rowNumber": 2, "include": true, "accountId": "{{targetAccountId}}", "categoryName": "Courses", "subcategoryName": "Restaurants" }
+              { "rowNumber": 2, "include": true, "accountId": "{{targetAccountId}}", "categoryName": "Courses" }
             ]
             """), "review");
 
@@ -96,7 +96,6 @@ public sealed class ImportApiIntegrationTests
         var transaction = Assert.Single(transactions.RootElement.EnumerateArray());
         Assert.Equal("Compte cible", transaction.GetProperty("accountName").GetString());
         Assert.Equal("Courses", transaction.GetProperty("categoryName").GetString());
-        Assert.Equal("Restaurants", transaction.GetProperty("subcategoryName").GetString());
 
         using var categoriesResponse = await client.GetAsync("/api/categories");
         using var categories = JsonDocument.Parse(await categoriesResponse.Content.ReadAsStringAsync());
@@ -168,7 +167,7 @@ public sealed class ImportApiIntegrationTests
     }
 
     [Fact]
-    public async Task Commit_CreatesSubcategoryRule_AndAppliesItToFutureMatchingImports()
+    public async Task Commit_CreatesCategoryRule_AndAppliesItToFutureMatchingImports()
     {
         // Arrange
         using var dataDirectory = new TemporaryDirectory();
@@ -183,8 +182,7 @@ public sealed class ImportApiIntegrationTests
               "rowNumber": 2,
               "include": true,
               "categoryName": "Vie quotidienne",
-              "subcategoryName": "Machine à café",
-              "createSubcategoryRule": true
+              "createCategoryRule": true
             }]
             """), "review");
 
@@ -197,14 +195,12 @@ public sealed class ImportApiIntegrationTests
         using var rules = JsonDocument.Parse(await rulesResponse.Content.ReadAsStringAsync());
         var rule = Assert.Single(rules.RootElement.EnumerateArray());
         Assert.Equal("CARTE X9734 MACHINE", rule.GetProperty("pattern").GetString());
-        Assert.Equal("Machine à café", rule.GetProperty("subcategoryName").GetString());
 
         using var previewResponse = await PostCsvAsync(client, "/api/imports/preview", csv);
         previewResponse.EnsureSuccessStatusCode();
         using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
         var transaction = preview.RootElement.GetProperty("transactions")[0];
         Assert.Equal("Vie quotidienne", transaction.GetProperty("categoryName").GetString());
-        Assert.Equal("Machine à café", transaction.GetProperty("subcategoryName").GetString());
     }
 
     [Fact]

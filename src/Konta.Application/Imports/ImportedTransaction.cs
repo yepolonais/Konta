@@ -11,7 +11,6 @@ public sealed record ImportedTransaction(
     string Label,
     string FullLabel,
     string? CategoryName,
-    string? SubcategoryName,
     decimal Amount,
     TransactionType Type,
     bool IsPointed,
@@ -22,5 +21,5 @@ public sealed record ImportedTransaction(
     CategoryRuleSuggestion? CategorySuggestion = null,
     IReadOnlyList<TransferMatchCandidate>? TransferMatchCandidates = null,
     TransferMatchConfirmation? TransferMatchConfirmation = null,
-    bool CreateSubcategoryRule = false,
+    bool CreateCategoryRule = false,
     string? Motif = null);

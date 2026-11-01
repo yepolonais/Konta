@@ -20,7 +20,6 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
         ["libelleoperation"] = "Libellé opération",
         ["libellecomplet"] = "Libellé complet",
         ["categorie"] = "Catégorie",
-        ["souscategorie"] = "Sous-Catégorie",
         ["montant"] = "Montant",
         ["pointee"] = "Pointée"
     };
@@ -108,7 +107,6 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
                     label,
                     fullLabel,
                     EmptyAsNull(GetField(csv, headerIndexes, "categorie")),
-                    EmptyAsNull(GetField(csv, headerIndexes, "souscategorie")),
                     Math.Abs(amount),
                     amount < 0 ? TransactionType.Expense : TransactionType.Income,
                     string.Equals(GetField(csv, headerIndexes, "pointee"), "oui", StringComparison.OrdinalIgnoreCase),
@@ -161,7 +159,6 @@ public sealed class SocieteGeneraleCsvParser : ITransactionCsvParser
                     accountLabel,
                     label,
                     string.IsNullOrWhiteSpace(detail) ? label : detail,
-                    null,
                     null,
                     Math.Abs(amount),
                     amount < 0 ? TransactionType.Expense : TransactionType.Income,

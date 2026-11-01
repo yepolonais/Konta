@@ -5,5 +5,4 @@ public sealed record CategoryRuleMatchResult(
     Guid CategoryId,
     string CategoryName,
     string RuleName,
-    string Pattern,
-    string? SubcategoryName = null);
+    string Pattern);

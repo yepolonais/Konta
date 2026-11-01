@@ -340,6 +340,10 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .annual-budget-table tfoot .budget-carry-forward-row td { background: #e6edfb; color: #2f4a8a; }
 .annual-budget-table tfoot .budget-month-result-row th,
 .annual-budget-table tfoot .budget-month-result-row td { background: #fffaf1; border-top: 3px solid #e18a24; color: #754a14; }
+.annual-budget-table tfoot .budget-available-row td.budget-balance-positive,
+.annual-budget-table tfoot .budget-carry-forward-row td.budget-balance-positive { color: var(--positive); }
+.annual-budget-table tfoot .budget-available-row td.budget-balance-negative,
+.annual-budget-table tfoot .budget-carry-forward-row td.budget-balance-negative { color: var(--coral); }
 .summary-table-heading { align-items: end; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; padding: 20px 22px 12px; }
 .summary-table-heading p { margin-top: 5px; }
 .summary-table { min-width: 680px; }
@@ -386,7 +390,7 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .preview-category { display: grid; gap: 5px; min-width: 170px; }
 .preview-category select { background: var(--field); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font: inherit; font-size: 12px; min-height: 36px; padding: 0 8px; }
 .category-suggestion { color: var(--positive); font-size: 10px; line-height: 1.4; }
-.transaction-subcategory { color: var(--muted); display: block; font-size: 10px; line-height: 1.4; margin-top: 3px; }
+.remember-rule { align-items: center; color: var(--muted); display: flex; font-size: 11px; gap: 4px; }
 
 :host([data-theme="dark"]) .file-picker { border-color: #70505c; }
 :host([data-theme="dark"]) .errors { background: #3a2523; border-color: #663b38; color: #ffb7a8; }

@@ -57,8 +57,13 @@ public sealed class CategoryService(ICategoryRepository repository) : ICategoryS
             return false;
         }
 
-        category.SetActive(false);
-        await repository.UpdateAsync(category, cancellationToken);
+        var transactionCount = await repository.CountTransactionsAsync(id, cancellationToken);
+        if (transactionCount > 0)
+        {
+            throw new CategoryInUseException(category.Name, transactionCount);
+        }
+
+        await repository.DeactivateWithDependenciesAsync(id, cancellationToken);
         return true;
     }
 

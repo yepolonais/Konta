@@ -5,5 +5,4 @@ public sealed record CategoryRuleListItem(
     string Name,
     string Pattern,
     Guid CategoryId,
-    bool IsActive,
-    string? SubcategoryName = null);
+    bool IsActive);

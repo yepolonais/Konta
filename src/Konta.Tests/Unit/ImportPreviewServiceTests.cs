@@ -138,7 +138,6 @@ public sealed class ImportPreviewServiceTests
             .With(importedTransaction => importedTransaction.AccountNumber, accountNumber)
             .With(importedTransaction => importedTransaction.Label, "Paiement CARTE VISA")
             .With(importedTransaction => importedTransaction.CategoryName, (string?)null)
-            .With(importedTransaction => importedTransaction.SubcategoryName, (string?)null)
             .Create();
         var account = fixture.Build<Account>()
             .FromFactory(() => new Account("Compte commun", accountNumber, "Compte SG", AccountKind.Current))
@@ -198,8 +197,7 @@ public sealed class ImportPreviewServiceTests
                 true,
                 AccountId: account.Id,
                 AccountName: account.Name,
-                CategoryName: "Courses",
-                SubcategoryName: "Restaurants")
+                CategoryName: "Courses")
         };
         using var csvStream = new MemoryStream();
 
@@ -219,7 +217,6 @@ public sealed class ImportPreviewServiceTests
                 Assert.Equal(account.Id, savedTransaction.AccountId);
                 Assert.Equal(account.Name, savedTransaction.AccountName);
                 Assert.Equal("Courses", savedTransaction.CategoryName);
-                Assert.Equal("Restaurants", savedTransaction.SubcategoryName);
             })
             .ReturnsAsync((ImportedCount: 1, DuplicateCount: 0));
 

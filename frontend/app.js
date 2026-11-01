@@ -207,7 +207,6 @@ class KontaApp extends HTMLElement {
               <label>Nom de la règle<input id="rule-name" name="name" maxlength="100" required></label>
               <label>Motif à rechercher<input id="rule-pattern" name="pattern" maxlength="200" required></label>
               <label>Catégorie<select id="rule-category" name="categoryId" required></select></label>
-              <label>Sous-catégorie (facultatif)<input id="rule-subcategory" name="subcategoryName" maxlength="200"></label>
               <div class="rule-form-actions"><button id="rule-submit" type="submit">Créer la règle</button><button id="rule-cancel" type="button" class="secondary-button" hidden>Annuler</button></div>
             </form>
             <form class="category-form" id="category-form">
@@ -314,24 +313,19 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#preview-body").addEventListener("change", event => {
       if (event.target.matches("[data-category]")) {
         this.updateReviewCategory(event.target);
-        const row = event.target.closest("tr");
-        if (row.querySelector("[data-subcategory]").value.trim()) {
-          row.dataset.createSubcategoryRule = "true";
-        }
-        this.syncMatchingReviewRows(row);
+        this.syncMatchingReviewRows(event.target.closest("tr"));
         this.refreshPendingCategoryOptions();
       }
-      if (event.target.matches("[data-new-category]")) this.refreshPendingCategoryOptions();
+      if (event.target.matches("[data-remember-rule]")) {
+        this.syncMatchingReviewRows(event.target.closest("tr"));
+      }
+      if (event.target.matches("[data-new-category]")) {
+        this.syncMatchingReviewRows(event.target.closest("tr"));
+        this.refreshPendingCategoryOptions();
+      }
     });
     this.shadowRoot.querySelector("#preview-body").addEventListener("input", event => {
       if (event.target.matches("[data-amount]")) this.updateReviewAmount(event.target);
-      if (event.target.matches("[data-subcategory], [data-new-category]")) {
-        const row = event.target.closest("tr");
-        if (event.target.matches("[data-subcategory]")) {
-          row.dataset.createSubcategoryRule = event.target.value.trim() ? "true" : "false";
-        }
-        this.syncMatchingReviewRows(row);
-      }
     });
 
     const year = this.shadowRoot.querySelector("#summary-year");
@@ -688,8 +682,15 @@ class KontaApp extends HTMLElement {
       row.className = type === "Available" ? "budget-available-row" : "budget-total-row";
       row.append(this.budgetCell(label, "th"));
       for (const month of months) {
-        const cell = this.budgetCell(this.formatCurrency(this.monthlyBudgetTotal(type, month)), "td");
+        const amount = this.monthlyBudgetTotal(type, month);
+        const cell = this.budgetCell(this.formatCurrency(amount), "td");
         cell.className = "amount budget-month-column";
+        if (type === "Available") {
+          const balanceClass = this.budgetBalanceClass(amount);
+          if (balanceClass) {
+            cell.classList.add(balanceClass);
+          }
+        }
         row.append(cell);
       }
       const annualTotal = type === "Available"
@@ -701,6 +702,12 @@ class KontaApp extends HTMLElement {
             : savingsTotal;
       row.append(this.budgetCell(this.formatCurrency(annualTotal), "td"));
       row.lastChild.className = "amount";
+      if (type === "Available") {
+        const balanceClass = this.budgetBalanceClass(annualTotal);
+        if (balanceClass) {
+          row.lastChild.classList.add(balanceClass);
+        }
+      }
       row.append(this.budgetCell("", "td"));
       foot.append(row);
     }
@@ -746,14 +753,16 @@ class KontaApp extends HTMLElement {
     row.className = rowClass;
     row.append(this.budgetCell(label, "th"));
     for (const month of months) {
-      const cell = this.budgetCell(
-        totalType === "CarryForward"
-          ? this.formatCurrency(this.monthlyBudgetTotal(totalType, month))
-          : this.formatCurrency(this.monthlyBudgetTotal("Available", month)
-            + this.monthlyBudgetTotal("CarryForward", month)),
-        "td"
-      );
+      const amount = totalType === "CarryForward"
+        ? this.monthlyBudgetTotal(totalType, month)
+        : this.monthlyBudgetTotal("Available", month)
+          + this.monthlyBudgetTotal("CarryForward", month);
+      const cell = this.budgetCell(this.formatCurrency(amount), "td");
       cell.className = "amount budget-month-column";
+      const balanceClass = this.budgetBalanceClass(amount);
+      if (balanceClass) {
+        cell.classList.add(balanceClass);
+      }
       row.append(cell);
     }
     row.append(this.budgetCell(
@@ -763,6 +772,10 @@ class KontaApp extends HTMLElement {
     row.lastChild.className = "amount";
     row.append(this.budgetCell("", "td"));
     foot.append(row);
+  }
+
+  budgetBalanceClass(amount) {
+    return amount > 0 ? "budget-balance-positive" : amount < 0 ? "budget-balance-negative" : "";
   }
 
   annualBudgetTypeTotal(type) {
@@ -1389,8 +1402,7 @@ class KontaApp extends HTMLElement {
       name.textContent = rule.name;
       const details = document.createElement("span");
       const category = this.categories.find(item => item.id === rule.categoryId)?.name ?? "Catégorie indisponible";
-      const subcategory = rule.subcategoryName ? ` · Sous-catégorie : ${rule.subcategoryName}` : "";
-      details.textContent = `Motif « ${rule.pattern} » · ${category}${subcategory}`;
+      details.textContent = `Motif « ${rule.pattern} » · ${category}`;
       description.append(name, details);
       const actions = document.createElement("div");
       actions.className = "rule-actions";
@@ -1449,8 +1461,7 @@ class KontaApp extends HTMLElement {
       const rule = {
         name: this.shadowRoot.querySelector("#rule-name").value.trim(),
         pattern: this.shadowRoot.querySelector("#rule-pattern").value.trim(),
-        categoryId: this.shadowRoot.querySelector("#rule-category").value,
-        subcategoryName: this.shadowRoot.querySelector("#rule-subcategory").value.trim() || null
+        categoryId: this.shadowRoot.querySelector("#rule-category").value
       };
       const isEditing = Boolean(this.editingRuleId);
       const response = await fetch(
@@ -1493,7 +1504,6 @@ class KontaApp extends HTMLElement {
       this.shadowRoot.querySelector("#rule-name").value = rule.name;
       this.shadowRoot.querySelector("#rule-pattern").value = rule.pattern;
       this.shadowRoot.querySelector("#rule-category").value = rule.categoryId;
-      this.shadowRoot.querySelector("#rule-subcategory").value = rule.subcategoryName ?? "";
       this.shadowRoot.querySelector("#rule-submit").textContent = "Enregistrer";
       this.shadowRoot.querySelector("#rule-cancel").hidden = false;
       this.shadowRoot.querySelector("#rule-name").focus();
@@ -1579,10 +1589,10 @@ class KontaApp extends HTMLElement {
       const response = await fetch(`/api/categories/${deleteButton.dataset.deleteCategory}`, { method: "DELETE" });
       if (!response.ok) {
         const problem = await response.json();
-        throw new Error(problem.detail ?? problem.title ?? "Impossible de désactiver la catégorie.");
+        throw new Error(problem.detail ?? problem.title ?? "Impossible de supprimer la catégorie.");
       }
       feedback.className = "feedback success";
-      feedback.textContent = "Catégorie désactivée.";
+      feedback.textContent = "Catégorie supprimée.";
       feedback.hidden = false;
       await this.loadPhase2Data();
     } catch (exception) {
@@ -1924,7 +1934,7 @@ class KontaApp extends HTMLElement {
       const newCategoryInput = row.querySelector("[data-new-category]");
       const transferMatch = row.querySelector("[data-transfer-match]")?.value;
       const amount = Number(row.querySelector("[data-amount]").value.replace(",", "."));
-      const subcategoryName = row.querySelector("[data-subcategory]").value.trim();
+      const categoryName = newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim();
       return {
         rowNumber: Number(row.dataset.rowNumber),
         include: row.querySelector("[data-include]").checked,
@@ -1932,9 +1942,8 @@ class KontaApp extends HTMLElement {
         label: row.dataset.label,
         amount: Math.abs(amount),
         type: amount < 0 ? "Expense" : "Income",
-        categoryName: newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim(),
-        subcategoryName,
-        createSubcategoryRule: row.dataset.createSubcategoryRule === "true" && Boolean(subcategoryName),
+        categoryName,
+        createCategoryRule: row.querySelector("[data-remember-rule]").checked && Boolean(categoryName),
         confirmTransferMatch: Boolean(transferMatch),
         transferTransactionId: transferMatch ? JSON.parse(transferMatch).transactionId : null,
         transferRowNumber: transferMatch ? JSON.parse(transferMatch).rowNumber : null
@@ -1947,12 +1956,6 @@ class KontaApp extends HTMLElement {
     const label = document.createElement("span");
     label.textContent = transaction.label;
     cell.append(label);
-    if (transaction.subcategoryName) {
-      const subcategory = document.createElement("small");
-      subcategory.className = "transaction-subcategory";
-      subcategory.textContent = transaction.subcategoryName;
-      cell.append(subcategory);
-    }
     return cell;
   }
 
@@ -2020,16 +2023,15 @@ class KontaApp extends HTMLElement {
     newCategoryInput.hidden = true;
     newCategoryInput.dataset.newCategory = "";
     newCategoryInput.setAttribute("aria-label", `Nouvelle catégorie de l'opération, ligne ${transaction.rowNumber}`);
-    const subcategoryInput = document.createElement("input");
-    subcategoryInput.type = "text";
-    subcategoryInput.maxLength = 200;
-    subcategoryInput.placeholder = "Sous-catégorie (facultatif)";
-    subcategoryInput.value = transaction.subcategoryName ?? "";
-    subcategoryInput.dataset.subcategory = "";
-    subcategoryInput.setAttribute("aria-label", `Sous-catégorie de l'opération, ligne ${transaction.rowNumber}`);
+    const rememberRule = document.createElement("input");
+    rememberRule.type = "checkbox";
+    rememberRule.dataset.rememberRule = "";
+    const rememberLabel = document.createElement("label");
+    rememberLabel.className = "remember-rule";
+    rememberLabel.append(rememberRule, " Mémoriser pour ce libellé");
     const categoryContent = document.createElement("div");
     categoryContent.className = "preview-category";
-    categoryContent.append(categorySelect, newCategoryInput, subcategoryInput);
+    categoryContent.append(categorySelect, newCategoryInput, rememberLabel);
     if (transaction.categorySuggestion) {
       const suggestion = document.createElement("small");
       suggestion.className = "category-suggestion";
@@ -2114,8 +2116,7 @@ class KontaApp extends HTMLElement {
     const categorySelect = sourceRow.querySelector("[data-category]");
     const newCategoryInput = sourceRow.querySelector("[data-new-category]");
     const categoryName = newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim();
-    const subcategoryName = sourceRow.querySelector("[data-subcategory]").value.trim();
-    const createSubcategoryRule = sourceRow.dataset.createSubcategoryRule === "true";
+    const rememberRule = sourceRow.querySelector("[data-remember-rule]").checked;
     this.syncingPreviewRows = true;
     try {
       for (const row of this.shadowRoot.querySelectorAll("#preview-body tr")) {
@@ -2130,11 +2131,12 @@ class KontaApp extends HTMLElement {
         targetNewCategory.required = false;
         targetNewCategory.value = "";
         if (categoryName && ![...targetCategory.options].some(option => option.value === categoryName)) {
-          targetCategory.insertBefore(this.option(categoryName, categoryName), targetCategory.querySelector("[data-add-category]"));
+          const option = this.option(categoryName, categoryName);
+          option.dataset.pendingCategory = "";
+          targetCategory.insertBefore(option, targetCategory.querySelector("[data-add-category]"));
         }
         targetCategory.value = categoryName;
-        row.querySelector("[data-subcategory]").value = subcategoryName;
-        row.dataset.createSubcategoryRule = createSubcategoryRule && subcategoryName ? "true" : "false";
+        row.querySelector("[data-remember-rule]").checked = rememberRule;
       }
     } finally {
       this.syncingPreviewRows = false;

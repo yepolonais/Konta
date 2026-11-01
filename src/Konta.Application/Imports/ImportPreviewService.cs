@@ -259,11 +259,7 @@ public sealed class ImportPreviewService(
         {
             var categoryName = transaction.CategoryName;
             var match = await categoryRuleService.FindBestMatchAsync(transaction.Label, cancellationToken);
-            var subcategoryName = string.IsNullOrWhiteSpace(transaction.SubcategoryName)
-                ? match?.SubcategoryName
-                : transaction.SubcategoryName;
-            if (match is not null
-                && (string.IsNullOrWhiteSpace(categoryName) || !string.IsNullOrWhiteSpace(match.SubcategoryName)))
+            if (match is not null)
             {
                 categoryName = match.CategoryName;
             }
@@ -271,7 +267,6 @@ public sealed class ImportPreviewService(
             transactions.Add(transaction with
             {
                 CategoryName = categoryName,
-                SubcategoryName = subcategoryName,
                 CategorySuggestion = match is null
                     ? transaction.CategorySuggestion
                     : new CategoryRuleSuggestion(match.RuleId, match.RuleName, match.CategoryName, match.Pattern)
@@ -378,27 +373,17 @@ public sealed class ImportPreviewService(
                 errors.Add($"La catégorie de la ligne {transaction.RowNumber} dépasse 100 caractères.");
             }
 
-            if (decision.CreateSubcategoryRule)
+            if (decision.CreateCategoryRule)
             {
                 if (string.IsNullOrWhiteSpace(decision.CategoryName))
                 {
-                    errors.Add($"La ligne {transaction.RowNumber} doit avoir une catégorie pour mémoriser sa sous-catégorie.");
-                }
-
-                if (string.IsNullOrWhiteSpace(decision.SubcategoryName))
-                {
-                    errors.Add($"La ligne {transaction.RowNumber} doit avoir une sous-catégorie pour créer une règle.");
+                    errors.Add($"La ligne {transaction.RowNumber} doit avoir une catégorie pour créer une règle.");
                 }
 
                 if (decision.Label?.Length > 200)
                 {
                     errors.Add($"Le libellé de la ligne {transaction.RowNumber} dépasse 200 caractères et ne peut pas servir de motif.");
                 }
-            }
-
-            if (decision.SubcategoryName?.Length > 200)
-            {
-                errors.Add($"La sous-catégorie de la ligne {transaction.RowNumber} dépasse 200 caractères.");
             }
 
             if (decision.Type.HasValue && !Enum.IsDefined(decision.Type.Value))
@@ -427,10 +412,7 @@ public sealed class ImportPreviewService(
                 CategoryName = decision.CategoryName is null
                     ? transaction.CategoryName
                     : string.IsNullOrWhiteSpace(decision.CategoryName) ? null : decision.CategoryName.Trim(),
-                SubcategoryName = decision.SubcategoryName is null
-                    ? transaction.SubcategoryName
-                    : string.IsNullOrWhiteSpace(decision.SubcategoryName) ? null : decision.SubcategoryName.Trim(),
-                CreateSubcategoryRule = decision.CreateSubcategoryRule,
+                CreateCategoryRule = decision.CreateCategoryRule,
                 TransferMatchConfirmation = decision.ConfirmTransferMatch
                     ? new TransferMatchConfirmation(decision.TransferTransactionId, decision.TransferRowNumber)
                     : null

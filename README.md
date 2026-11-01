@@ -43,7 +43,7 @@ dotnet test Konta.sln
 ## Limites métier connues
 
 - Le plan est simple : modifier un montant écrase l'ancien, sans conserver le plan initial. Les mois passés ne sont jamais modifiés par un ajustement futur.
-- Le rapprochement se fait par catégorie (pas par sous-catégorie) : une catégorie ne peut alimenter qu'un poste actif par année.
+- Le rapprochement se fait par catégorie (les sous-catégories n'existent plus) : une catégorie ne peut alimenter qu'un poste actif par année.
 - Les virements entre comptes sont exclus des revenus et dépenses. Pour l'épargne, seuls les versements sortants comptent ; les retraits depuis l'épargne sont ignorés.
 - Le disponible prévisionnel affiché est le net du mois (revenus − dépenses − épargne), hors report. Le report cumulé est affiché séparément, et la ligne « Résultat prévisionnel du mois » est calculée comme disponible mensuel plus report (qui peut être négatif). Le report reprend le disponible prévisionnel cumulé de décembre de l'année précédente en janvier.
 - Les opérations sans catégorie rattachée à un poste sont listées comme « non rapprochées » et ne sont pas comptées dans les postes.
