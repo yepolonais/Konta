@@ -121,7 +121,8 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
                     source: TransactionSource.Import,
                     accountId: transaction.AccountId,
                     importFingerprint: transaction.Fingerprint,
-                    importOccurrence: nextOccurrence);
+                    importOccurrence: nextOccurrence,
+                    details: string.Join(' ', transaction.FullLabel.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
                 newTransactions.Add(newEntity);
                 importedTransactions.Add(transaction.RowNumber, (transaction, newEntity));
             }
@@ -276,7 +277,7 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
         foreach (var transaction in requested)
         {
             var operation = OperationKeyExtractor.Extract(transaction.FullLabel);
-            var pattern = operation?.Key ?? string.Empty;
+            var pattern = transaction.RulePattern ?? operation?.Key ?? string.Empty;
             if (operation is null || pattern.Length > 200
                 || string.IsNullOrWhiteSpace(transaction.CategoryName)
                 || !categoryLookup.TryGetValue(transaction.CategoryName.Trim(), out var categoryId))

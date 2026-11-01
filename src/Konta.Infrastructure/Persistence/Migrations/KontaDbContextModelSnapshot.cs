@@ -252,6 +252,10 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Details")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ImportFingerprint")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");

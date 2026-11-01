@@ -387,9 +387,19 @@ public sealed class ImportPreviewService(
                 {
                     errors.Add($"La ligne {transaction.RowNumber} n'a pas de clé reconnue : aucune règle ne peut être créée.");
                 }
-                else if (operationKey.Key.Length > 200)
+                else
                 {
-                    errors.Add($"La clé de la ligne {transaction.RowNumber} dépasse 200 caractères et ne peut pas servir de motif.");
+                    var rulePattern = string.IsNullOrWhiteSpace(decision.RulePattern)
+                        ? operationKey.Key
+                        : decision.RulePattern.Trim();
+                    if (rulePattern.Length > 200)
+                    {
+                        errors.Add($"Le motif de la ligne {transaction.RowNumber} dépasse 200 caractères.");
+                    }
+                    else if (!OperationKeyExtractor.Normalize(operationKey.Key).Contains(OperationKeyExtractor.Normalize(rulePattern), StringComparison.Ordinal))
+                    {
+                        errors.Add($"Le motif de la ligne {transaction.RowNumber} doit être contenu dans la clé « {operationKey.Key} ».");
+                    }
                 }
             }
 
@@ -420,6 +430,7 @@ public sealed class ImportPreviewService(
                     ? transaction.CategoryName
                     : string.IsNullOrWhiteSpace(decision.CategoryName) ? null : decision.CategoryName.Trim(),
                 CreateCategoryRule = decision.CreateCategoryRule,
+                RulePattern = string.IsNullOrWhiteSpace(decision.RulePattern) ? null : decision.RulePattern.Trim(),
                 TransferMatchConfirmation = decision.ConfirmTransferMatch
                     ? new TransferMatchConfirmation(decision.TransferTransactionId, decision.TransferRowNumber)
                     : null

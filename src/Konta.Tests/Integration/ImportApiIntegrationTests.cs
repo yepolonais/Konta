@@ -197,11 +197,68 @@ public sealed class ImportApiIntegrationTests
         Assert.Equal("MACHINE", rule.GetProperty("pattern").GetString());
         Assert.Equal("Card", rule.GetProperty("operationType").GetString());
 
+        using var transactionsResponse = await client.GetAsync("/api/transactions");
+        using var storedTransactions = JsonDocument.Parse(await transactionsResponse.Content.ReadAsStringAsync());
+        Assert.Equal(
+            "CARTE X9734 25/09 MACHINE 110630301772261IOPD",
+            Assert.Single(storedTransactions.RootElement.EnumerateArray()).GetProperty("details").GetString());
+
         using var previewResponse = await PostCsvAsync(client, "/api/imports/preview", csv);
         previewResponse.EnsureSuccessStatusCode();
         using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
         var transaction = preview.RootElement.GetProperty("transactions")[0];
         Assert.Equal("Vie quotidienne", transaction.GetProperty("categoryName").GetString());
+    }
+
+    [Fact]
+    public async Task Commit_UsesShortenedRulePattern_AndCoversOtherVariants()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "0001", "Compte Commun", "Current");
+        const string header = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n";
+        const string firstRow = "25/09/2026;25/09/2026;0001;Compte Commun;CARTE;CARTE X9734 25/09 AUCHAN 30M 110630301772261IOPD;;;-5,00;Non\n";
+        const string otherRow = "26/09/2026;26/09/2026;0001;Compte Commun;CARTE;CARTE X9734 26/09 AUCHAN 0030M 4655257 110630301772262IOPD;;;-6,00;Non\n";
+        using var content = CsvContent(header + firstRow);
+        content.Add(new StringContent("""
+            [{ "rowNumber": 2, "include": true, "categoryName": "Supermarché", "createCategoryRule": true, "rulePattern": "auchan" }]
+            """), "review");
+
+        // Act
+        using var commitResponse = await client.PostAsync("/api/imports/commit", content);
+
+        // Assert
+        commitResponse.EnsureSuccessStatusCode();
+        using var rulesResponse = await client.GetAsync("/api/category-rules");
+        using var rules = JsonDocument.Parse(await rulesResponse.Content.ReadAsStringAsync());
+        Assert.Equal("auchan", Assert.Single(rules.RootElement.EnumerateArray()).GetProperty("pattern").GetString());
+        using var previewResponse = await PostCsvAsync(client, "/api/imports/preview", header + otherRow);
+        using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
+        Assert.Equal("Supermarché", preview.RootElement.GetProperty("transactions")[0].GetProperty("categoryName").GetString());
+    }
+
+    [Fact]
+    public async Task Commit_ReturnsBadRequest_WhenRulePatternIsNotPartOfTheKey()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "0001", "Compte Commun", "Current");
+        const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
+            + "25/09/2026;25/09/2026;0001;Compte Commun;CARTE;CARTE X9734 25/09 AUCHAN 30M 110630301772261IOPD;;;-5,00;Non\n";
+        using var content = CsvContent(csv);
+        content.Add(new StringContent("""
+            [{ "rowNumber": 2, "include": true, "categoryName": "Supermarché", "createCategoryRule": true, "rulePattern": "LECLERC" }]
+            """), "review");
+
+        // Act
+        using var response = await client.PostAsync("/api/imports/commit", content);
+
+        // Assert
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

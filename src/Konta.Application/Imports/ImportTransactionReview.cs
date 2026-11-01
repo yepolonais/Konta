@@ -15,4 +15,5 @@ public sealed record ImportTransactionReview(
     bool ConfirmTransferMatch = false,
     Guid? TransferTransactionId = null,
     int? TransferRowNumber = null,
-    bool CreateCategoryRule = false);
+    bool CreateCategoryRule = false,
+    string? RulePattern = null);

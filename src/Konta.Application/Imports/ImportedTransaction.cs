@@ -23,4 +23,5 @@ public sealed record ImportedTransaction(
     TransferMatchConfirmation? TransferMatchConfirmation = null,
     bool CreateCategoryRule = false,
     string? Motif = null,
-    OperationKey? Operation = null);
+    OperationKey? Operation = null,
+    string? RulePattern = null);

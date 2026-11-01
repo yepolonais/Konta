@@ -170,7 +170,7 @@ class KontaApp extends HTMLElement {
               <div class="summary-totals" id="summary-totals"></div>
               <div class="summary-table-heading"><div><h3>Dépenses et revenus par catégorie</h3><p>Ouvrez une catégorie pour consulter les opérations correspondantes.</p></div></div>
               <div class="table-wrap"><table class="summary-table">
-                <thead><tr><th>Catégorie</th><th>Revenus</th><th>Dépenses</th><th>Solde net</th><th></th></tr></thead>
+                <thead><tr><th data-sort-key="name" aria-sort="none"><button type="button" class="text-button sort-button" data-sort="name" title="Trier par catégorie">Catégorie <span class="sort-caret" aria-hidden="true">⇅</span></button></th><th>Revenus</th><th>Dépenses</th><th data-sort-key="net" aria-sort="none"><button type="button" class="text-button sort-button" data-sort="net" title="Trier par solde net">Solde net <span class="sort-caret" aria-hidden="true">⇅</span></button></th><th></th></tr></thead>
                 <tbody id="summary-categories"></tbody>
               </table></div>
               <section class="summary-details" id="summary-details" aria-live="polite" hidden></section>
@@ -339,6 +339,14 @@ class KontaApp extends HTMLElement {
       this.handleRuleAction(event);
       this.handleCategoryAction(event);
     });
+    this.shadowRoot.querySelector(".summary-table thead").addEventListener("click", event => {
+      const button = event.target.closest("[data-sort]");
+      if (!button) return;
+      const key = button.dataset.sort;
+      const current = this.summarySort?.key === key ? this.summarySort.direction : null;
+      this.summarySort = { asc: { key, direction: "desc" }, desc: null }[current] ?? { key, direction: "asc" };
+      if (this.summary) this.renderSummary(this.summary);
+    });
     this.shadowRoot.querySelector("#balance-form").addEventListener("submit", event => this.setBalanceReference(event));
     this.shadowRoot.querySelector("#balance-account").addEventListener("change", () => {
       this.renderBalanceTransactions(true);
@@ -350,7 +358,7 @@ class KontaApp extends HTMLElement {
         this.syncMatchingReviewRows(event.target.closest("tr"));
         this.refreshPendingCategoryOptions();
       }
-      if (event.target.matches("[data-remember-rule]")) {
+      if (event.target.matches("[data-remember-rule], [data-rule-pattern]")) {
         this.syncMatchingReviewRows(event.target.closest("tr"));
       }
       if (event.target.matches("[data-new-category]")) {
@@ -1814,7 +1822,20 @@ class KontaApp extends HTMLElement {
       row.append(emptyCell);
       body.append(row);
     }
-    summary.categories.forEach((category, index) => {
+    const sort = this.summarySort ?? null;
+    for (const header of this.shadowRoot.querySelectorAll(".summary-table th[data-sort-key]")) {
+      const direction = sort?.key === header.dataset.sortKey ? sort.direction : null;
+      header.querySelector(".sort-caret").textContent = { asc: "▲", desc: "▼" }[direction] ?? "⇅";
+      header.setAttribute("aria-sort", { asc: "ascending", desc: "descending" }[direction] ?? "none");
+    }
+    const compare = {
+      name: (first, second) => first.categoryName.localeCompare(second.categoryName, "fr", { sensitivity: "base" }),
+      net: (first, second) => first.netTotal - second.netTotal
+    };
+    const categories = sort
+      ? [...summary.categories].sort((first, second) => compare[sort.key](first, second) * (sort.direction === "asc" ? 1 : -1))
+      : summary.categories;
+    categories.forEach((category, index) => {
       const row = document.createElement("tr");
       row.append(
         this.cell(category.categoryName, "summary-category-name"),
@@ -1834,7 +1855,7 @@ class KontaApp extends HTMLElement {
     });
     body.onclick = event => {
       const button = event.target.closest("[data-summary-category]");
-      if (button) this.renderSummaryDetails(summary.categories[Number(button.dataset.summaryCategory)]);
+      if (button) this.renderSummaryDetails(categories[Number(button.dataset.summaryCategory)]);
     };
   }
 
@@ -2088,6 +2109,7 @@ class KontaApp extends HTMLElement {
         type: amount < 0 ? "Expense" : "Income",
         categoryName,
         createCategoryRule: row.querySelector("[data-remember-rule]").checked && Boolean(categoryName),
+        rulePattern: row.querySelector("[data-rule-pattern]")?.value.trim() || null,
         confirmTransferMatch: Boolean(transferMatch),
         transferTransactionId: transferMatch ? JSON.parse(transferMatch).transactionId : null,
         transferRowNumber: transferMatch ? JSON.parse(transferMatch).rowNumber : null
@@ -2098,7 +2120,8 @@ class KontaApp extends HTMLElement {
   transactionLabelCell(transaction) {
     const cell = document.createElement("td");
     const label = document.createElement("span");
-    label.textContent = transaction.label;
+    label.textContent = transaction.details || transaction.label;
+    if (transaction.details) label.title = transaction.label;
     cell.append(label);
     return cell;
   }
@@ -2186,6 +2209,18 @@ class KontaApp extends HTMLElement {
       categoryContent.append(operation);
     }
     categoryContent.append(categorySelect, newCategoryInput, rememberLabel);
+    if (transaction.operation) {
+      const patternInput = document.createElement("input");
+      patternInput.type = "text";
+      patternInput.maxLength = 200;
+      patternInput.value = transaction.operation.key;
+      patternInput.hidden = true;
+      patternInput.dataset.rulePattern = "";
+      patternInput.title = "Motif de la règle : raccourcissez-le pour couvrir plusieurs variantes (ex. AUCHAN)";
+      patternInput.setAttribute("aria-label", `Motif de la règle, ligne ${transaction.rowNumber}`);
+      rememberRule.addEventListener("change", () => { patternInput.hidden = !rememberRule.checked; });
+      categoryContent.append(patternInput);
+    }
     if (transaction.categorySuggestion) {
       const suggestion = document.createElement("small");
       suggestion.className = "category-suggestion";
@@ -2271,6 +2306,7 @@ class KontaApp extends HTMLElement {
     const newCategoryInput = sourceRow.querySelector("[data-new-category]");
     const categoryName = newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim();
     const rememberRule = sourceRow.querySelector("[data-remember-rule]").checked;
+    const sourcePattern = sourceRow.querySelector("[data-rule-pattern]");
     this.syncingPreviewRows = true;
     try {
       for (const row of this.shadowRoot.querySelectorAll("#preview-body tr")) {
@@ -2291,6 +2327,11 @@ class KontaApp extends HTMLElement {
         }
         targetCategory.value = categoryName;
         row.querySelector("[data-remember-rule]").checked = rememberRule;
+        const targetPattern = row.querySelector("[data-rule-pattern]");
+        if (targetPattern) {
+          targetPattern.hidden = !rememberRule;
+          if (sourcePattern) targetPattern.value = sourcePattern.value;
+        }
       }
     } finally {
       this.syncingPreviewRows = false;

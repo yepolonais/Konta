@@ -20,7 +20,8 @@ public sealed class Transaction
         TransactionSource source = TransactionSource.Manual,
         Guid? accountId = null,
         string? importFingerprint = null,
-        int? importOccurrence = null)
+        int? importOccurrence = null,
+        string? details = null)
     {
         if (string.IsNullOrWhiteSpace(label))
         {
@@ -42,6 +43,7 @@ public sealed class Transaction
         AccountId = accountId;
         ImportFingerprint = importFingerprint;
         ImportOccurrence = importOccurrence;
+        Details = string.IsNullOrWhiteSpace(details) ? null : details.Trim();
         CategoryId = categoryId;
         Source = source;
         CreatedAt = DateTimeOffset.UtcNow;
@@ -51,6 +53,7 @@ public sealed class Transaction
     public Guid Id { get; private set; }
     public DateOnly Date { get; private set; }
     public string Label { get; private set; } = string.Empty;
+    public string? Details { get; private set; }
     public decimal Amount { get; private set; }
     public TransactionType Type { get; private set; }
     public string? AccountNumber { get; private set; }

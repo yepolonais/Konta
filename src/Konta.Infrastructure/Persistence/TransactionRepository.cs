@@ -25,7 +25,8 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 transaction.CategoryId,
                 dbContext.AccountTransfers.Any(transfer =>
                     transfer.SourceTransactionId == transaction.Id
-                    || transfer.DestinationTransactionId == transaction.Id)))
+                    || transfer.DestinationTransactionId == transaction.Id),
+                transaction.Details))
             .ToListAsync(cancellationToken);
     }
 
@@ -66,7 +67,8 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 transaction.CategoryId,
                 dbContext.AccountTransfers.Any(transfer =>
                     transfer.SourceTransactionId == transaction.Id
-                    || transfer.DestinationTransactionId == transaction.Id)))
+                    || transfer.DestinationTransactionId == transaction.Id),
+                transaction.Details))
             .ToListAsync(cancellationToken);
     }
 }

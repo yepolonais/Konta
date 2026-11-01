@@ -25,6 +25,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
         {
             entity.HasKey(transaction => transaction.Id);
             entity.Property(transaction => transaction.Label).HasMaxLength(500).IsRequired();
+            entity.Property(transaction => transaction.Details).HasMaxLength(1000);
             entity.Property(transaction => transaction.Amount).HasPrecision(18, 2);
             entity.Property(transaction => transaction.Type).HasConversion<string>().HasMaxLength(16);
             entity.Property(transaction => transaction.Source).HasConversion<string>().HasMaxLength(16);
