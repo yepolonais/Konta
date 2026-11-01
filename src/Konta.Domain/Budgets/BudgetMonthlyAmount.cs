@@ -6,17 +6,24 @@ public sealed class BudgetMonthlyAmount
     {
     }
 
-    public BudgetMonthlyAmount(Guid annualBudgetPostId, int month, decimal amount)
+    public BudgetMonthlyAmount(Guid annualBudgetPostId, int year, int month, decimal amount)
     {
+        if (year is < 1 or > 9998)
+        {
+            throw new ArgumentOutOfRangeException(nameof(year), "L'année doit être comprise entre 1 et 9998.");
+        }
+
         Validate(month, amount);
         Id = Guid.NewGuid();
         AnnualBudgetPostId = annualBudgetPostId;
+        Year = year;
         Month = month;
         Amount = amount;
     }
 
     public Guid Id { get; private set; }
     public Guid AnnualBudgetPostId { get; private set; }
+    public int Year { get; private set; }
     public int Month { get; private set; }
     public decimal Amount { get; private set; }
 

@@ -4,7 +4,6 @@ namespace Konta.Application.Budgets;
 
 public sealed record AnnualBudgetPostItem(
     Guid Id,
-    int Year,
     string Name,
     AnnualBudgetPostType Type,
     AnnualBudgetExpenseKind? ExpenseKind,

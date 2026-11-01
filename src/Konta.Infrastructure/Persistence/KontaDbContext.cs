@@ -82,7 +82,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.Property(post => post.Type).HasConversion<string>().HasMaxLength(16);
             entity.Property(post => post.ExpenseKind).HasConversion<string>().HasMaxLength(16);
             entity.Property(post => post.SortOrder).IsRequired();
-            entity.HasIndex(post => new { post.Year, post.Name }).IsUnique();
+            entity.HasIndex(post => post.Name).IsUnique();
             entity.HasMany(post => post.MonthlyAmounts)
                 .WithOne()
                 .HasForeignKey(amount => amount.AnnualBudgetPostId)
@@ -93,13 +93,13 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
         {
             entity.HasKey(amount => amount.Id);
             entity.Property(amount => amount.Amount).HasPrecision(18, 2);
-            entity.HasIndex(amount => new { amount.AnnualBudgetPostId, amount.Month }).IsUnique();
+            entity.HasIndex(amount => new { amount.AnnualBudgetPostId, amount.Year, amount.Month }).IsUnique();
         });
 
         modelBuilder.Entity<BudgetPostCategoryMapping>(entity =>
         {
             entity.HasKey(mapping => mapping.Id);
-            entity.HasIndex(mapping => new { mapping.Year, mapping.CategoryId }).IsUnique();
+            entity.HasIndex(mapping => mapping.CategoryId).IsUnique();
             entity.HasOne<AnnualBudgetPost>().WithMany(post => post.CategoryMappings)
                 .HasForeignKey(mapping => mapping.AnnualBudgetPostId)
                 .OnDelete(DeleteBehavior.Cascade);

@@ -42,12 +42,11 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         }
     }
 
-    [HttpPost("{year:int}/posts")]
+    [HttpPost("posts")]
     [ProducesResponseType<AnnualBudgetPostItem>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AnnualBudgetPostItem>> CreatePost(
-        int year,
         SaveAnnualBudgetPostRequest request,
         CancellationToken cancellationToken)
     {
@@ -69,12 +68,11 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
             }
 
             var post = await annualBudgetService.CreatePostAsync(
-                year,
                 request.Name,
                 request.Type.Value,
                 request.ExpenseKind,
                 cancellationToken);
-            return CreatedAtAction(nameof(Get), new { year }, post);
+            return CreatedAtAction(nameof(UpdatePost), new { id = post.Id }, post);
         }
         catch (DuplicateAnnualBudgetPostException exception)
         {
@@ -141,19 +139,17 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         }
     }
 
-    [HttpPut("{year:int}/posts/order")]
+    [HttpPut("posts/order")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> ReorderPosts(
-        int year,
         ReorderAnnualBudgetPostsRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
             await annualBudgetService.ReorderPostsAsync(
-                year,
                 request.Type,
                 request.ExpenseKind,
                 request.PostIds,
@@ -181,12 +177,13 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
     public async Task<IActionResult> DeletePost(Guid id, CancellationToken cancellationToken) =>
         await annualBudgetService.DeletePostAsync(id, cancellationToken) ? NoContent() : NotFound();
 
-    [HttpPut("posts/{id:guid}/months/{month:int}")]
+    [HttpPut("{year:int}/posts/{id:guid}/months/{month:int}")]
     [ProducesResponseType<AnnualBudgetPostItem>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AnnualBudgetPostItem>> SetMonthlyAmount(
+        int year,
         Guid id,
         int month,
         SetMonthlyAmountRequest request,
@@ -194,7 +191,7 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
     {
         try
         {
-            var post = await annualBudgetService.SetMonthlyAmountAsync(id, month, request.Amount!.Value, cancellationToken);
+            var post = await annualBudgetService.SetMonthlyAmountAsync(id, year, month, request.Amount!.Value, cancellationToken);
             return post is null ? NotFound() : Ok(post);
         }
         catch (ArgumentOutOfRangeException exception)
@@ -251,19 +248,20 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         }
     }
 
-    [HttpPost("posts/{id:guid}/months/{month:int}/copy-forward")]
+    [HttpPost("{year:int}/posts/{id:guid}/months/{month:int}/copy-forward")]
     [ProducesResponseType<AnnualBudgetPostItem>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AnnualBudgetPostItem>> CopyMonthlyAmountForward(
+        int year,
         Guid id,
         int month,
         CancellationToken cancellationToken)
     {
         try
         {
-            var post = await annualBudgetService.CopyMonthlyAmountForwardAsync(id, month, cancellationToken);
+            var post = await annualBudgetService.CopyMonthlyAmountForwardAsync(id, year, month, cancellationToken);
             return post is null ? NotFound() : Ok(post);
         }
         catch (ArgumentOutOfRangeException exception)
@@ -281,18 +279,19 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         }
     }
 
-    [HttpDelete("posts/{id:guid}/months/{month:int}")]
+    [HttpDelete("{year:int}/posts/{id:guid}/months/{month:int}")]
     [ProducesResponseType<AnnualBudgetPostItem>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<AnnualBudgetPostItem>> ClearMonthlyAmount(
+        int year,
         Guid id,
         int month,
         CancellationToken cancellationToken)
     {
         try
         {
-            var post = await annualBudgetService.SetMonthlyAmountAsync(id, month, null, cancellationToken);
+            var post = await annualBudgetService.SetMonthlyAmountAsync(id, year, month, null, cancellationToken);
             return post is null ? NotFound() : Ok(post);
         }
         catch (ArgumentOutOfRangeException exception)

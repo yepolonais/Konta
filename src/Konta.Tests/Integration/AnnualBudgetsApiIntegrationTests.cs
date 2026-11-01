@@ -16,9 +16,9 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var incomeId = await CreatePostAsync(client, 2026, "Salaires", "Income");
-        var expenseId = await CreatePostAsync(client, 2026, "Loyer", "Expense");
-        var savingsId = await CreatePostAsync(client, 2026, "Vacances", "Savings");
+        var incomeId = await CreatePostAsync(client, "Salaires", "Income");
+        var expenseId = await CreatePostAsync(client, "Loyer", "Expense");
+        var savingsId = await CreatePostAsync(client, "Vacances", "Savings");
         await SetMonthlyAmountAsync(client, incomeId, 1, 3000m);
         await SetMonthlyAmountAsync(client, incomeId, 2, 3000m);
         await SetMonthlyAmountAsync(client, expenseId, 1, 900m);
@@ -51,7 +51,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Loisirs", "Expense");
+        var postId = await CreatePostAsync(client, "Loisirs", "Expense");
         await SetMonthlyAmountAsync(client, postId, 3, 150m);
 
         // Act
@@ -73,11 +73,11 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Courses", "Expense");
+        var postId = await CreatePostAsync(client, "Courses", "Expense");
 
         // Act
         using var response = await client.PutAsync(
-            $"/api/annual-budgets/posts/{postId}/months/1",
+            $"/api/annual-budgets/2026/posts/{postId}/months/1",
             JsonContent("""{"amount":-1}"""));
 
         // Assert
@@ -91,7 +91,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Loisirs", "Expense");
+        var postId = await CreatePostAsync(client, "Loisirs", "Expense");
         await SetMonthlyAmountAsync(client, postId, 3, 80m);
 
         // Act
@@ -117,7 +117,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Loyer", "Expense");
+        var postId = await CreatePostAsync(client, "Loyer", "Expense");
         await SetMonthlyAmountAsync(client, postId, 1, 800m);
 
         // Act
@@ -146,16 +146,16 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var rentId = await CreatePostAsync(client, 2026, "Loyer", "Expense", "Fixed");
-        var internetId = await CreatePostAsync(client, 2026, "Internet", "Expense", "Fixed");
-        var groceriesId = await CreatePostAsync(client, 2026, "Courses", "Expense", "Variable");
+        var rentId = await CreatePostAsync(client, "Loyer", "Expense", "Fixed");
+        var internetId = await CreatePostAsync(client, "Internet", "Expense", "Fixed");
+        var groceriesId = await CreatePostAsync(client, "Courses", "Expense", "Variable");
         await SetMonthlyAmountAsync(client, rentId, 1, 900m);
         await SetMonthlyAmountAsync(client, internetId, 1, 40m);
         await SetMonthlyAmountAsync(client, groceriesId, 1, 300m);
 
         // Act
         using var reorderResponse = await client.PutAsync(
-            "/api/annual-budgets/2026/posts/order",
+            "/api/annual-budgets/posts/order",
             JsonContent(JsonSerializer.Serialize(new
             {
                 type = "Expense",
@@ -192,12 +192,12 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var fixedId = await CreatePostAsync(client, 2026, "Loyer", "Expense", "Fixed");
-        var variableId = await CreatePostAsync(client, 2026, "Courses", "Expense", "Variable");
+        var fixedId = await CreatePostAsync(client, "Loyer", "Expense", "Fixed");
+        var variableId = await CreatePostAsync(client, "Courses", "Expense", "Variable");
 
         // Act
         using var response = await client.PutAsync(
-            "/api/annual-budgets/2026/posts/order",
+            "/api/annual-budgets/posts/order",
             JsonContent(JsonSerializer.Serialize(new
             {
                 type = "Expense",
@@ -216,11 +216,11 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Courses", "Expense");
+        var postId = await CreatePostAsync(client, "Courses", "Expense");
         await SetMonthlyAmountAsync(client, postId, 1, 100m);
 
         // Act
-        using var clearResponse = await client.DeleteAsync($"/api/annual-budgets/posts/{postId}/months/1");
+        using var clearResponse = await client.DeleteAsync($"/api/annual-budgets/2026/posts/{postId}/months/1");
         using var summaryResponse = await client.GetAsync("/api/annual-budgets/2026");
 
         // Assert
@@ -243,7 +243,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         var groceriesId = await CreateCategoryAsync(client, "Alimentation");
         var bakeryId = await CreateCategoryAsync(client, "Boulangerie");
         await CreateCategoryAsync(client, "Loisirs");
-        var postId = await CreatePostAsync(client, 2026, "Courses", "Expense");
+        var postId = await CreatePostAsync(client, "Courses", "Expense");
         await SetMonthlyAmountAsync(client, postId, 9, 500m);
         using var mappingResponse = await client.PutAsync(
             $"/api/annual-budgets/posts/{postId}/categories",
@@ -280,8 +280,8 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
         var categoryId = await CreateCategoryAsync(client, "Courses");
-        var firstPostId = await CreatePostAsync(client, 2026, "Alimentation", "Expense");
-        var secondPostId = await CreatePostAsync(client, 2026, "Repas", "Expense");
+        var firstPostId = await CreatePostAsync(client, "Alimentation", "Expense");
+        var secondPostId = await CreatePostAsync(client, "Repas", "Expense");
         using var firstMapping = await client.PutAsync(
             $"/api/annual-budgets/posts/{firstPostId}/categories",
             JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
@@ -304,8 +304,8 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
         var categoryId = await CreateCategoryAsync(client, "Courses");
-        var deletedPostId = await CreatePostAsync(client, 2026, "Anciennes courses", "Expense");
-        var activePostId = await CreatePostAsync(client, 2026, "Courses", "Expense");
+        var deletedPostId = await CreatePostAsync(client, "Anciennes courses", "Expense");
+        var activePostId = await CreatePostAsync(client, "Courses", "Expense");
         using var initialMapping = await client.PutAsync(
             $"/api/annual-budgets/posts/{deletedPostId}/categories",
             JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
@@ -323,6 +323,29 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
+    public async Task DeletePost_KeepsItsCategories()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var categoryId = await CreateCategoryAsync(client, "Courses");
+        var postId = await CreatePostAsync(client, "Alimentation", "Expense");
+        using var mapping = await client.PutAsync(
+            $"/api/annual-budgets/posts/{postId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
+        mapping.EnsureSuccessStatusCode();
+
+        // Act
+        using var deleteResponse = await client.DeleteAsync($"/api/annual-budgets/posts/{postId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        using var categories = JsonDocument.Parse(await client.GetStringAsync("/api/categories"));
+        Assert.Contains(categories.RootElement.EnumerateArray(), item => item.GetProperty("id").GetGuid() == categoryId);
+    }
+
+    [Fact]
     public async Task GetMonth_CountsMappedCategoryAsSavings_WithoutAddingItToExpenses()
     {
         // Arrange
@@ -331,7 +354,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var client = factory.CreateClient();
         await CreateAccountAsync(client, "Compte courant", "annual-savings-test");
         var savingsCategoryId = await CreateCategoryAsync(client, "Epargne vacances");
-        var postId = await CreatePostAsync(client, 2026, "Vacances", "Savings");
+        var postId = await CreatePostAsync(client, "Vacances", "Savings");
         await SetMonthlyAmountAsync(client, postId, 9, 200m);
         using var mappingResponse = await client.PutAsync(
             $"/api/annual-budgets/posts/{postId}/categories",
@@ -363,13 +386,13 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Loyer", "Expense");
+        var postId = await CreatePostAsync(client, "Loyer", "Expense");
         await SetMonthlyAmountAsync(client, postId, 1, 700m);
         await SetMonthlyAmountAsync(client, postId, 3, 900m);
 
         // Act
         using var response = await client.PostAsync(
-            $"/api/annual-budgets/posts/{postId}/months/3/copy-forward",
+            $"/api/annual-budgets/2026/posts/{postId}/months/3/copy-forward",
             content: null);
 
         // Assert
@@ -391,11 +414,11 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Loyer", "Expense");
+        var postId = await CreatePostAsync(client, "Loyer", "Expense");
 
         // Act
         using var response = await client.PostAsync(
-            $"/api/annual-budgets/posts/{postId}/months/2/copy-forward",
+            $"/api/annual-budgets/2026/posts/{postId}/months/2/copy-forward",
             content: null);
 
         // Assert
@@ -413,9 +436,9 @@ public sealed class AnnualBudgetsApiIntegrationTests
         var savingsCategoryId = await CreateCategoryAsync(client, "Epargne vacances");
         await CreateCategoryAsync(client, "Salaire");
         await CreateCategoryAsync(client, "Alimentation");
-        var incomeId = await CreatePostAsync(client, 2026, "Salaires", "Income");
-        var expenseId = await CreatePostAsync(client, 2026, "Courses", "Expense", "Variable");
-        var savingsId = await CreatePostAsync(client, 2026, "Vacances", "Savings");
+        var incomeId = await CreatePostAsync(client, "Salaires", "Income");
+        var expenseId = await CreatePostAsync(client, "Courses", "Expense", "Variable");
+        var savingsId = await CreatePostAsync(client, "Vacances", "Savings");
         await SetMonthlyAmountAsync(client, incomeId, 9, 2000m);
         await SetMonthlyAmountAsync(client, expenseId, 9, 500m);
         await SetMonthlyAmountAsync(client, savingsId, 9, 200m);
@@ -446,12 +469,10 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var priorIncomeId = await CreatePostAsync(client, 2025, "Salaires", "Income");
-        var priorExpenseId = await CreatePostAsync(client, 2025, "Dépenses", "Expense");
-        var incomeId = await CreatePostAsync(client, 2026, "Salaires", "Income");
-        var expenseId = await CreatePostAsync(client, 2026, "Dépenses", "Expense");
-        await SetMonthlyAmountAsync(client, priorIncomeId, 12, 1000m);
-        await SetMonthlyAmountAsync(client, priorExpenseId, 12, 1200m);
+        var incomeId = await CreatePostAsync(client, "Salaires", "Income");
+        var expenseId = await CreatePostAsync(client, "Dépenses", "Expense");
+        await SetMonthlyAmountAsync(client, incomeId, 12, 1000m, 2025);
+        await SetMonthlyAmountAsync(client, expenseId, 12, 1200m, 2025);
         await SetMonthlyAmountAsync(client, incomeId, 1, 1000m);
         await SetMonthlyAmountAsync(client, expenseId, 1, 700m);
         await SetMonthlyAmountAsync(client, incomeId, 2, 100m);
@@ -505,7 +526,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var client = factory.CreateClient();
         await CreateAccountAsync(client, "Compte courant", "annual-overrun-test");
         var groceriesId = await CreateCategoryAsync(client, "Alimentation");
-        var postId = await CreatePostAsync(client, 2026, "Courses", "Expense", "Variable");
+        var postId = await CreatePostAsync(client, "Courses", "Expense", "Variable");
         await SetMonthlyAmountAsync(client, postId, 9, 100m);
         using var mappingResponse = await client.PutAsync(
             $"/api/annual-budgets/posts/{postId}/categories",
@@ -535,7 +556,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Courses", "Expense", "Variable");
+        var postId = await CreatePostAsync(client, "Courses", "Expense", "Variable");
         await SetMonthlyAmountAsync(client, postId, 9, 100m);
 
         // Act
@@ -557,7 +578,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
-        var postId = await CreatePostAsync(client, 2026, "Courses", "Expense", "Variable");
+        var postId = await CreatePostAsync(client, "Courses", "Expense", "Variable");
         for (var month = 1; month <= 12; month++)
         {
             await SetMonthlyAmountAsync(client, postId, month, 400m);
@@ -566,7 +587,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         // Act
         await SetMonthlyAmountAsync(client, postId, 6, 450m);
         using var copyResponse = await client.PostAsync(
-            $"/api/annual-budgets/posts/{postId}/months/6/copy-forward",
+            $"/api/annual-budgets/2026/posts/{postId}/months/6/copy-forward",
             content: null);
         using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
 
@@ -594,8 +615,8 @@ public sealed class AnnualBudgetsApiIntegrationTests
         await CreateAccountAsync(client, "Compte courant", "annual-journey-test");
         var groceriesId = await CreateCategoryAsync(client, "Alimentation");
         await CreateCategoryAsync(client, "Salaire");
-        var salaryId = await CreatePostAsync(client, 2026, "Salaires", "Income");
-        var groceriesPostId = await CreatePostAsync(client, 2026, "Courses", "Expense", "Variable");
+        var salaryId = await CreatePostAsync(client, "Salaires", "Income");
+        var groceriesPostId = await CreatePostAsync(client, "Courses", "Expense", "Variable");
         for (var month = 1; month <= 12; month++)
         {
             await SetMonthlyAmountAsync(client, salaryId, month, 2000m);
@@ -615,7 +636,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var marchResponse = await client.GetAsync("/api/annual-budgets/2026/months/3");
         await SetMonthlyAmountAsync(client, groceriesPostId, 4, 320m);
         using var copyResponse = await client.PostAsync(
-            $"/api/annual-budgets/posts/{groceriesPostId}/months/4/copy-forward",
+            $"/api/annual-budgets/2026/posts/{groceriesPostId}/months/4/copy-forward",
             content: null);
         using var yearResponse = await client.GetAsync("/api/annual-budgets/2026");
         using var marchAfterResponse = await client.GetAsync("/api/annual-budgets/2026/months/3");
@@ -690,13 +711,12 @@ public sealed class AnnualBudgetsApiIntegrationTests
 
     private static async Task<Guid> CreatePostAsync(
         HttpClient client,
-        int year,
         string name,
         string type,
         string? expenseKind = null)
     {
         using var response = await client.PostAsync(
-            $"/api/annual-budgets/{year}/posts",
+            "/api/annual-budgets/posts",
             JsonContent(JsonSerializer.Serialize(new { name, type, expenseKind })));
         response.EnsureSuccessStatusCode();
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -707,10 +727,11 @@ public sealed class AnnualBudgetsApiIntegrationTests
         HttpClient client,
         Guid postId,
         int month,
-        decimal amount)
+        decimal amount,
+        int year = 2026)
     {
         using var response = await client.PutAsync(
-            $"/api/annual-budgets/posts/{postId}/months/{month}",
+            $"/api/annual-budgets/{year}/posts/{postId}/months/{month}",
             JsonContent(JsonSerializer.Serialize(new { amount })));
         response.EnsureSuccessStatusCode();
     }

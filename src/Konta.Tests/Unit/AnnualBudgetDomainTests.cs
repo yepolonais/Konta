@@ -9,11 +9,10 @@ public sealed class AnnualBudgetDomainTests
     public void Post_TrimsName_AndStartsActive()
     {
         // Act
-        var post = new AnnualBudgetPost(2026, "  Courses  ", AnnualBudgetPostType.Expense);
+        var post = new AnnualBudgetPost("  Courses  ", AnnualBudgetPostType.Expense);
 
         // Assert
         Assert.Equal("Courses", post.Name);
-        Assert.Equal(2026, post.Year);
         Assert.Equal(AnnualBudgetPostType.Expense, post.Type);
         Assert.Equal(AnnualBudgetExpenseKind.Variable, post.ExpenseKind);
         Assert.True(post.IsActive);
@@ -23,7 +22,7 @@ public sealed class AnnualBudgetDomainTests
     public void Post_ChangesExpenseKind_WithoutChangingPostType()
     {
         // Arrange
-        var post = new AnnualBudgetPost(2026, "Loyer", AnnualBudgetPostType.Expense);
+        var post = new AnnualBudgetPost("Loyer", AnnualBudgetPostType.Expense);
 
         // Act
         post.Update("Loyer", AnnualBudgetPostType.Expense, AnnualBudgetExpenseKind.Fixed);
@@ -37,10 +36,11 @@ public sealed class AnnualBudgetDomainTests
     public void MonthlyAmount_AllowsExplicitZero()
     {
         // Act
-        var amount = new BudgetMonthlyAmount(Guid.NewGuid(), 1, 0m);
+        var amount = new BudgetMonthlyAmount(Guid.NewGuid(), 2026, 1, 0m);
 
         // Assert
         Assert.Equal(0m, amount.Amount);
+        Assert.Equal(2026, amount.Year);
         Assert.Equal(1, amount.Month);
     }
 
@@ -49,7 +49,7 @@ public sealed class AnnualBudgetDomainTests
     {
         // Act
         var exception = Assert.Throws<ArgumentOutOfRangeException>(
-            () => new BudgetMonthlyAmount(Guid.NewGuid(), 1, -1m));
+            () => new BudgetMonthlyAmount(Guid.NewGuid(), 2026, 1, -1m));
 
         // Assert
         Assert.Equal("amount", exception.ParamName);

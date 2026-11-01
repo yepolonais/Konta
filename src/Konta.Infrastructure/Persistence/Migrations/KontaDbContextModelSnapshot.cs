@@ -106,12 +106,9 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("Year")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("Year", "Name")
+                    b.HasIndex("Name")
                         .IsUnique();
 
                     b.ToTable("AnnualBudgetPosts");
@@ -133,9 +130,12 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.Property<int>("Month")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Year")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("AnnualBudgetPostId", "Month")
+                    b.HasIndex("AnnualBudgetPostId", "Year", "Month")
                         .IsUnique();
 
                     b.ToTable("BudgetMonthlyAmounts");
@@ -153,16 +153,11 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("Year")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AnnualBudgetPostId");
 
-                    b.HasIndex("CategoryId");
-
-                    b.HasIndex("Year", "CategoryId")
+                    b.HasIndex("CategoryId")
                         .IsUnique();
 
                     b.ToTable("BudgetPostCategoryMappings");

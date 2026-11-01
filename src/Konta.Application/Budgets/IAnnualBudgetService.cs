@@ -7,7 +7,6 @@ public interface IAnnualBudgetService
     Task<AnnualBudgetSummary> GetAsync(int year, CancellationToken cancellationToken);
     Task<AnnualBudgetMonthSummary> GetMonthAsync(int year, int month, CancellationToken cancellationToken);
     Task<AnnualBudgetPostItem> CreatePostAsync(
-        int year,
         string name,
         AnnualBudgetPostType type,
         AnnualBudgetExpenseKind? expenseKind,
@@ -19,7 +18,6 @@ public interface IAnnualBudgetService
         AnnualBudgetExpenseKind? expenseKind,
         CancellationToken cancellationToken);
     Task ReorderPostsAsync(
-        int year,
         AnnualBudgetPostType type,
         AnnualBudgetExpenseKind? expenseKind,
         IReadOnlyList<Guid> postIds,
@@ -27,11 +25,13 @@ public interface IAnnualBudgetService
     Task<bool> DeletePostAsync(Guid id, CancellationToken cancellationToken);
     Task<AnnualBudgetPostItem?> SetMonthlyAmountAsync(
         Guid id,
+        int year,
         int month,
         decimal? amount,
         CancellationToken cancellationToken);
     Task<AnnualBudgetPostItem?> CopyMonthlyAmountForwardAsync(
         Guid id,
+        int year,
         int month,
         CancellationToken cancellationToken);
     Task<AnnualBudgetPostItem?> SetCategoryMappingsAsync(

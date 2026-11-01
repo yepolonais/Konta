@@ -6,27 +6,16 @@ namespace Konta.Infrastructure.Persistence;
 
 public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBudgetRepository
 {
-    public async Task<IReadOnlyList<AnnualBudgetPost>> ListPostsAsync(
-        int year,
-        CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<AnnualBudgetPost>> ListPostsAsync(CancellationToken cancellationToken) =>
         await dbContext.AnnualBudgetPosts
+            .AsNoTracking()
             .Include(post => post.MonthlyAmounts)
             .Include(post => post.CategoryMappings)
                 .ThenInclude(mapping => mapping.Category)
-            .Where(post => post.Year == year)
             .OrderBy(post => post.Type)
             .ThenBy(post => post.ExpenseKind)
             .ThenBy(post => post.SortOrder)
             .ThenBy(post => post.Name)
-            .ToArrayAsync(cancellationToken);
-
-    public async Task<IReadOnlyList<AnnualBudgetPost>> ListPostsBeforeYearAsync(
-        int year,
-        CancellationToken cancellationToken) =>
-        await dbContext.AnnualBudgetPosts
-            .AsNoTracking()
-            .Include(post => post.MonthlyAmounts)
-            .Where(post => post.Year < year)
             .ToArrayAsync(cancellationToken);
 
     public Task<AnnualBudgetPost?> GetPostAsync(Guid id, CancellationToken cancellationToken) =>
@@ -35,21 +24,6 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
             .Include(post => post.CategoryMappings)
                 .ThenInclude(mapping => mapping.Category)
             .FirstOrDefaultAsync(post => post.Id == id, cancellationToken);
-
-    public async Task<IReadOnlyList<AnnualBudgetPost>> ListPostsForYearAsync(
-        int year,
-        CancellationToken cancellationToken) =>
-        await dbContext.AnnualBudgetPosts
-            .AsNoTracking()
-            .Include(post => post.MonthlyAmounts)
-            .Include(post => post.CategoryMappings)
-                .ThenInclude(mapping => mapping.Category)
-            .Where(post => post.Year == year)
-            .OrderBy(post => post.Type)
-            .ThenBy(post => post.ExpenseKind)
-            .ThenBy(post => post.SortOrder)
-            .ThenBy(post => post.Name)
-            .ToArrayAsync(cancellationToken);
 
     public async Task SetPostOrderAsync(
         IReadOnlyList<Guid> postIds,
@@ -73,13 +47,11 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
     }
 
     public Task<bool> ExistsByNameAsync(
-        int year,
         string name,
         Guid? excludedId,
         CancellationToken cancellationToken) =>
         dbContext.AnnualBudgetPosts.AnyAsync(
-            post => post.Year == year
-                && post.Name.ToLower() == name.ToLower()
+            post => post.Name.ToLower() == name.ToLower()
                 && (!excludedId.HasValue || post.Id != excludedId.Value),
             cancellationToken);
 
@@ -103,6 +75,7 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
 
     public async Task SetMonthlyAmountAsync(
         Guid postId,
+        int year,
         int month,
         decimal? amount,
         CancellationToken cancellationToken)
@@ -113,7 +86,7 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
             return;
         }
 
-        var existing = post.MonthlyAmounts.SingleOrDefault(item => item.Month == month);
+        var existing = post.MonthlyAmounts.SingleOrDefault(item => item.Year == year && item.Month == month);
 
         if (amount is null)
         {
@@ -129,7 +102,7 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
 
         if (existing is null)
         {
-            var monthlyAmount = new BudgetMonthlyAmount(postId, month, amount.Value);
+            var monthlyAmount = new BudgetMonthlyAmount(postId, year, month, amount.Value);
             post.MonthlyAmounts.Add(monthlyAmount);
             dbContext.BudgetMonthlyAmounts.Add(monthlyAmount);
         }
@@ -165,7 +138,7 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
             .ToHashSet();
         foreach (var categoryId in categoryIds.Where(id => !existingCategoryIds.Contains(id)))
         {
-            post.CategoryMappings.Add(new BudgetPostCategoryMapping(postId, post.Year, categoryId));
+            post.CategoryMappings.Add(new BudgetPostCategoryMapping(postId, categoryId));
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

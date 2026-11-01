@@ -7,19 +7,16 @@ public sealed class AnnualBudgetPost
     }
 
     public AnnualBudgetPost(
-        int year,
         string name,
         AnnualBudgetPostType type,
         AnnualBudgetExpenseKind? expenseKind = null,
         int sortOrder = 0)
     {
-        ValidateYear(year);
         ValidateName(name);
         ValidateType(type);
         ValidateExpenseKind(type, expenseKind);
 
         Id = Guid.NewGuid();
-        Year = year;
         Name = name.Trim();
         Type = type;
         ExpenseKind = type == AnnualBudgetPostType.Expense
@@ -30,7 +27,6 @@ public sealed class AnnualBudgetPost
     }
 
     public Guid Id { get; private set; }
-    public int Year { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public AnnualBudgetPostType Type { get; private set; }
     public AnnualBudgetExpenseKind? ExpenseKind { get; private set; }
@@ -65,14 +61,6 @@ public sealed class AnnualBudgetPost
     public void SetActive(bool isActive) => IsActive = isActive;
 
     public void SetSortOrder(int sortOrder) => SortOrder = ValidateSortOrder(sortOrder);
-
-    private static void ValidateYear(int year)
-    {
-        if (year is < 1 or > 9998)
-        {
-            throw new ArgumentOutOfRangeException(nameof(year), "L'année doit être comprise entre 1 et 9998.");
-        }
-    }
 
     private static void ValidateName(string name)
     {

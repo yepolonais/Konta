@@ -568,7 +568,7 @@ class KontaApp extends HTMLElement {
       input.dataset.monthAmount = "";
       input.dataset.month = month;
       input.setAttribute("aria-label", `${post.name}, ${new Intl.DateTimeFormat("fr-FR", { month: "long" })
-        .format(new Date(post.year, month - 1, 1))}`);
+        .format(new Date(this.annualBudget.year, month - 1, 1))}`);
       cell.append(input);
       if (inlineCopy && post.isActive && month < 12) {
         cell.classList.add("budget-month-editable");
@@ -935,9 +935,8 @@ class KontaApp extends HTMLElement {
     event.preventDefault();
     const nameInput = this.shadowRoot.querySelector("#annual-budget-post-name");
     const type = this.shadowRoot.querySelector("#annual-budget-post-type").value;
-    const year = Number(this.shadowRoot.querySelector("#annual-budget-year").value);
     try {
-      const response = await fetch(`/api/annual-budgets/${year}/posts`, {
+      const response = await fetch(`/api/annual-budgets/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -985,8 +984,8 @@ class KontaApp extends HTMLElement {
       } else if (input.matches("[data-month-amount]")) {
         const month = input.dataset.month;
         response = input.value === ""
-          ? await fetch(`/api/annual-budgets/posts/${post.id}/months/${month}`, { method: "DELETE" })
-          : await fetch(`/api/annual-budgets/posts/${post.id}/months/${month}`, {
+          ? await fetch(`/api/annual-budgets/${this.annualBudget.year}/posts/${post.id}/months/${month}`, { method: "DELETE" })
+          : await fetch(`/api/annual-budgets/${this.annualBudget.year}/posts/${post.id}/months/${month}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ amount: Number(input.value) })
@@ -1054,7 +1053,7 @@ class KontaApp extends HTMLElement {
     if (!button) return;
     const row = button.closest("[data-post-id]");
     const post = this.annualBudget?.posts.find(item => item.id === row?.dataset.postId);
-    if (!post || !window.confirm(`Supprimer « ${post.name} » ? Le poste et tous ses montants seront définitivement supprimés.`)) return;
+    if (!post || !window.confirm(`Supprimer « ${post.name} » ? Attention : le poste sera supprimé pour toutes les années, avec tous ses montants budgétés et ses rapprochements de catégories. Cette action est irréversible.`)) return;
     button.disabled = true;
     try {
       const response = await fetch(`/api/annual-budgets/posts/${post.id}`, { method: "DELETE" });
@@ -1142,7 +1141,7 @@ class KontaApp extends HTMLElement {
     const type = row.dataset.orderType;
     const expenseKind = row.dataset.orderExpenseKind || null;
     try {
-      const response = await fetch(`/api/annual-budgets/${this.annualBudget.year}/posts/order`, {
+      const response = await fetch(`/api/annual-budgets/posts/order`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, expenseKind, postIds })
@@ -1183,7 +1182,7 @@ class KontaApp extends HTMLElement {
 
     button.disabled = true;
     try {
-      const base = `/api/annual-budgets/posts/${post.id}/months/${source.dataset.month}`;
+      const base = `/api/annual-budgets/${this.annualBudget.year}/posts/${post.id}/months/${source.dataset.month}`;
       const saved = await fetch(base, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1195,7 +1194,7 @@ class KontaApp extends HTMLElement {
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de recopier le montant.");
       await this.loadAnnualBudget();
       const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" })
-        .format(new Date(post.year, Number(source.dataset.month) - 1, 1));
+        .format(new Date(this.annualBudget.year, Number(source.dataset.month) - 1, 1));
       this.setAnnualBudgetFeedback(`Montant de ${monthName} recopié sur les mois suivants pour « ${post.name} ».`);
     } catch (exception) {
       this.setAnnualBudgetFeedback(exception.message, true);
