@@ -201,6 +201,9 @@ class KontaApp extends HTMLElement {
           <section class="panel preview" id="preview-panel" data-page="import" aria-labelledby="preview-title" hidden>
             <div class="panel-head"><h2 id="preview-title">Aperçu du fichier</h2><span class="count" id="preview-count"></span></div>
             <p class="preview-summary" id="preview-summary"></p>
+            <div class="preview-toolbar">
+              <label class="preview-filter"><input id="hide-duplicates" type="checkbox"> Masquer les doublons détectés</label>
+            </div>
             <div class="table-wrap"><table class="preview-table">
               <thead><tr><th>Date</th><th>Détails</th><th>Compte Konta</th><th>Catégorie / suggestion</th><th style="text-align:right">Montant (€)</th><th>Inclure</th></tr></thead>
               <tbody id="preview-body"></tbody>
@@ -369,6 +372,7 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#preview-body").addEventListener("input", event => {
       if (event.target.matches("[data-amount]")) this.updateReviewAmount(event.target);
     });
+    this.shadowRoot.querySelector("#hide-duplicates").addEventListener("change", () => this.updatePreviewVisibility());
 
     const year = this.shadowRoot.querySelector("#summary-year");
     year.value = new Date().getFullYear();
@@ -1526,17 +1530,29 @@ class KontaApp extends HTMLElement {
       name.textContent = category.name;
       const actions = document.createElement("div");
       actions.className = "rule-actions";
-      const edit = document.createElement("button");
-      edit.type = "button";
-      edit.className = "secondary-button";
+      const edit = this.budgetIconButton({
+        label: `Renommer la catégorie ${category.name}`,
+        title: "Renommer",
+        dataAttribute: "editCategory",
+        paths: ["M12 20h9", "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"]
+      });
       edit.dataset.editCategory = category.id;
-      edit.textContent = "Renommer";
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "secondary-button danger-button";
+      const remove = this.budgetIconButton({
+        label: `Désactiver la catégorie ${category.name}`,
+        title: "Désactiver",
+        dataAttribute: "deleteCategory",
+        paths: ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M5.6 5.6l12.8 12.8"]
+      });
       remove.dataset.deleteCategory = category.id;
-      remove.textContent = "Désactiver";
-      actions.append(edit, remove);
+      remove.classList.add("danger-button");
+      const add = this.budgetIconButton({
+        label: `Ajouter une règle à la catégorie ${category.name}`,
+        title: "Ajouter une règle",
+        dataAttribute: "addRuleToCategory",
+        paths: ["M12 5v14", "M5 12h14"]
+      });
+      add.dataset.addRuleToCategory = category.id;
+      actions.append(edit, remove, add);
       row.append(name, actions);
       group.append(row);
       const rules = this.categoryRules.filter(rule => rule.categoryId === category.id);
@@ -1647,6 +1663,16 @@ class KontaApp extends HTMLElement {
   }
 
   async handleRuleAction(event) {
+    const addButton = event.target.closest("[data-add-rule-to-category]");
+    if (addButton) {
+      this.resetRuleForm();
+      this.shadowRoot.querySelector("#rule-category").value = addButton.dataset.addRuleToCategory;
+      const pattern = this.shadowRoot.querySelector("#rule-pattern");
+      this.shadowRoot.querySelector("#category-rule-form").scrollIntoView({ block: "center" });
+      pattern.focus();
+      return;
+    }
+
     const editButton = event.target.closest("[data-edit-rule]");
     if (editButton) {
       const rule = this.categoryRules.find(item => item.id === editButton.dataset.editRule);
@@ -1927,7 +1953,7 @@ class KontaApp extends HTMLElement {
     body.replaceChildren();
     for (const transaction of preview.transactions) body.append(this.previewRow(transaction));
 
-    this.shadowRoot.querySelector("#preview-count").textContent = `${preview.transactions.length} ligne${preview.transactions.length === 1 ? "" : "s"} valide${preview.transactions.length === 1 ? "" : "s"}`;
+    this.updatePreviewVisibility();
     const duplicateCount = preview.transactions.filter(transaction => transaction.isDuplicate).length;
     this.shadowRoot.querySelector("#preview-summary").textContent = `${preview.errors.length} erreur${preview.errors.length === 1 ? "" : "s"} · ${duplicateCount} doublon${duplicateCount === 1 ? "" : "s"} détecté${duplicateCount === 1 ? "" : "s"}. Vous pouvez exclure une ligne ou corriger sa catégorie et son montant avant l'import.`;
     this.renderAccountSetup(preview.unmappedAccounts);
@@ -1949,6 +1975,23 @@ class KontaApp extends HTMLElement {
     }
     panel.hidden = false;
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  updatePreviewVisibility() {
+    const hideDuplicates = this.shadowRoot.querySelector("#hide-duplicates").checked;
+    const rows = [...this.shadowRoot.querySelectorAll("#preview-body tr")];
+    let visibleCount = 0;
+    for (const row of rows) {
+      row.hidden = hideDuplicates && row.classList.contains("duplicate-row");
+      if (!row.hidden) visibleCount++;
+    }
+
+    const total = rows.length;
+    const totalLabel = `${total} ligne${total === 1 ? "" : "s"} valide${total === 1 ? "" : "s"}`;
+    const visibleLabel = `${visibleCount} ligne${visibleCount === 1 ? "" : "s"} affichée${visibleCount === 1 ? "" : "s"}`;
+    this.shadowRoot.querySelector("#preview-count").textContent = hideDuplicates
+      ? `${visibleLabel} sur ${totalLabel}`
+      : totalLabel;
   }
 
   renderAccountSetup(accounts) {
