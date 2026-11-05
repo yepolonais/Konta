@@ -50,6 +50,17 @@ public sealed class Transaction
         UpdatedAt = CreatedAt;
     }
 
+    public void ChangeCategory(Guid categoryId)
+    {
+        if (categoryId == Guid.Empty)
+        {
+            throw new ArgumentException("A category is required.", nameof(categoryId));
+        }
+
+        CategoryId = categoryId;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public Guid Id { get; private set; }
     public DateOnly Date { get; private set; }
     public string Label { get; private set; } = string.Empty;

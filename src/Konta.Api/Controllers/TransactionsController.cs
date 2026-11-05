@@ -16,6 +16,32 @@ public sealed class TransactionsController(ITransactionQueryService transactionQ
         return Ok(transactions);
     }
 
+    /// <summary>Changes the category of a saved transaction.</summary>
+    [HttpPut("{id:guid}/category")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ChangeCategory(
+        Guid id,
+        ChangeTransactionCategoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var changed = await transactionQueryService.ChangeCategoryAsync(id, request.CategoryId, cancellationToken);
+            return changed ? NoContent() : NotFound();
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Catégorie invalide",
+                Detail = exception.Message,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+    }
+
     /// <summary>Returns income, expenses, and their transactions for a month or year.</summary>
     [HttpGet("summary")]
     [ProducesResponseType<TransactionPeriodSummary>(StatusCodes.Status200OK)]
@@ -46,4 +72,9 @@ public sealed class TransactionsController(ITransactionQueryService transactionQ
             });
         }
     }
+}
+
+public sealed record ChangeTransactionCategoryRequest
+{
+    public Guid CategoryId { get; init; }
 }

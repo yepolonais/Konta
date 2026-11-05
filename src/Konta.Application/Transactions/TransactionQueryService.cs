@@ -1,9 +1,34 @@
+using Konta.Application.Categories;
 using Konta.Domain.Transactions;
 
 namespace Konta.Application.Transactions;
 
-public sealed class TransactionQueryService(ITransactionRepository repository) : ITransactionQueryService
+public sealed class TransactionQueryService(
+    ITransactionRepository repository,
+    ICategoryRepository categoryRepository) : ITransactionQueryService
 {
+    public async Task<bool> ChangeCategoryAsync(
+        Guid transactionId,
+        Guid categoryId,
+        CancellationToken cancellationToken)
+    {
+        var transaction = await repository.GetAsync(transactionId, cancellationToken);
+        if (transaction is null)
+        {
+            return false;
+        }
+
+        var category = await categoryRepository.GetAsync(categoryId, cancellationToken);
+        if (category is null || !category.IsActive)
+        {
+            throw new ArgumentException("La catégorie choisie n'existe pas ou est désactivée.", nameof(categoryId));
+        }
+
+        transaction.ChangeCategory(categoryId);
+        await repository.UpdateAsync(transaction, cancellationToken);
+        return true;
+    }
+
     public Task<IReadOnlyList<TransactionListItem>> ListAsync(CancellationToken cancellationToken) =>
         repository.ListAsync(cancellationToken);
 

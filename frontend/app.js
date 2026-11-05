@@ -81,10 +81,10 @@ class KontaApp extends HTMLElement {
           <nav class="nav" aria-label="Navigation principale">
             <a class="nav-plan" href="#budget" aria-current="page"><span class="nav-plan-kicker">Prévisionnel</span>Budget</a>
             <span class="nav-separator" aria-hidden="true"></span>
-            <a href="#monthly">Suivi mensuel</a>
+            <a href="#monthly">Prévu vs réalisé</a>
             <a href="#summary">Synthèses</a>
             <a href="#mapping">Rapprochement<span class="nav-badge" id="mapping-badge" hidden></span></a>
-            <a href="#category-rules">Règles</a>
+            <a href="#category-rules">Catégorisation</a>
             <a href="#import">Import CSV</a>
             <button class="theme-toggle" type="button" aria-label="Activer le mode sombre" aria-pressed="false">
               <span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Sombre</span>
@@ -131,20 +131,27 @@ class KontaApp extends HTMLElement {
           <section class="panel budget-monthly-panel" id="monthly" data-page="monthly" aria-labelledby="budget-monthly-title" hidden>
             <section class="budget-monthly-review" aria-labelledby="budget-monthly-title">
               <div class="budget-monthly-heading">
-                <div><span class="section-kicker">Suivi mensuel</span><h3 id="budget-monthly-title">Prévu et réalisé</h3></div>
+                <div><span class="section-kicker">Comparatif mensuel</span><div class="rules-title-group"><h3 id="budget-monthly-title">Prévu et réalisé</h3>
+                  <span class="info-tip">
+                    <button type="button" class="info-tip-button" aria-label="À propos du calcul du réalisé" aria-describedby="monthly-info"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg></button>
+                    <span class="info-tip-bubble" id="monthly-info" role="tooltip">Les virements entre vos comptes ne sont comptés ni dans les revenus ni dans les dépenses. Le réalisé d’une enveloppe d’épargne correspond aux versements sortants des catégories rattachées.</span>
+                  </span></div></div>
                 <div class="budget-monthly-filters">
                   <div class="budget-year-label" role="group" aria-label="Année du suivi">
                     <button type="button" class="secondary-button" id="monthly-review-year-prev" aria-label="Année précédente">‹</button>
                     <input id="monthly-review-year" type="number" min="1" max="9998" aria-label="Année du suivi" required>
                     <button type="button" class="secondary-button" id="monthly-review-year-next" aria-label="Année suivante">›</button>
                   </div>
-                  <label class="budget-month-label">Mois<select id="monthly-review-month"></select></label>
+                  <div class="budget-year-label" role="group" aria-label="Mois du suivi">
+                    <button type="button" class="secondary-button" id="monthly-review-month-prev" aria-label="Mois précédent">‹</button>
+                    <select id="monthly-review-month" aria-label="Mois"></select>
+                    <button type="button" class="secondary-button" id="monthly-review-month-next" aria-label="Mois suivant">›</button>
+                  </div>
                 </div>
                 <p id="budget-monthly-period"></p>
               </div>
               <div class="budget-monthly-totals" id="budget-monthly-totals"></div>
               <p class="feedback error" id="budget-month-feedback" role="status" aria-live="polite" hidden></p>
-              <p class="budget-savings-note">Les virements entre vos comptes ne sont comptés ni dans les revenus ni dans les dépenses. Le réalisé d’une enveloppe d’épargne correspond aux versements sortants des catégories rattachées.</p>
               <div class="table-wrap">
                 <table class="budget-monthly-table">
                   <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th>Écart réalisé − prévu</th></tr></thead>
@@ -173,7 +180,6 @@ class KontaApp extends HTMLElement {
                 <thead><tr><th data-sort-key="name" aria-sort="none"><button type="button" class="text-button sort-button" data-sort="name" title="Trier par catégorie">Catégorie <span class="sort-caret" aria-hidden="true">⇅</span></button></th><th>Revenus</th><th>Dépenses</th><th data-sort-key="net" aria-sort="none"><button type="button" class="text-button sort-button" data-sort="net" title="Trier par solde net">Solde net <span class="sort-caret" aria-hidden="true">⇅</span></button></th><th></th></tr></thead>
                 <tbody id="summary-categories"></tbody>
               </table></div>
-              <section class="summary-details" id="summary-details" aria-live="polite" hidden></section>
             </div>
           </section>
           <div class="content-grid">
@@ -233,8 +239,16 @@ class KontaApp extends HTMLElement {
             <div class="mapping-posts" id="mapping-posts"></div>
           </section>
           <section class="panel rules-panel" id="category-rules" data-page="category-rules" aria-labelledby="rules-title">
-            <div class="panel-head"><h2 id="rules-title">Règles de catégorisation</h2><span class="count" id="rules-count"></span></div>
-            <p class="rules-intro">Une règle associe une catégorie à une clé extraite du détail de l’opération (commerçant d’un paiement carte, émetteur d’un virement ou d’un prélèvement…). Une règle limitée à un type est prioritaire, puis le motif le plus long.</p>
+            <div class="panel-head">
+              <div class="rules-title-group">
+                <h2 id="rules-title">Associations motif → catégorie</h2>
+                <span class="info-tip">
+                  <button type="button" class="info-tip-button" aria-label="À propos des associations" aria-describedby="rules-info"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg></button>
+                  <span class="info-tip-bubble" id="rules-info" role="tooltip">Une association dirige automatiquement vers une catégorie les opérations dont le détail contient un motif (commerçant d’un paiement carte, émetteur d’un virement ou d’un prélèvement…). Une association limitée à un type d’opération est prioritaire, puis le motif le plus long.</span>
+                </span>
+              </div>
+              <span class="count" id="rules-count"></span>
+            </div>
             <form class="rule-form" id="category-rule-form">
               <label>Motif à rechercher<input id="rule-pattern" name="pattern" maxlength="200" required></label>
               <label>Type d’opération<select id="rule-operation-type" name="operationType">
@@ -242,7 +256,7 @@ class KontaApp extends HTMLElement {
                 ${Object.entries(OPERATION_TYPES).map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}
               </select></label>
               <label>Catégorie<select id="rule-category" name="categoryId" required></select></label>
-              <div class="rule-form-actions"><button id="rule-submit" type="submit">Créer la règle</button><button id="rule-cancel" type="button" class="secondary-button" hidden>Annuler</button></div>
+              <div class="rule-form-actions"><button id="rule-submit" type="submit">Associer</button><button id="rule-cancel" type="button" class="secondary-button" hidden>Annuler</button></div>
             </form>
             <form class="category-form" id="category-form">
               <label>Nouvelle catégorie<input id="new-category-name" maxlength="100" required></label>
@@ -314,6 +328,23 @@ class KontaApp extends HTMLElement {
     monthlyYearInput.addEventListener("change", () => changeMonthlyYear(Number(monthlyYearInput.value)));
     for (const [selector, step] of [["#monthly-review-year-prev", -1], ["#monthly-review-year-next", 1]]) {
       this.shadowRoot.querySelector(selector).addEventListener("click", () => changeMonthlyYear(this.selectedMonthlyYear + step));
+    }
+    for (const [selector, step] of [["#monthly-review-month-prev", -1], ["#monthly-review-month-next", 1]]) {
+      this.shadowRoot.querySelector(selector).addEventListener("click", () => {
+        let month = this.selectedBudgetMonth + step;
+        let targetYear = this.selectedMonthlyYear;
+        if (month < 1) { month = 12; targetYear--; }
+        if (month > 12) { month = 1; targetYear++; }
+        if (targetYear < 1 || targetYear > 9998) return;
+        this.selectedBudgetMonth = month;
+        this.shadowRoot.querySelector("#monthly-review-month").value = String(month);
+        if (targetYear !== this.selectedMonthlyYear) {
+          changeMonthlyYear(targetYear);
+        } else {
+          this.renderAnnualBudget();
+          this.loadAnnualBudgetMonth();
+        }
+      });
     }
     this.shadowRoot.querySelector("#budget-monthly-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
@@ -395,12 +426,12 @@ class KontaApp extends HTMLElement {
   showPage(page) {
     const pages = {
       budget: ["Budget", "Planifiez les revenus, dépenses et montants mis de côté sur l’année."],
-      monthly: ["Suivi mensuel", "Comparez le prévu et le réalisé du mois, et rattachez vos catégories réelles aux postes."],
+      monthly: ["Prévu vs réalisé", "Comparez le prévu et le réalisé du mois."],
       transactions: ["Opérations", "Consultez les mouvements enregistrés sur vos comptes."],
       summary: ["Synthèses", "Comparez les revenus et les dépenses par mois ou par année."],
       import: ["Import CSV", "Prévisualisez, vérifiez et confirmez l’import de vos relevés."],
       mapping: ["Rapprochement", "Rattachez les catégories réelles aux postes budgétaires."],
-      "category-rules": ["Règles", "Gérez vos catégories et les règles de catégorisation automatique."]
+      "category-rules": ["Catégorisation", "Gérez vos catégories et associez-leur des motifs pour classer automatiquement les opérations."]
     };
     if (!Object.hasOwn(pages, page)) page = "budget";
     this.currentPage = page;
@@ -817,6 +848,18 @@ class KontaApp extends HTMLElement {
     return total / 100;
   }
 
+  monthTotalLine(label, value, modifier = "") {
+    const line = document.createElement("div");
+    line.className = `budget-month-line ${modifier}`.trim();
+    const name = document.createElement("span");
+    name.textContent = label;
+    const amount = document.createElement("span");
+    amount.className = "budget-month-line-amount";
+    amount.textContent = value;
+    line.append(name, amount);
+    return line;
+  }
+
   renderAnnualBudgetMonth() {
     if (!this.annualBudgetMonth) return;
     const summary = this.annualBudgetMonth;
@@ -835,11 +878,15 @@ class KontaApp extends HTMLElement {
       card.className = `budget-month-total ${style}`;
       const title = document.createElement("strong");
       title.textContent = label;
-      const amounts = document.createElement("span");
-      amounts.textContent = actual === null
-        ? `Prévu ${this.formatCurrency(planned)}`
-        : `Prévu ${this.formatCurrency(planned)} · Réalisé ${this.formatCurrency(actual)}`;
-      card.append(title, amounts);
+      card.append(title, this.monthTotalLine("Prévu", this.formatCurrency(planned)));
+      if (actual !== null) {
+        const difference = actual - planned;
+        const sign = difference > 0 ? "+" : difference < 0 ? "−" : "±";
+        card.append(
+          this.monthTotalLine("Réalisé", this.formatCurrency(actual)),
+          this.monthTotalLine("Écart", `${sign} ${this.formatCurrency(Math.abs(difference))}`, "difference")
+        );
+      }
       totals.append(card);
     }
 
@@ -886,10 +933,16 @@ class KontaApp extends HTMLElement {
         if (post.varianceAmount === null) {
           varianceCell.textContent = "—";
         } else {
-          varianceCell.textContent = this.formatSignedCurrency(post.varianceAmount);
+          const varianceValue = document.createElement("span");
+          varianceValue.textContent = this.formatSignedCurrency(post.varianceAmount);
           if ((post.type === "Expense" && post.varianceAmount > 0)
             || (post.type === "Income" && post.varianceAmount < 0)) {
-            varianceCell.className = "budget-variance-negative";
+            varianceValue.className = "budget-variance-negative";
+          }
+          varianceCell.className = "budget-variance-cell";
+          varianceCell.append(varianceValue);
+          if (Math.round(post.varianceAmount * 100) !== 0 && post.actualAmount >= 0) {
+            varianceCell.append(this.alignPlannedButton(post));
           }
         }
         row.append(varianceCell);
@@ -897,6 +950,11 @@ class KontaApp extends HTMLElement {
         body.append(row);
       }
     }
+
+    body.onclick = event => {
+      const button = event.target.closest("[data-align-planned]");
+      if (button) this.alignPlannedWithActual(button);
+    };
 
     const unassigned = this.shadowRoot.querySelector("#budget-unassigned");
     unassigned.replaceChildren();
@@ -913,6 +971,51 @@ class KontaApp extends HTMLElement {
       const help = document.createElement("p");
       help.textContent = "Rattachez leurs catégories au poste correspondant dans la colonne « Catégories réelles » du suivi mensuel pour les inclure dans les comparaisons.";
       unassigned.append(help);
+    }
+  }
+
+  alignPlannedButton(post) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button align-planned-button";
+    button.dataset.alignPlanned = post.id;
+    button.title = "Aligne le poste budgétaire avec le réel pour ce mois-ci";
+    button.setAttribute("aria-label", `Aligner le prévu du poste ${post.name} sur le réalisé (${this.formatCurrency(post.actualAmount)})`);
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("viewBox", "0 0 24 24");
+    icon.setAttribute("aria-hidden", "true");
+    for (const definition of ["M5 9h14", "M5 15h14"]) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", definition);
+      icon.append(path);
+    }
+    button.append(icon);
+    return button;
+  }
+
+  async alignPlannedWithActual(button) {
+    const post = this.annualBudgetMonth?.posts.find(item => item.id === button.dataset.alignPlanned);
+    if (!post || post.actualAmount === null) return;
+    const feedback = this.shadowRoot.querySelector("#budget-month-feedback");
+    const { year, month } = this.annualBudgetMonth;
+    button.disabled = true;
+    feedback.hidden = true;
+    try {
+      const response = await fetch(`/api/annual-budgets/${year}/posts/${post.id}/months/${month}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: Math.round(post.actualAmount * 100) / 100 })
+      });
+      if (!response.ok) {
+        const problem = await response.json().catch(() => null);
+        throw new Error(problem?.detail ?? problem?.title ?? "Impossible d’aligner le prévu sur le réalisé.");
+      }
+      await Promise.all([this.loadAnnualBudgetMonth(), this.loadAnnualBudget()]);
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+      button.disabled = false;
     }
   }
 
@@ -1075,18 +1178,44 @@ class KontaApp extends HTMLElement {
       placeholder.value = "";
       placeholder.textContent = "Choisir un poste…";
       select.append(placeholder);
-      for (const post of this.mappingPosts) {
-        const option = document.createElement("option");
-        option.value = post.id;
-        option.textContent = post.name;
-        select.append(option);
+      for (const { type, expenseKind, label } of BUDGET_GROUPS) {
+        const posts = this.mappingPosts
+          .filter(post => post.type === type
+            && (type !== "Expense" || (post.expenseKind ?? "Variable") === expenseKind))
+          .sort((first, second) => first.name.localeCompare(second.name, "fr", { sensitivity: "base" }));
+        if (posts.length === 0) continue;
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = label;
+        for (const post of posts) {
+          const option = document.createElement("option");
+          option.value = post.id;
+          option.textContent = post.name;
+          optgroup.append(option);
+        }
+        select.append(optgroup);
       }
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "secondary-button";
+      button.className = "secondary-button mapping-attach-button";
       button.dataset.attachCategory = "";
-      button.textContent = "Rattacher";
-      row.append(name, detail, select, button);
+      button.title = "Rattacher au poste";
+      button.setAttribute("aria-label", `Rattacher la catégorie ${orphan.name} au poste choisi`);
+      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      icon.setAttribute("viewBox", "0 0 24 24");
+      icon.setAttribute("aria-hidden", "true");
+      for (const definition of ["M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1", "M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"]) {
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", definition);
+        icon.append(path);
+      }
+      button.append(icon);
+      const heading = document.createElement("div");
+      heading.className = "mapping-orphan-heading";
+      heading.append(name, detail);
+      const controls = document.createElement("div");
+      controls.className = "mapping-orphan-controls";
+      controls.append(select, button);
+      row.append(heading, controls);
       orphans.append(row);
     }
 
@@ -1366,7 +1495,7 @@ class KontaApp extends HTMLElement {
         fetch("/api/category-rules")
       ]);
       if (!categoriesResponse.ok || !accountsResponse.ok || !rulesResponse.ok) {
-        throw new Error("Impossible de charger les catégories, comptes ou règles.");
+        throw new Error("Impossible de charger les catégories, comptes ou associations.");
       }
       [this.categories, this.accounts, this.categoryRules] = await Promise.all([
         categoriesResponse.json(),
@@ -1511,7 +1640,7 @@ class KontaApp extends HTMLElement {
 
   renderCategoryRules() {
     this.shadowRoot.querySelector("#rules-count").textContent =
-      `${this.categoryRules.length} règle${this.categoryRules.length === 1 ? "" : "s"}`;
+      `${this.categoryRules.length} association${this.categoryRules.length === 1 ? "" : "s"}`;
   }
 
   renderCategories() {
@@ -1546,8 +1675,8 @@ class KontaApp extends HTMLElement {
       remove.dataset.deleteCategory = category.id;
       remove.classList.add("danger-button");
       const add = this.budgetIconButton({
-        label: `Ajouter une règle à la catégorie ${category.name}`,
-        title: "Ajouter une règle",
+        label: `Ajouter un motif à la catégorie ${category.name}`,
+        title: "Ajouter un motif",
         dataAttribute: "addRuleToCategory",
         paths: ["M12 5v14", "M5 12h14"]
       });
@@ -1640,9 +1769,9 @@ class KontaApp extends HTMLElement {
         }
       );
       const result = response.status === 204 ? null : await response.json();
-      if (!response.ok) throw new Error(result?.detail ?? result?.title ?? "Impossible d'enregistrer la règle.");
+      if (!response.ok) throw new Error(result?.detail ?? result?.title ?? "Impossible d’enregistrer l’association.");
       feedback.className = "feedback success";
-      feedback.textContent = isEditing ? "Règle mise à jour." : "Règle créée.";
+      feedback.textContent = isEditing ? "Association mise à jour." : "Association créée.";
       feedback.hidden = false;
       this.resetRuleForm();
       await this.loadPhase2Data();
@@ -1658,7 +1787,7 @@ class KontaApp extends HTMLElement {
   resetRuleForm() {
     this.editingRuleId = null;
     this.shadowRoot.querySelector("#category-rule-form").reset();
-    this.shadowRoot.querySelector("#rule-submit").textContent = "Créer la règle";
+    this.shadowRoot.querySelector("#rule-submit").textContent = "Associer";
     this.shadowRoot.querySelector("#rule-cancel").hidden = true;
   }
 
@@ -1696,10 +1825,10 @@ class KontaApp extends HTMLElement {
       const response = await fetch(`/api/category-rules/${deleteButton.dataset.deleteRule}`, { method: "DELETE" });
       if (!response.ok) {
         const problem = await response.json();
-        throw new Error(problem.detail ?? problem.title ?? "Impossible de supprimer la règle.");
+        throw new Error(problem.detail ?? problem.title ?? "Impossible de supprimer l’association.");
       }
       feedback.className = "feedback success";
-      feedback.textContent = "Règle supprimée.";
+      feedback.textContent = "Association supprimée.";
       feedback.hidden = false;
       await this.loadPhase2Data();
     } catch (exception) {
@@ -1808,9 +1937,6 @@ class KontaApp extends HTMLElement {
   }
 
   renderSummary(summary) {
-    const details = this.shadowRoot.querySelector("#summary-details");
-    details.replaceChildren();
-    details.hidden = true;
     this.shadowRoot.querySelector("#summary-count").textContent =
       `${summary.transactionCount} opération${summary.transactionCount === 1 ? "" : "s"}`;
     const period = summary.month
@@ -1861,6 +1987,7 @@ class KontaApp extends HTMLElement {
     const categories = sort
       ? [...summary.categories].sort((first, second) => compare[sort.key](first, second) * (sort.direction === "asc" ? 1 : -1))
       : summary.categories;
+    let hasOpenedCategory = false;
     categories.forEach((category, index) => {
       const row = document.createElement("tr");
       row.append(
@@ -1872,38 +1999,77 @@ class KontaApp extends HTMLElement {
       const actionCell = document.createElement("td");
       const detailsButton = document.createElement("button");
       detailsButton.type = "button";
-      detailsButton.className = "text-button";
+      detailsButton.className = "text-button summary-accordion-button";
       detailsButton.dataset.summaryCategory = index;
+      const isExpanded = Boolean(this.hasOpenedSummaryCategory
+        && (category.categoryId ?? null) === this.openedSummaryCategoryId);
+      detailsButton.setAttribute("aria-expanded", String(isExpanded));
+      if (isExpanded) detailsButton.setAttribute("aria-controls", `summary-category-details-${index}`);
       detailsButton.textContent = "Opérations";
+      const caret = document.createElement("span");
+      caret.className = "summary-accordion-caret";
+      caret.setAttribute("aria-hidden", "true");
+      caret.textContent = "⌄";
+      detailsButton.append(caret);
       actionCell.append(detailsButton);
       row.append(actionCell);
       body.append(row);
+      if (isExpanded) {
+        body.append(this.renderSummaryDetails(category, index));
+        hasOpenedCategory = true;
+      }
     });
+    if (this.hasOpenedSummaryCategory && !hasOpenedCategory) {
+      this.hasOpenedSummaryCategory = false;
+      this.openedSummaryCategoryId = undefined;
+    }
     body.onclick = event => {
       const button = event.target.closest("[data-summary-category]");
-      if (button) this.renderSummaryDetails(categories[Number(button.dataset.summaryCategory)]);
+      if (!button) return;
+      const category = categories[Number(button.dataset.summaryCategory)];
+      const categoryId = category.categoryId ?? null;
+      if (this.hasOpenedSummaryCategory && this.openedSummaryCategoryId === categoryId) {
+        this.hasOpenedSummaryCategory = false;
+        this.openedSummaryCategoryId = undefined;
+      } else {
+        this.hasOpenedSummaryCategory = true;
+        this.openedSummaryCategoryId = categoryId;
+      }
+      this.renderSummary(this.summary);
     };
   }
 
-  renderSummaryDetails(category) {
-    const details = this.shadowRoot.querySelector("#summary-details");
-    details.replaceChildren();
+  renderSummaryDetails(category, index) {
+    const row = document.createElement("tr");
+    row.className = "summary-operations-row";
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    const details = document.createElement("div");
+    details.className = "summary-operations";
+    details.id = `summary-category-details-${index}`;
+    details.setAttribute("role", "region");
+    details.setAttribute("aria-label", `Opérations de la catégorie ${category.categoryName}`);
     const title = document.createElement("h3");
     title.textContent = `${category.categoryName} · ${category.transactions.length} opération${category.transactions.length === 1 ? "" : "s"}`;
     const table = document.createElement("table");
+    table.className = "summary-operations-table";
     const head = document.createElement("thead");
     const headerRow = document.createElement("tr");
-    for (const label of ["Date", "Opération", "Compte", "Type", "Montant"]) {
+    for (const label of ["Date", "Opération", "Compte", "Type", "Montant", "Catégorie"]) {
       const th = document.createElement("th");
       th.textContent = label;
       headerRow.append(th);
     }
     head.append(headerRow);
     const body = document.createElement("tbody");
-    for (const transaction of category.transactions) body.append(this.transactionRow(transaction));
+    for (const transaction of category.transactions) {
+      body.append(this.transactionRow(transaction, this.transactionCategoryCell(transaction)));
+    }
     table.append(head, body);
     details.append(title, table);
-    details.hidden = false;
+    cell.append(details);
+    row.append(cell);
+    return row;
   }
 
   async previewFile(event) {
@@ -2169,7 +2335,7 @@ class KontaApp extends HTMLElement {
     return cell;
   }
 
-  transactionRow(transaction) {
+  transactionRow(transaction, categoryCell = null) {
     const row = document.createElement("tr");
     row.append(
       this.cell(this.formatDate(transaction.date), "date"),
@@ -2178,7 +2344,48 @@ class KontaApp extends HTMLElement {
       this.typeCell(transaction.type, transaction.isTransfer),
       this.cell(this.formatAmount(transaction.amount, transaction.type), "amount")
     );
+    if (categoryCell) row.append(categoryCell);
     return row;
+  }
+
+  transactionCategoryCell(transaction) {
+    const cell = document.createElement("td");
+    const select = document.createElement("select");
+    select.className = "transaction-category-select";
+    select.setAttribute("aria-label", `Catégorie de l'opération ${transaction.label}`);
+    select.append(this.option("", "Non catégorisé"));
+    select.options[0].disabled = true;
+    for (const category of this.categories.filter(item => item.isActive)) {
+      select.append(this.option(category.id, category.name));
+    }
+    select.value = transaction.categoryId ?? "";
+    select.addEventListener("change", () => this.changeTransactionCategory(transaction, select));
+    cell.append(select);
+    return cell;
+  }
+
+  async changeTransactionCategory(transaction, select) {
+    const error = this.shadowRoot.querySelector("#summary-error");
+    const previous = transaction.categoryId ?? "";
+    select.disabled = true;
+    error.hidden = true;
+    try {
+      const response = await fetch(`/api/transactions/${transaction.id}/category`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryId: select.value })
+      });
+      if (!response.ok) {
+        const problem = await response.json().catch(() => null);
+        throw new Error(problem?.detail ?? problem?.title ?? "Impossible de modifier la catégorie.");
+      }
+      await this.loadSummary();
+    } catch (exception) {
+      select.value = previous;
+      select.disabled = false;
+      error.textContent = exception.message;
+      error.hidden = false;
+    }
   }
 
   previewRow(transaction) {
@@ -2240,7 +2447,7 @@ class KontaApp extends HTMLElement {
     const rememberLabel = document.createElement("label");
     rememberLabel.className = "remember-rule";
     rememberLabel.append(rememberRule, transaction.operation
-      ? "Mémoriser la règle"
+      ? "Mémoriser l’association"
       : "Aucune clé reconnue");
     rememberRule.disabled = !transaction.operation;
     const categoryContent = document.createElement("div");
@@ -2259,8 +2466,8 @@ class KontaApp extends HTMLElement {
       patternInput.value = transaction.operation.key;
       patternInput.hidden = true;
       patternInput.dataset.rulePattern = "";
-      patternInput.title = "Motif de la règle : raccourcissez-le pour couvrir plusieurs variantes (ex. AUCHAN)";
-      patternInput.setAttribute("aria-label", `Motif de la règle, ligne ${transaction.rowNumber}`);
+      patternInput.title = "Motif de l’association : raccourcissez-le pour couvrir plusieurs variantes (ex. AUCHAN)";
+      patternInput.setAttribute("aria-label", `Motif de l’association, ligne ${transaction.rowNumber}`);
       rememberRule.addEventListener("change", () => { patternInput.hidden = !rememberRule.checked; });
       categoryContent.append(patternInput);
     }

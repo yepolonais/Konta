@@ -1,10 +1,20 @@
 using Konta.Application.Transactions;
+using Konta.Domain.Transactions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Konta.Infrastructure.Persistence;
 
 public sealed class TransactionRepository(KontaDbContext dbContext) : ITransactionRepository
 {
+    public Task<Transaction?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.Transactions.FirstOrDefaultAsync(transaction => transaction.Id == id, cancellationToken);
+
+    public async Task UpdateAsync(Transaction transaction, CancellationToken cancellationToken)
+    {
+        dbContext.Transactions.Update(transaction);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<TransactionListItem>> ListAsync(CancellationToken cancellationToken)
     {
         return await dbContext.Transactions

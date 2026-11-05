@@ -57,6 +57,52 @@ public sealed class CategoriesApiIntegrationTests
     }
 
     [Fact]
+    public async Task ChangeTransactionCategory_MovesTheTransactionToAnotherCategory()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        using var accountResponse = await client.PostAsync(
+            "/api/accounts",
+            JsonContent("{ \"name\": \"Compte commun\", \"bankAccountNumber\": \"0001\", \"bankLabel\": \"Compte Commun\", \"kind\": \"Current\" }"));
+        accountResponse.EnsureSuccessStatusCode();
+        const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
+            + "25/09/2026;25/09/2026;0001;Compte Commun;CARTE X4468 25/09;CARTE X4468 25/09 BOULANGERIE 110630301772261IOPD;;;-3,00;Non\n";
+        using var content = new MultipartFormDataContent();
+        using var csvContent = new ByteArrayContent(Encoding.Latin1.GetBytes(csv));
+        csvContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+        content.Add(csvContent, "file", "transactions.csv");
+        content.Add(new StringContent("[{ \"rowNumber\": 2, \"include\": true, \"categoryName\": \"Boulangerie\" }]"), "review");
+        using var commitResponse = await client.PostAsync("/api/imports/commit", content);
+        commitResponse.EnsureSuccessStatusCode();
+        using var createResponse = await client.PostAsync("/api/categories", JsonContent("{ \"name\": \"Gourmandises\" }"));
+        createResponse.EnsureSuccessStatusCode();
+        using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var targetCategoryId = created.RootElement.GetProperty("id").GetGuid();
+        using var transactions = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var transactionId = transactions.RootElement.EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        // Act
+        using var response = await client.PutAsync(
+            $"/api/transactions/{transactionId}/category",
+            JsonContent($"{{ \"categoryId\": \"{targetCategoryId}\" }}"));
+        using var unknownResponse = await client.PutAsync(
+            $"/api/transactions/{Guid.NewGuid()}/category",
+            JsonContent($"{{ \"categoryId\": \"{targetCategoryId}\" }}"));
+        using var invalidResponse = await client.PutAsync(
+            $"/api/transactions/{transactionId}/category",
+            JsonContent($"{{ \"categoryId\": \"{Guid.NewGuid()}\" }}"));
+
+        // Assert
+        Assert.Equal(System.Net.HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, unknownResponse.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, invalidResponse.StatusCode);
+        using var after = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        Assert.Equal(targetCategoryId, after.RootElement.EnumerateArray().Single().GetProperty("categoryId").GetGuid());
+    }
+
+    [Fact]
     public async Task Delete_ReturnsConflict_WhenTransactionsUseTheCategory()
     {
         // Arrange
