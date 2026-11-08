@@ -29,6 +29,7 @@ builder.Services.AddScoped<IAccountBalanceService, AccountBalanceService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ICategoryRuleService, CategoryRuleService>();
 builder.Services.AddScoped<IAnnualBudgetService, AnnualBudgetService>();
+builder.Services.AddScoped<IImportSettingsService, ImportSettingsService>();
 
 var app = builder.Build();
 var frontendPath = app.Environment.IsDevelopment()

@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<ICategoryRuleRepository, CategoryRuleRepository>();
         services.AddScoped<IImportCommitRepository, ImportCommitRepository>();
         services.AddScoped<IAnnualBudgetRepository, AnnualBudgetRepository>();
+        services.AddScoped<IImportSettingsRepository, ImportSettingsRepository>();
         services.AddSingleton<ITransactionCsvParser, SocieteGeneraleCsvParser>();
         return services;
     }

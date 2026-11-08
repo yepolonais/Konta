@@ -18,6 +18,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
     public DbSet<BudgetPostCategoryMapping> BudgetPostCategoryMappings => Set<BudgetPostCategoryMapping>();
     public DbSet<AccountBalanceReference> AccountBalanceReferences => Set<AccountBalanceReference>();
     public DbSet<AccountTransfer> AccountTransfers => Set<AccountTransfer>();
+    internal DbSet<ImportSettingsEntity> ImportSettings => Set<ImportSettingsEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -133,6 +134,13 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.HasOne(transfer => transfer.DestinationTransaction).WithMany()
                 .HasForeignKey(transfer => transfer.DestinationTransactionId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ImportSettingsEntity>(entity =>
+        {
+            entity.HasKey(settings => settings.Id);
+            entity.Property(settings => settings.BankIdentifier).HasMaxLength(100).IsRequired();
+            entity.Property(settings => settings.BankUrl).HasMaxLength(2048).IsRequired();
         });
     }
 }

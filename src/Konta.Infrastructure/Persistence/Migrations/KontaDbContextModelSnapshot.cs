@@ -323,6 +323,27 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.ToTable("AccountTransfers");
                 });
 
+            modelBuilder.Entity("Konta.Infrastructure.Persistence.ImportSettingsEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BankIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BankUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ImportSettings");
+                });
+
             modelBuilder.Entity("Konta.Domain.Accounts.AccountBalanceReference", b =>
                 {
                     b.HasOne("Konta.Domain.Accounts.Account", null)

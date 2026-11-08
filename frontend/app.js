@@ -61,6 +61,7 @@ class KontaApp extends HTMLElement {
     };
     window.addEventListener("resize", this.handleBudgetResize);
     this.showPage(window.location.hash.slice(1) || "budget");
+    this.loadImportSettings();
     this.loadAnnualBudget();
     this.loadTransactions();
     this.phase2DataPromise = this.loadPhase2Data();
@@ -183,6 +184,22 @@ class KontaApp extends HTMLElement {
             </div>
           </section>
           <div class="content-grid">
+            <section class="panel import-source-panel" data-page="import" aria-labelledby="import-source-title">
+              <div class="eyebrow">Relevé bancaire</div>
+              <h2 id="import-source-title">Récupérer un relevé</h2>
+              <p>Ces paramètres sont enregistrés dans la base locale de Konta.</p>
+              <form id="import-source-form">
+                <label for="import-bank-identifier">Mon identifiant<input id="import-bank-identifier" name="bankIdentifier" maxlength="100" required></label>
+                <label for="import-source-url">Adresse de la banque
+                  <span class="import-source-controls">
+                    <input id="import-source-url" name="bankUrl" type="url" maxlength="2048" required>
+                    <button id="import-source-go" type="button">Go</button>
+                  </span>
+                </label>
+                <button id="import-source-save" type="submit">Enregistrer</button>
+              </form>
+              <p class="feedback" id="import-source-feedback" role="status" aria-live="polite" hidden></p>
+            </section>
             <section class="panel" id="transactions" data-page="transactions" aria-labelledby="transactions-title">
               <div class="panel-head"><h2 id="transactions-title">Dernières opérations</h2><span class="count" id="transaction-count">…</span></div>
               <div class="table-wrap"><table>
@@ -208,7 +225,8 @@ class KontaApp extends HTMLElement {
             <div class="panel-head"><h2 id="preview-title">Aperçu du fichier</h2><span class="count" id="preview-count"></span></div>
             <p class="preview-summary" id="preview-summary"></p>
             <div class="preview-toolbar">
-              <label class="preview-filter"><input id="hide-duplicates" type="checkbox"> Masquer les doublons détectés</label>
+              <label class="preview-filter"><input id="hide-duplicates" type="checkbox" checked> Masquer les doublons détectés</label>
+              <label class="preview-filter"><input id="hide-categorized" type="checkbox"> Masquer les opérations catégorisées</label>
             </div>
             <div class="table-wrap"><table class="preview-table">
               <thead><tr><th>Date</th><th>Détails</th><th>Compte Konta</th><th>Catégorie / suggestion</th><th style="text-align:right">Montant (€)</th><th>Inclure</th></tr></thead>
@@ -272,6 +290,35 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#csv-file").addEventListener("change", event => {
       this.selectedFile = event.target.files[0] ?? null;
       this.shadowRoot.querySelector("#file-name").textContent = event.target.files[0]?.name ?? "Aucun fichier choisi";
+    });
+    this.shadowRoot.querySelector("#import-source-form").addEventListener("submit", event => this.saveImportSettings(event));
+    this.shadowRoot.querySelector("#import-source-go").addEventListener("click", () => {
+      const input = this.shadowRoot.querySelector("#import-source-url");
+      if (!input.reportValidity()) return;
+
+      let destination;
+      try {
+        destination = new URL(input.value.trim());
+      } catch {
+        input.setCustomValidity("Saisissez une adresse Web valide commençant par https:// ou http://.");
+        input.reportValidity();
+        return;
+      }
+
+      if (!["http:", "https:"].includes(destination.protocol) || destination.username || destination.password) {
+        input.setCustomValidity("Utilisez une adresse Web http:// ou https:// sans identifiant.");
+        input.reportValidity();
+        return;
+      }
+
+      input.setCustomValidity("");
+      window.open(destination.href, "_blank", "noopener,noreferrer");
+    });
+    this.shadowRoot.querySelector("#import-source-url").addEventListener("input", event => {
+      event.target.setCustomValidity("");
+    });
+    this.shadowRoot.querySelector("#import-bank-identifier").addEventListener("input", event => {
+      event.target.setCustomValidity("");
     });
     this.shadowRoot.querySelector(".nav").addEventListener("click", event => {
       if (event.target.closest(".theme-toggle")) {
@@ -399,11 +446,23 @@ class KontaApp extends HTMLElement {
         this.syncMatchingReviewRows(event.target.closest("tr"));
         this.refreshPendingCategoryOptions();
       }
+      if (event.target.matches("[data-new-category]")) {
+        setTimeout(() => this.updatePreviewVisibility(), 0);
+      } else if (event.target.matches("[data-category], [data-remember-rule], [data-rule-pattern]")) {
+        this.updatePreviewVisibility();
+      }
     });
     this.shadowRoot.querySelector("#preview-body").addEventListener("input", event => {
       if (event.target.matches("[data-amount]")) this.updateReviewAmount(event.target);
     });
+    this.shadowRoot.querySelector("#preview-body").addEventListener("focusout", event => {
+      const row = event.target.closest("tr");
+      if (row && !row.contains(event.relatedTarget)) {
+        setTimeout(() => this.updatePreviewVisibility(), 0);
+      }
+    });
     this.shadowRoot.querySelector("#hide-duplicates").addEventListener("change", () => this.updatePreviewVisibility());
+    this.shadowRoot.querySelector("#hide-categorized").addEventListener("change", () => this.updatePreviewVisibility());
 
     const year = this.shadowRoot.querySelector("#summary-year");
     year.value = new Date().getFullYear();
@@ -2072,6 +2131,56 @@ class KontaApp extends HTMLElement {
     return row;
   }
 
+  async loadImportSettings() {
+    const feedback = this.shadowRoot.querySelector("#import-source-feedback");
+    try {
+      const response = await fetch("/api/import-settings");
+      const settings = await response.json();
+      if (!response.ok) throw new Error(settings.detail ?? settings.title ?? "Impossible de charger les paramètres d’import.");
+      this.shadowRoot.querySelector("#import-bank-identifier").value = settings.bankIdentifier;
+      this.shadowRoot.querySelector("#import-source-url").value = settings.bankUrl;
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+    }
+  }
+
+  async saveImportSettings(event) {
+    event.preventDefault();
+    const form = this.shadowRoot.querySelector("#import-source-form");
+    if (!form.reportValidity()) return;
+
+    const button = this.shadowRoot.querySelector("#import-source-save");
+    const feedback = this.shadowRoot.querySelector("#import-source-feedback");
+    button.disabled = true;
+    feedback.hidden = true;
+    try {
+      const response = await fetch("/api/import-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bankIdentifier: this.shadowRoot.querySelector("#import-bank-identifier").value,
+          bankUrl: this.shadowRoot.querySelector("#import-source-url").value
+        })
+      });
+      const settings = await response.json();
+      if (!response.ok) throw new Error(settings.detail ?? settings.title ?? "Impossible d’enregistrer les paramètres d’import.");
+
+      this.shadowRoot.querySelector("#import-bank-identifier").value = settings.bankIdentifier;
+      this.shadowRoot.querySelector("#import-source-url").value = settings.bankUrl;
+      feedback.className = "feedback success";
+      feedback.textContent = "Paramètres enregistrés.";
+      feedback.hidden = false;
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async previewFile(event) {
     event.preventDefault();
     if (!this.selectedFile) return;
@@ -2145,17 +2254,27 @@ class KontaApp extends HTMLElement {
 
   updatePreviewVisibility() {
     const hideDuplicates = this.shadowRoot.querySelector("#hide-duplicates").checked;
+    const hideCategorized = this.shadowRoot.querySelector("#hide-categorized").checked;
     const rows = [...this.shadowRoot.querySelectorAll("#preview-body tr")];
     let visibleCount = 0;
     for (const row of rows) {
-      row.hidden = hideDuplicates && row.classList.contains("duplicate-row");
+      const categorySelect = row.querySelector("[data-category]");
+      const newCategoryInput = row.querySelector("[data-new-category]");
+      const categoryName = newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim();
+      const categorySummary = row.querySelector("[data-category-summary]");
+      categorySummary.textContent = categorySelect.selectedOptions[0]?.textContent ?? "Non catégorisé";
+      categorySummary.setAttribute("aria-label", `Catégorie de l'opération, ligne ${row.dataset.rowNumber} : ${categorySummary.textContent}`);
+      const searchLink = row.querySelector("[data-beneficiary-search]");
+      if (searchLink) searchLink.hidden = Boolean(categoryName);
+      row.hidden = (hideDuplicates && row.classList.contains("duplicate-row"))
+        || (hideCategorized && Boolean(categoryName) && !row.contains(this.shadowRoot.activeElement));
       if (!row.hidden) visibleCount++;
     }
 
     const total = rows.length;
     const totalLabel = `${total} ligne${total === 1 ? "" : "s"} valide${total === 1 ? "" : "s"}`;
     const visibleLabel = `${visibleCount} ligne${visibleCount === 1 ? "" : "s"} affichée${visibleCount === 1 ? "" : "s"}`;
-    this.shadowRoot.querySelector("#preview-count").textContent = hideDuplicates
+    this.shadowRoot.querySelector("#preview-count").textContent = hideDuplicates || hideCategorized
       ? `${visibleLabel} sur ${totalLabel}`
       : totalLabel;
   }
@@ -2307,7 +2426,7 @@ class KontaApp extends HTMLElement {
       const categorySelect = row.querySelector("[data-category]");
       const newCategoryInput = row.querySelector("[data-new-category]");
       const transferMatch = row.querySelector("[data-transfer-match]")?.value;
-      const amount = Number(row.querySelector("[data-amount]").value.replace(",", "."));
+      const amount = this.parseReviewAmount(row.querySelector("[data-amount]").value);
       const categoryName = newCategoryInput.hidden ? categorySelect.value : newCategoryInput.value.trim();
       return {
         rowNumber: Number(row.dataset.rowNumber),
@@ -2433,6 +2552,46 @@ class KontaApp extends HTMLElement {
       categorySelect.append(this.option(currentCategory, currentCategory));
     }
     categorySelect.value = currentCategory;
+    categorySelect.size = 6;
+    const categoryPicker = document.createElement("details");
+    categoryPicker.className = "category-picker";
+    const categorySummary = document.createElement("summary");
+    categorySummary.dataset.categorySummary = "";
+    categorySummary.textContent = categorySelect.selectedOptions[0]?.textContent ?? "Non catégorisé";
+    categorySummary.setAttribute("aria-label", `Catégorie de l'opération, ligne ${transaction.rowNumber} : ${categorySummary.textContent}`);
+    const categorySearch = document.createElement("input");
+    categorySearch.type = "search";
+    categorySearch.placeholder = "Rechercher une catégorie";
+    categorySearch.setAttribute("aria-label", `Rechercher une catégorie, ligne ${transaction.rowNumber}`);
+    const noCategoryResults = document.createElement("p");
+    noCategoryResults.className = "category-search-empty";
+    noCategoryResults.textContent = "Aucune catégorie correspondante.";
+    noCategoryResults.hidden = true;
+    categoryPicker.append(categorySummary, categorySearch, categorySelect, noCategoryResults);
+    categoryPicker.addEventListener("toggle", () => {
+      if (!categoryPicker.open) return;
+      for (const other of this.shadowRoot.querySelectorAll(".category-picker[open]")) {
+        if (other !== categoryPicker) other.open = false;
+      }
+      categorySearch.value = "";
+      this.filterPreviewCategories(categoryPicker);
+      categorySearch.focus();
+    });
+    categorySearch.addEventListener("input", () => this.filterPreviewCategories(categoryPicker));
+    categoryPicker.addEventListener("keydown", event => {
+      if (event.key === "Escape" && categoryPicker.open) {
+        event.preventDefault();
+        categoryPicker.open = false;
+        categorySummary.focus();
+      } else if (event.key === "ArrowDown" && event.target === categorySearch) {
+        event.preventDefault();
+        categorySelect.focus();
+      }
+    });
+    categorySelect.addEventListener("change", () => {
+      categoryPicker.open = false;
+      categorySummary.focus();
+    });
     const newCategoryInput = document.createElement("input");
     newCategoryInput.type = "text";
     newCategoryInput.maxLength = 100;
@@ -2453,12 +2612,40 @@ class KontaApp extends HTMLElement {
     const categoryContent = document.createElement("div");
     categoryContent.className = "preview-category";
     if (transaction.operation) {
+      const operationHeading = document.createElement("div");
+      operationHeading.className = "operation-heading";
       const operation = document.createElement("small");
       operation.className = "operation-key";
       operation.textContent = `${OPERATION_TYPES[transaction.operation.type] ?? transaction.operation.type} · ${transaction.operation.key}`;
-      categoryContent.append(operation);
+      operationHeading.append(operation);
+      if (["Card", "TransferReceived", "TransferSent", "DirectDebit"].includes(transaction.operation.type)
+          && transaction.operation.key.trim()) {
+        const searchLink = document.createElement("a");
+        const searchUrl = new URL("https://www.google.com/search");
+        searchUrl.searchParams.set("q", transaction.operation.key.trim());
+        searchLink.href = searchUrl.href;
+        searchLink.target = "_blank";
+        searchLink.rel = "noopener noreferrer";
+        searchLink.className = "beneficiary-search";
+        searchLink.dataset.beneficiarySearch = "";
+        searchLink.setAttribute("aria-label", "Recherche le bénéficiaire sur internet");
+        searchLink.hidden = Boolean(currentCategory);
+        const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        icon.setAttribute("viewBox", "0 0 24 24");
+        icon.setAttribute("aria-hidden", "true");
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm5 12 4 4");
+        icon.append(path);
+        const tooltip = document.createElement("span");
+        tooltip.className = "beneficiary-search-tooltip";
+        tooltip.textContent = "Recherche le bénéficiaire sur internet";
+        tooltip.setAttribute("aria-hidden", "true");
+        searchLink.append(icon, tooltip);
+        operationHeading.append(searchLink);
+      }
+      categoryContent.append(operationHeading);
     }
-    categoryContent.append(categorySelect, newCategoryInput, rememberLabel);
+    categoryContent.append(categoryPicker, newCategoryInput, rememberLabel);
     if (transaction.operation) {
       const patternInput = document.createElement("input");
       patternInput.type = "text";
@@ -2534,7 +2721,25 @@ class KontaApp extends HTMLElement {
         select.insertBefore(option, addOption);
       }
       select.value = selected;
+      const picker = select.closest(".category-picker");
+      if (picker.open) this.filterPreviewCategories(picker);
     }
+  }
+
+  filterPreviewCategories(picker) {
+    const normalize = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr-FR");
+    const query = normalize(picker.querySelector('input[type="search"]').value.trim());
+    const select = picker.querySelector("[data-category]");
+    let matches = 0;
+    for (const option of select.options) {
+      if (option.hasAttribute("data-add-category")) {
+        option.hidden = false;
+        continue;
+      }
+      option.hidden = Boolean(query) && (!option.value || !normalize(option.textContent).includes(query));
+      if (option.value && !option.hidden) matches++;
+    }
+    picker.querySelector(".category-search-empty").hidden = !query || matches > 0;
   }
 
   updateReviewCategory(select) {
@@ -2593,10 +2798,17 @@ class KontaApp extends HTMLElement {
     return `${sign}${new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
   }
 
+  parseReviewAmount(value) {
+    const text = value.trim();
+    if (!/^[+-]?(?:(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[.,]\d{1,2})?|[.,]\d{1,2})$/.test(text)) {
+      return NaN;
+    }
+    return Number(text.replace(/[ \u00a0\u202f]/g, "").replace(",", "."));
+  }
+
   updateReviewAmount(input) {
-    const value = input.value.trim().replace(",", ".");
-    const amount = Number(value);
-    const isValid = /^[+-]?(?:\d+|\d*\.\d{1,2})$/.test(value) && Number.isFinite(amount) && amount !== 0;
+    const amount = this.parseReviewAmount(input.value);
+    const isValid = Number.isFinite(amount) && amount !== 0;
     input.setCustomValidity(isValid || input.value === "" ? "" : "Saisissez un montant signé non nul, avec au plus deux décimales.");
     input.classList.toggle("expense-amount", isValid && amount < 0);
     input.classList.toggle("income-amount", isValid && amount > 0);
