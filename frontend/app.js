@@ -992,17 +992,26 @@ class KontaApp extends HTMLElement {
         if (post.varianceAmount === null) {
           varianceCell.textContent = "—";
         } else {
+          const roundedVariance = Math.round(post.varianceAmount * 100);
+          const varianceBadge = document.createElement("span");
+          varianceBadge.className = `budget-variance-badge ${roundedVariance > 0 ? "over" : roundedVariance < 0 ? "under" : "within"}`;
           const varianceValue = document.createElement("span");
           varianceValue.textContent = this.formatSignedCurrency(post.varianceAmount);
-          if ((post.type === "Expense" && post.varianceAmount > 0)
-            || (post.type === "Income" && post.varianceAmount < 0)) {
-            varianceValue.className = "budget-variance-negative";
-          }
           varianceCell.className = "budget-variance-cell";
-          varianceCell.append(varianceValue);
-          if (Math.round(post.varianceAmount * 100) !== 0 && post.actualAmount >= 0) {
-            varianceCell.append(this.alignPlannedButton(post));
+          varianceBadge.append(varianceValue);
+          if (roundedVariance === 0) {
+            const check = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            check.setAttribute("viewBox", "0 0 24 24");
+            check.setAttribute("role", "img");
+            check.setAttribute("aria-label", "Prévu aligné sur le réalisé");
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", "M5 12l5 5L19 7");
+            check.append(path);
+            varianceBadge.append(check);
+          } else if (post.actualAmount >= 0) {
+            varianceBadge.append(this.alignPlannedButton(post));
           }
+          varianceCell.append(varianceBadge);
         }
         row.append(varianceCell);
         row.dataset.postId = post.id;

@@ -606,6 +606,77 @@ public sealed class AnnualBudgetsApiIntegrationTests
         Assert.Equal(JsonValueKind.Null, post.GetProperty("varianceAmount").ValueKind);
     }
 
+    [Theory]
+    [InlineData("Income", "157,92", 157.92)]
+    [InlineData("Expense", "-157,92", 157.92)]
+    public async Task GetMonth_UsesZeroForVariance_WhenActualExistsWithoutPlan(
+        string type,
+        string csvAmount,
+        decimal expected)
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte courant", "variance-no-plan");
+        var categoryId = await CreateCategoryAsync(client, "Catégorie test");
+        var postId = await CreatePostAsync(client, "Poste test", type);
+        using var mappingResponse = await client.PutAsync(
+            $"/api/annual-budgets/posts/{postId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
+        mappingResponse.EnsureSuccessStatusCode();
+        using var importResponse = await PostCsvAsync(client,
+            Csv("10/09/2026", "variance-no-plan", "Opération test", "Catégorie test", csvAmount));
+        importResponse.EnsureSuccessStatusCode();
+
+        // Act
+        using var response = await client.GetAsync("/api/annual-budgets/2026/months/9");
+        response.EnsureSuccessStatusCode();
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var post = Assert.Single(payload.RootElement.GetProperty("posts").EnumerateArray());
+
+        // Assert
+        Assert.Equal(JsonValueKind.Null, post.GetProperty("plannedAmount").ValueKind);
+        Assert.Equal(expected, post.GetProperty("actualAmount").GetDecimal());
+        Assert.Equal(expected, post.GetProperty("varianceAmount").GetDecimal());
+        Assert.Equal(1, post.GetProperty("transactionCount").GetInt32());
+
+        await SetMonthlyAmountAsync(client, postId, 9, expected);
+        using var alignedResponse = await client.GetAsync("/api/annual-budgets/2026/months/9");
+        alignedResponse.EnsureSuccessStatusCode();
+        using var alignedPayload = JsonDocument.Parse(await alignedResponse.Content.ReadAsStringAsync());
+        var alignedPost = Assert.Single(alignedPayload.RootElement.GetProperty("posts").EnumerateArray());
+        Assert.Equal(expected, alignedPost.GetProperty("plannedAmount").GetDecimal());
+        Assert.Equal(0m, alignedPost.GetProperty("varianceAmount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task GetMonth_ReportsNoVariance_WhenMappedPostHasNeitherPlanNorTransactions()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var categoryId = await CreateCategoryAsync(client, "Catégorie test");
+        var postId = await CreatePostAsync(client, "Poste test", "Expense");
+        using var mappingResponse = await client.PutAsync(
+            $"/api/annual-budgets/posts/{postId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
+        mappingResponse.EnsureSuccessStatusCode();
+
+        // Act
+        using var response = await client.GetAsync("/api/annual-budgets/2026/months/9");
+        response.EnsureSuccessStatusCode();
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var post = Assert.Single(payload.RootElement.GetProperty("posts").EnumerateArray());
+
+        // Assert
+        Assert.Equal(JsonValueKind.Null, post.GetProperty("plannedAmount").ValueKind);
+        Assert.Equal(0m, post.GetProperty("actualAmount").GetDecimal());
+        Assert.Equal(0, post.GetProperty("transactionCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, post.GetProperty("varianceAmount").ValueKind);
+    }
+
     [Fact]
     public async Task FutureRevisions_KeepPastMonthsAndUpdateTotals_WhenCopiedForward()
     {

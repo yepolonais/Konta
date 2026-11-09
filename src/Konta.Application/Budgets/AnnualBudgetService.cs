@@ -89,8 +89,8 @@ public sealed class AnnualBudgetService(
                     .ToArray()
                 : [];
             var actualAmount = isComparable ? matchedTransactions.Sum(transaction => transaction.Amount) : (decimal?)null;
-            decimal? varianceAmount = actualAmount.HasValue && plannedAmount.HasValue
-                ? actualAmount.Value - plannedAmount.Value
+            decimal? varianceAmount = actualAmount.HasValue && (plannedAmount.HasValue || matchedTransactions.Length > 0)
+                ? actualAmount.Value - (plannedAmount ?? 0m)
                 : null;
 
             return new AnnualBudgetMonthPostItem(

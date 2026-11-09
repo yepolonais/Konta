@@ -318,7 +318,6 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .budget-monthly-table th { background: var(--surface-subtle); }
 .budget-month-post-name { font-weight: 700; }
 .budget-unmapped { color: var(--muted); font-size: 11px; }
-.budget-variance-negative { color: var(--coral); font-weight: 800; }
 .budget-transaction-details { margin-top: 6px; }
 .budget-transaction-details summary { font-size: 10px; }
 .budget-transaction-details table { margin-top: 8px; min-width: 580px; }
@@ -578,6 +577,13 @@ th .sort-button:hover { color: var(--ink); text-decoration: none; }
 @media (hover: none) { :host .category-item .icon-button, :host .pattern-item .icon-button { opacity: .8; } }
 
 .budget-variance-cell { vertical-align: middle; }
-.budget-variance-cell > span { margin-right: 10px; }
-:host .align-planned-button, :host([data-theme="dark"]) .align-planned-button { align-items: center; display: inline-flex; height: 20px; justify-content: center; min-height: 20px; padding: 0; vertical-align: middle; width: 20px; }
+.budget-variance-badge { align-items: center; border: 1px solid; border-radius: 6px; display: inline-flex; font-weight: 700; gap: 8px; min-height: 30px; padding: 4px 5px 4px 9px; white-space: nowrap; }
+.budget-variance-badge.within { background: var(--positive-soft); border-color: var(--positive); color: var(--positive); }
+.budget-variance-badge.over { background: #fde9e7; border-color: #e89a91; color: #a52c21; }
+.budget-variance-badge.under { background: #e9efff; border-color: #9eafe0; color: #304d91; }
+:host([data-theme="dark"]) .budget-variance-badge.over { background: #542c2c; border-color: #a9574c; color: #ffc0b3; }
+:host([data-theme="dark"]) .budget-variance-badge.under { background: #252e47; border-color: #596a9a; color: #b6c5ff; }
+.budget-variance-badge > svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; width: 16px; }
+:host .align-planned-button, :host([data-theme="dark"]) .align-planned-button { align-items: center; background: transparent; border: 1px solid currentColor; color: inherit; display: inline-flex; height: 22px; justify-content: center; min-height: 22px; padding: 0; vertical-align: middle; width: 22px; }
+:host .align-planned-button:hover, :host([data-theme="dark"]) .align-planned-button:hover { background: var(--paper); color: inherit; }
 .align-planned-button svg { fill: none; height: 12px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; width: 12px; }
