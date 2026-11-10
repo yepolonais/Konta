@@ -51,6 +51,7 @@ class KontaApp extends HTMLElement {
   connectedCallback() {
     this.renderShell();
     this.setTheme(localStorage.getItem("konta-theme") === "dark" ? "dark" : "light");
+    this.setAmbiance(localStorage.getItem("konta-ambiance") === "cherry" ? "cherry" : "plain");
     this.handlePageNavigation = () => {
       this.showPage(window.location.hash.slice(1) || "budget");
     };
@@ -87,10 +88,15 @@ class KontaApp extends HTMLElement {
             <a href="#mapping">Rapprochement<span class="nav-badge" id="mapping-badge" hidden></span></a>
             <a href="#category-rules">Catégorisation</a>
             <a href="#import">Import CSV</a>
+          </nav>
+          <div class="appearance-controls" aria-label="Apparence">
             <button class="theme-toggle" type="button" aria-label="Activer le mode sombre" aria-pressed="false">
               <span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Sombre</span>
             </button>
-          </nav>
+            <button class="ambiance-toggle secondary-button" type="button" aria-label="Activer l’ambiance cerisier" aria-pressed="false">
+              <span class="ambiance-toggle-icon" aria-hidden="true">🌸</span><span class="ambiance-toggle-label">Cerisier</span>
+            </button>
+          </div>
         </header>
         <main>
           <div class="heading">
@@ -321,10 +327,6 @@ class KontaApp extends HTMLElement {
       event.target.setCustomValidity("");
     });
     this.shadowRoot.querySelector(".nav").addEventListener("click", event => {
-      if (event.target.closest(".theme-toggle")) {
-        this.setTheme(this.dataset.theme === "dark" ? "light" : "dark", true);
-        return;
-      }
       const link = event.target.closest("a[href^='#']");
       if (!link) return;
       event.preventDefault();
@@ -335,6 +337,12 @@ class KontaApp extends HTMLElement {
         window.history.pushState(null, "", link.hash);
         this.showPage(page);
       }
+    });
+    this.shadowRoot.querySelector(".theme-toggle").addEventListener("click", () => {
+      this.setTheme(this.dataset.theme === "dark" ? "light" : "dark", true);
+    });
+    this.shadowRoot.querySelector(".ambiance-toggle").addEventListener("click", () => {
+      this.setAmbiance(this.dataset.ambiance === "cherry" ? "plain" : "cherry", true);
     });
     this.shadowRoot.querySelector("#import-form").addEventListener("submit", event => this.previewFile(event));
     this.shadowRoot.querySelector("#preview-panel").addEventListener("click", event => this.handlePreviewAction(event));
@@ -530,6 +538,16 @@ class KontaApp extends HTMLElement {
     toggle.querySelector(".theme-toggle-label").textContent = isDark ? "Clair" : "Sombre";
     document.querySelector('meta[name="theme-color"]').content = isDark ? "#171416" : "#f4f5f1";
     if (persist) localStorage.setItem("konta-theme", theme);
+  }
+
+  setAmbiance(ambiance, persist = false) {
+    this.dataset.ambiance = ambiance;
+    const isCherry = ambiance === "cherry";
+    const toggle = this.shadowRoot.querySelector(".ambiance-toggle");
+    toggle.setAttribute("aria-label", `${isCherry ? "Désactiver" : "Activer"} l’ambiance cerisier`);
+    toggle.setAttribute("aria-pressed", String(isCherry));
+    toggle.querySelector(".ambiance-toggle-label").textContent = isCherry ? "Cerisier activé" : "Cerisier";
+    if (persist) localStorage.setItem("konta-ambiance", ambiance);
   }
 
   async loadAnnualBudget() {

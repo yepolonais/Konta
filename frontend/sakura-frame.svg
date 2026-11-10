@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="wood" x1="0" x2="1" y1="0" y2=".4">
+      <stop stop-color="#25151a"/>
+      <stop offset=".5" stop-color="#4c292e"/>
+      <stop offset="1" stop-color="#211317"/>
+    </linearGradient>
+    <radialGradient id="petal" cx=".35" cy=".2" r=".9">
+      <stop stop-color="#fff5f7"/>
+      <stop offset=".66" stop-color="#f8d4df"/>
+      <stop offset="1" stop-color="#e795ae"/>
+    </radialGradient>
+    <radialGradient id="heart">
+      <stop stop-color="#9d405f"/>
+      <stop offset="1" stop-color="#d786a1" stop-opacity="0"/>
+    </radialGradient>
+    <path id="petal-shape" d="M0 1C-5-3-10-12-9-19C-8-27-3-29 0-25C3-29 8-27 9-19C10-12 5-3 0 1Z"/>
+    <g id="flower">
+      <g fill="url(#petal)" stroke="#d48ba1" stroke-width=".55">
+        <use href="#petal-shape"/>
+        <use href="#petal-shape" transform="rotate(72)"/>
+        <use href="#petal-shape" transform="rotate(144)"/>
+        <use href="#petal-shape" transform="rotate(216)"/>
+        <use href="#petal-shape" transform="rotate(288)"/>
+      </g>
+      <circle r="9" fill="url(#heart)"/>
+      <g fill="none" stroke="#a75470" stroke-linecap="round" stroke-width=".7">
+        <path d="M0 0L-3-13M0 0L1-16M0 0L5-12M0 0L11-9M0 0L14-3M0 0L12 3M0 0L7 11M0 0L2 14M0 0L-4 12M0 0L-10 9M0 0L-13 3M0 0L-12-4M0 0L-9-10"/>
+      </g>
+      <g fill="#703548">
+        <circle cx="-3" cy="-13" r="1.2"/><circle cx="1" cy="-16" r="1.1"/>
+        <circle cx="5" cy="-12" r="1.1"/><circle cx="11" cy="-9" r="1.1"/>
+        <circle cx="14" cy="-3" r="1.1"/><circle cx="12" cy="3" r="1.1"/>
+        <circle cx="7" cy="11" r="1.1"/><circle cx="2" cy="14" r="1.1"/>
+        <circle cx="-4" cy="12" r="1.1"/><circle cx="-10" cy="9" r="1.1"/>
+        <circle cx="-13" cy="3" r="1.1"/><circle cx="-12" cy="-4" r="1.1"/>
+        <circle cx="-9" cy="-10" r="1.1"/>
+      </g>
+      <circle r="2" fill="#853b56"/>
+    </g>
+    <g id="bud">
+      <path d="M0 1C-6-4-7-11-3-15C-1-17 1-15 2-13C5-17 8-12 7-8C7-4 4-1 0 1Z" fill="#f3c1d1" stroke="#c6758d" stroke-width=".7"/>
+      <path d="M0 1C-3-1-5-2-7-2M0 1C2-2 5-2 8-2" fill="none" stroke="#512a30" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+  </defs>
+
+  <g fill="none" stroke="#4c292e" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke-width="8" d="M27 1020C65 921 28 830 53 743C66 692 46 647 57 598C74 520 43 469 60 390C72 319 46 265 69 210C94 147 155 130 219 117C259 108 295 94 333 73"/>
+    <path stroke-width="3.5" d="M52 805C75 782 76 749 85 719C89 693 102 675 117 657M53 671C32 650 33 619 32 599C31 580 17 566 4 552M61 538C84 511 88 477 99 459C107 443 121 435 131 428M60 409C40 390 30 365 30 344C30 323 17 307 3 295M69 300C93 279 102 246 113 230C122 218 134 211 145 203M112 156C114 136 106 116 110 101C113 86 123 77 128 67M170 130C172 111 186 102 192 88C196 77 196 66 200 56M230 112C243 94 250 80 262 73C273 66 285 66 293 58"/>
+    <path stroke-width="2.4" d="M38 925C25 916 15 901 11 882M42 907C54 894 65 882 76 874M81 742C65 729 59 714 58 700M82 720C99 719 108 711 117 700M34 619C48 610 53 594 56 581M36 608C24 598 20 585 19 576M85 497C70 483 66 469 64 453M101 454C111 458 122 455 133 449M35 354C49 345 54 331 57 321M31 344C21 334 17 322 15 312M92 264C80 254 78 240 78 226M113 230C124 232 135 229 144 222M90 178C81 164 83 153 85 142M150 140C147 126 151 115 158 104M189 96C178 89 173 79 173 67M221 117C217 104 219 93 227 83M261 73C257 63 259 54 264 47M301 88C312 88 321 83 329 77"/>
+    <path stroke-width="8" d="M1585 1020C1553 929 1581 845 1558 749C1546 696 1571 653 1553 587C1535 509 1564 460 1545 382C1528 313 1553 258 1525 202C1496 143 1433 125 1369 109C1329 100 1298 89 1265 75"/>
+    <path stroke-width="3.5" d="M1555 847C1530 824 1530 792 1522 761C1518 744 1504 733 1487 721M1553 701C1574 678 1578 644 1584 623C1589 607 1599 598 1608 588M1552 535C1528 515 1527 489 1516 471C1510 459 1496 453 1485 445M1550 425C1569 404 1579 381 1580 357C1582 338 1591 324 1600 312M1533 297C1512 279 1510 252 1496 234C1488 223 1476 219 1460 213M1484 160C1485 141 1488 120 1483 104C1478 90 1470 81 1465 71M1428 130C1426 112 1413 102 1407 90C1402 78 1403 67 1399 56M1364 110C1353 95 1348 81 1335 75C1324 68 1313 68 1303 60"/>
+    <path stroke-width="2.4" d="M1567 946C1580 937 1587 922 1590 905M1563 910C1549 897 1541 885 1528 877M1521 783C1536 770 1540 754 1541 743M1521 763C1505 761 1495 753 1485 744M1582 654C1569 643 1565 628 1564 613M1581 626C1594 616 1597 602 1600 591M1525 497C1538 485 1543 470 1543 455M1515 469C1504 471 1494 465 1483 457M1575 369C1561 359 1559 346 1558 330M1579 356C1590 345 1594 332 1595 321M1510 268C1521 257 1522 241 1521 228M1495 234C1482 236 1472 232 1462 225M1504 178C1514 165 1513 152 1512 142M1451 137C1453 123 1449 112 1442 102M1410 98C1420 90 1425 80 1425 67M1371 110C1378 98 1376 88 1368 79M1335 75C1339 62 1338 54 1333 47M1298 87C1287 87 1279 82 1271 76"/>
+  </g>
+
+  <g>
+    <use href="#flower" transform="translate(11 882) rotate(-23) scale(.8)"/>
+    <use href="#flower" transform="translate(76 874) rotate(17) scale(.72)"/>
+    <use href="#flower" transform="translate(58 700) rotate(23) scale(.8)"/>
+    <use href="#flower" transform="translate(117 700) rotate(-15) scale(.68)"/>
+    <use href="#flower" transform="translate(117 657) rotate(13) scale(.72)"/>
+    <use href="#flower" transform="translate(19 576) rotate(18) scale(.72)"/>
+    <use href="#flower" transform="translate(56 581) rotate(-13) scale(.82)"/>
+    <use href="#flower" transform="translate(64 453) rotate(-9) scale(.76)"/>
+    <use href="#flower" transform="translate(133 449) rotate(21) scale(.74)"/>
+    <use href="#flower" transform="translate(57 321) rotate(-17) scale(.78)"/>
+    <use href="#flower" transform="translate(15 312) rotate(12) scale(.7)"/>
+    <use href="#flower" transform="translate(78 226) rotate(-20) scale(.76)"/>
+    <use href="#flower" transform="translate(144 222) rotate(15) scale(.75)"/>
+    <use href="#flower" transform="translate(85 142) rotate(11) scale(.73)"/>
+    <use href="#flower" transform="translate(158 104) rotate(-8) scale(.78)"/>
+    <use href="#flower" transform="translate(173 67) rotate(25) scale(.67)"/>
+    <use href="#flower" transform="translate(227 83) rotate(-16) scale(.77)"/>
+    <use href="#flower" transform="translate(264 47) rotate(18) scale(.65)"/>
+    <use href="#flower" transform="translate(329 77) rotate(-20) scale(.55)"/>
+    <use href="#bud" transform="translate(4 552) rotate(-50)"/>
+    <use href="#bud" transform="translate(131 428) rotate(35) scale(.85)"/>
+    <use href="#bud" transform="translate(3 295) rotate(-42)"/>
+    <use href="#bud" transform="translate(145 203) rotate(40)"/>
+    <use href="#bud" transform="translate(128 67) rotate(20)"/>
+    <use href="#bud" transform="translate(293 58) rotate(55) scale(.8)"/>
+
+    <use href="#flower" transform="translate(1590 905) rotate(14) scale(.78)"/>
+    <use href="#flower" transform="translate(1528 877) rotate(-20) scale(.72)"/>
+    <use href="#flower" transform="translate(1541 743) rotate(12) scale(.75)"/>
+    <use href="#flower" transform="translate(1485 744) rotate(-18) scale(.68)"/>
+    <use href="#flower" transform="translate(1487 721) rotate(15) scale(.72)"/>
+    <use href="#flower" transform="translate(1564 613) rotate(-12) scale(.78)"/>
+    <use href="#flower" transform="translate(1600 591) rotate(22) scale(.7)"/>
+    <use href="#flower" transform="translate(1543 455) rotate(-12) scale(.75)"/>
+    <use href="#flower" transform="translate(1483 457) rotate(15) scale(.74)"/>
+    <use href="#flower" transform="translate(1558 330) rotate(-18) scale(.78)"/>
+    <use href="#flower" transform="translate(1595 321) rotate(-14) scale(.7)"/>
+    <use href="#flower" transform="translate(1521 228) rotate(9) scale(.75)"/>
+    <use href="#flower" transform="translate(1462 225) rotate(-22) scale(.75)"/>
+    <use href="#flower" transform="translate(1512 142) rotate(18) scale(.74)"/>
+    <use href="#flower" transform="translate(1442 102) rotate(-17) scale(.78)"/>
+    <use href="#flower" transform="translate(1425 67) rotate(20) scale(.65)"/>
+    <use href="#flower" transform="translate(1368 79) rotate(-12) scale(.77)"/>
+    <use href="#flower" transform="translate(1333 47) rotate(14) scale(.65)"/>
+    <use href="#flower" transform="translate(1271 76) rotate(-20) scale(.55)"/>
+    <use href="#bud" transform="translate(1608 588) rotate(35)"/>
+    <use href="#bud" transform="translate(1485 445) rotate(-38)"/>
+    <use href="#bud" transform="translate(1600 312) rotate(37)"/>
+    <use href="#bud" transform="translate(1460 213) rotate(-45)"/>
+    <use href="#bud" transform="translate(1465 71) rotate(-22)"/>
+    <use href="#bud" transform="translate(1303 60) rotate(-55) scale(.8)"/>
+  </g>
+</svg>
