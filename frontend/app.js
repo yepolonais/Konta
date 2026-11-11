@@ -24,6 +24,14 @@ const BUDGET_GROUPS = [
   { type: "Savings", label: "Épargne planifiée", emptyLabel: "Aucune épargne planifiée", typeLabel: "Épargne" }
 ];
 
+const AMBIANCE_IMAGES = {
+  plain: null,
+  "black-mesa": "/medias/okeeffe_black-mesa-landscape-new-mexico-out-back-of-maries.jpg",
+  abiquiu: "/medias/okeeffe_another-place-near-abiquiu.jpg",
+  "lava-bridge": "/medias/okeeffe_black-lava-bridge-hana-coast-no-2.jpg",
+  "starry-night": "/medias/Van_Gogh_Starry_Night.jpg"
+};
+
 class KontaApp extends HTMLElement {
   constructor() {
     super();
@@ -51,7 +59,7 @@ class KontaApp extends HTMLElement {
   connectedCallback() {
     this.renderShell();
     this.setTheme(localStorage.getItem("konta-theme") === "dark" ? "dark" : "light");
-    this.setAmbiance(localStorage.getItem("konta-ambiance") === "cherry" ? "cherry" : "plain");
+    this.setAmbiance(localStorage.getItem("konta-ambiance") || "plain");
     this.handlePageNavigation = () => {
       this.showPage(window.location.hash.slice(1) || "budget");
     };
@@ -93,9 +101,15 @@ class KontaApp extends HTMLElement {
             <button class="theme-toggle" type="button" aria-label="Activer le mode sombre" aria-pressed="false">
               <span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Sombre</span>
             </button>
-            <button class="ambiance-toggle secondary-button" type="button" aria-label="Activer l’ambiance cerisier" aria-pressed="false">
-              <span class="ambiance-toggle-icon" aria-hidden="true">🌸</span><span class="ambiance-toggle-label">Cerisier</span>
-            </button>
+            <label class="ambiance-control">Ambiance
+              <select class="ambiance-select" aria-label="Ambiance">
+                <option value="plain">Aucune</option>
+                <option value="black-mesa">Black Mesa Landscape</option>
+                <option value="abiquiu">Another Place Near Abiquiu</option>
+                <option value="lava-bridge">Black Lava Bridge</option>
+                <option value="starry-night">Starry Night</option>
+              </select>
+            </label>
           </div>
         </header>
         <main>
@@ -341,8 +355,8 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector(".theme-toggle").addEventListener("click", () => {
       this.setTheme(this.dataset.theme === "dark" ? "light" : "dark", true);
     });
-    this.shadowRoot.querySelector(".ambiance-toggle").addEventListener("click", () => {
-      this.setAmbiance(this.dataset.ambiance === "cherry" ? "plain" : "cherry", true);
+    this.shadowRoot.querySelector(".ambiance-select").addEventListener("change", event => {
+      this.setAmbiance(event.target.value, true);
     });
     this.shadowRoot.querySelector("#import-form").addEventListener("submit", event => this.previewFile(event));
     this.shadowRoot.querySelector("#preview-panel").addEventListener("click", event => this.handlePreviewAction(event));
@@ -541,13 +555,16 @@ class KontaApp extends HTMLElement {
   }
 
   setAmbiance(ambiance, persist = false) {
-    this.dataset.ambiance = ambiance;
-    const isCherry = ambiance === "cherry";
-    const toggle = this.shadowRoot.querySelector(".ambiance-toggle");
-    toggle.setAttribute("aria-label", `${isCherry ? "Désactiver" : "Activer"} l’ambiance cerisier`);
-    toggle.setAttribute("aria-pressed", String(isCherry));
-    toggle.querySelector(".ambiance-toggle-label").textContent = isCherry ? "Cerisier activé" : "Cerisier";
-    if (persist) localStorage.setItem("konta-ambiance", ambiance);
+    const selectedAmbiance = Object.hasOwn(AMBIANCE_IMAGES, ambiance) ? ambiance : "plain";
+    const imageUrl = AMBIANCE_IMAGES[selectedAmbiance];
+    this.dataset.ambiance = selectedAmbiance;
+    this.shadowRoot.querySelector(".ambiance-select").value = selectedAmbiance;
+    if (imageUrl) {
+      this.style.setProperty("--ambiance-image", `url("${imageUrl}")`);
+    } else {
+      this.style.removeProperty("--ambiance-image");
+    }
+    if (persist) localStorage.setItem("konta-ambiance", selectedAmbiance);
   }
 
   async loadAnnualBudget() {
