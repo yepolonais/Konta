@@ -49,6 +49,7 @@ class KontaApp extends HTMLElement {
     this.annualBudgetCategories = [];
     this.mappingPosts = [];
     this.mappingOrphans = [];
+    this.mappingRequestId = 0;
     this.annualBudgetMonth = null;
     this.draggedBudgetPostId = null;
     this.selectedBudgetMonth = new Date().getMonth() + 1;
@@ -101,17 +102,17 @@ class KontaApp extends HTMLElement {
             <button class="theme-toggle" type="button" aria-label="Activer le mode sombre" aria-pressed="false">
               <span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Sombre</span>
             </button>
-            <label class="ambiance-control">Ambiance
-              <select class="ambiance-select" aria-label="Ambiance">
-                <option value="plain">Aucune</option>
-                <option value="black-mesa">Black Mesa Landscape</option>
-                <option value="abiquiu">Another Place Near Abiquiu</option>
-                <option value="lava-bridge">Black Lava Bridge</option>
-                <option value="starry-night">Starry Night</option>
-              </select>
-            </label>
           </div>
         </header>
+        <div class="ambiance-control">
+          <select class="ambiance-select" aria-label="Ambiance">
+            <option value="plain">Aucune</option>
+            <option value="black-mesa">Black Mesa Landscape</option>
+            <option value="abiquiu">Another Place Near Abiquiu</option>
+            <option value="lava-bridge">Black Lava Bridge</option>
+            <option value="starry-night">Starry Night</option>
+          </select>
+        </div>
         <main>
           <div class="heading">
             <div><div class="eyebrow">Espace finances · 01</div><h1>Budget</h1><p class="intro">Planifiez les revenus, dépenses et montants mis de côté sur l’année.</p></div>
@@ -1167,7 +1168,7 @@ class KontaApp extends HTMLElement {
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’ajouter le poste.");
       nameInput.value = "";
-      await this.loadAnnualBudget();
+      await Promise.all([this.loadAnnualBudget(), this.loadMapping()]);
       this.setAnnualBudgetFeedback(`Poste « ${result.name} » ajouté.`);
       nameInput.focus();
     } catch (exception) {
@@ -1219,7 +1220,10 @@ class KontaApp extends HTMLElement {
           : Array.from({ length: 12 }, (_, monthIndex) => monthIndex + 1)
       );
       this.setAnnualBudgetFeedback("Modification enregistrée.");
-      await this.loadAnnualBudgetMonth();
+      await Promise.all([
+        this.loadAnnualBudgetMonth(),
+        ...(input.matches("[data-post-name]") ? [this.loadMapping()] : [])
+      ]);
     } catch (exception) {
       this.setAnnualBudgetFeedback(exception.message, true);
       await this.loadAnnualBudget();
@@ -1227,6 +1231,7 @@ class KontaApp extends HTMLElement {
   }
 
   async loadMapping() {
+    const requestId = ++this.mappingRequestId;
     try {
       const year = this.annualBudget?.year ?? new Date().getFullYear();
       const [budgetResponse, orphansResponse] = await Promise.all([
@@ -1235,11 +1240,12 @@ class KontaApp extends HTMLElement {
       ]);
       if (!budgetResponse.ok || !orphansResponse.ok) throw new Error("Impossible de charger le rapprochement.");
       const [budget, orphans] = await Promise.all([budgetResponse.json(), orphansResponse.json()]);
+      if (requestId !== this.mappingRequestId) return;
       this.mappingPosts = budget.posts.filter(post => post.isActive);
       this.mappingOrphans = orphans;
       this.renderMapping();
     } catch (exception) {
-      this.setMappingFeedback(exception.message, true);
+      if (requestId === this.mappingRequestId) this.setMappingFeedback(exception.message, true);
     }
   }
 
@@ -1420,7 +1426,7 @@ class KontaApp extends HTMLElement {
         const result = await response.json();
         throw new Error(result.detail ?? result.title ?? "Impossible de supprimer le poste.");
       }
-      await this.loadAnnualBudget();
+      await Promise.all([this.loadAnnualBudget(), this.loadMapping()]);
       this.setAnnualBudgetFeedback(`Poste « ${post.name} » supprimé.`);
     } catch (exception) {
       this.setAnnualBudgetFeedback(exception.message, true);
