@@ -15,4 +15,6 @@ public sealed record TransactionListItem(
     Guid? AccountId = null,
     Guid? CategoryId = null,
     bool IsTransfer = false,
-    string? Details = null);
+    string? Details = null,
+    Guid? BudgetPostId = null,
+    string? BudgetDescription = null);

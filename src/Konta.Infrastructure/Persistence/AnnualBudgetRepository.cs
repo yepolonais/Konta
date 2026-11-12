@@ -136,9 +136,22 @@ public sealed class AnnualBudgetRepository(KontaDbContext dbContext) : IAnnualBu
             .Where(mapping => categoryIds.Contains(mapping.CategoryId))
             .Select(mapping => mapping.CategoryId)
             .ToHashSet();
-        foreach (var categoryId in categoryIds.Where(id => !existingCategoryIds.Contains(id)))
+        var addedCategoryIds = categoryIds.Where(id => !existingCategoryIds.Contains(id)).ToArray();
+        var removedCategoryIds = mappingsToRemove.Select(mapping => mapping.CategoryId).ToArray();
+        foreach (var categoryId in addedCategoryIds)
         {
             post.CategoryMappings.Add(new BudgetPostCategoryMapping(postId, categoryId));
+        }
+
+        var changedCategoryIds = addedCategoryIds.Concat(removedCategoryIds).ToArray();
+        var transactions = await dbContext.Transactions
+            .Where(transaction => transaction.CategoryId.HasValue
+                && changedCategoryIds.Contains(transaction.CategoryId.Value))
+            .ToListAsync(cancellationToken);
+        foreach (var transaction in transactions)
+        {
+            var assignedPostId = addedCategoryIds.Contains(transaction.CategoryId!.Value) ? postId : (Guid?)null;
+            transaction.SetBudgetAssignment(assignedPostId, transaction.BudgetDescription);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

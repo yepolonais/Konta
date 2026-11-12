@@ -91,6 +91,9 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
         await using var databaseTransaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var existing = await GetExistingOccurrencesAsync(importRows, cancellationToken);
         var categoryLookup = await ResolveCategoryIdsAsync(importRows, cancellationToken);
+        var categoryPostIds = await dbContext.BudgetPostCategoryMappings
+            .AsNoTracking()
+            .ToDictionaryAsync(mapping => mapping.CategoryId, mapping => mapping.AnnualBudgetPostId, cancellationToken);
         var newTransactions = new List<Transaction>();
         var importedTransactions = new Dictionary<int, (ImportedTransaction Import, Transaction Entity)>();
 
@@ -123,6 +126,10 @@ public sealed class ImportCommitRepository(KontaDbContext dbContext) : IImportCo
                     importFingerprint: transaction.Fingerprint,
                     importOccurrence: nextOccurrence,
                     details: string.Join(' ', transaction.FullLabel.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
+                if (categoryId.HasValue && categoryPostIds.TryGetValue(categoryId.Value, out var postId))
+                {
+                    newEntity.SetBudgetAssignment(postId, null);
+                }
                 newTransactions.Add(newEntity);
                 importedTransactions.Add(transaction.RowNumber, (transaction, newEntity));
             }

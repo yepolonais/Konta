@@ -27,6 +27,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.HasKey(transaction => transaction.Id);
             entity.Property(transaction => transaction.Label).HasMaxLength(500).IsRequired();
             entity.Property(transaction => transaction.Details).HasMaxLength(1000);
+            entity.Property(transaction => transaction.BudgetDescription).HasMaxLength(200);
             entity.Property(transaction => transaction.Amount).HasPrecision(18, 2);
             entity.Property(transaction => transaction.Type).HasConversion<string>().HasMaxLength(16);
             entity.Property(transaction => transaction.Source).HasConversion<string>().HasMaxLength(16);
@@ -48,6 +49,10 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
                 .WithMany()
                 .HasForeignKey(transaction => transaction.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(transaction => transaction.BudgetPost)
+                .WithMany()
+                .HasForeignKey(transaction => transaction.BudgetPostId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Account>(entity =>

@@ -8,4 +8,6 @@ public interface ICategoryService
     Task<CategoryListItem> CreateAsync(string name, CancellationToken cancellationToken);
     Task<CategoryListItem?> UpdateAsync(Guid id, string name, CancellationToken cancellationToken);
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken);
+    Task<bool> EnableMultiPostAsync(Guid id, CancellationToken cancellationToken);
+    Task<bool> DisableMultiPostAsync(Guid id, CancellationToken cancellationToken);
 }

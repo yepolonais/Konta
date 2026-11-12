@@ -1,5 +1,6 @@
 using Konta.Domain.Categories;
 using Konta.Domain.Accounts;
+using Konta.Domain.Budgets;
 
 namespace Konta.Domain.Transactions;
 
@@ -61,6 +62,23 @@ public sealed class Transaction
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    public void SetBudgetAssignment(Guid? postId, string? description)
+    {
+        if (postId == Guid.Empty)
+        {
+            throw new ArgumentException("Le poste budgétaire est invalide.", nameof(postId));
+        }
+
+        if (description?.Trim().Length > 200)
+        {
+            throw new ArgumentException("Le libellé ne peut pas dépasser 200 caractères.", nameof(description));
+        }
+
+        BudgetPostId = postId;
+        BudgetDescription = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public Guid Id { get; private set; }
     public DateOnly Date { get; private set; }
     public string Label { get; private set; } = string.Empty;
@@ -75,6 +93,9 @@ public sealed class Transaction
     public int? ImportOccurrence { get; private set; }
     public Guid? CategoryId { get; private set; }
     public Category? Category { get; private set; }
+    public Guid? BudgetPostId { get; private set; }
+    public AnnualBudgetPost? BudgetPost { get; private set; }
+    public string? BudgetDescription { get; private set; }
     public TransactionSource Source { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }

@@ -42,6 +42,7 @@ public sealed class CategoryRepository(KontaDbContext dbContext) : ICategoryRepo
         var categories = await dbContext.Categories
             .AsNoTracking()
             .Where(category => category.IsActive
+                && !category.IsMultiPost
                 && !dbContext.BudgetPostCategoryMappings.Any(mapping => mapping.CategoryId == category.Id))
             .Select(category => new { category.Id, category.Name })
             .ToListAsync(cancellationToken);
@@ -65,6 +66,64 @@ public sealed class CategoryRepository(KontaDbContext dbContext) : ICategoryRepo
 
     public Task<int> CountTransactionsAsync(Guid categoryId, CancellationToken cancellationToken) =>
         dbContext.Transactions.CountAsync(transaction => transaction.CategoryId == categoryId, cancellationToken);
+
+    public async Task<bool> EnableMultiPostAsync(Guid categoryId, CancellationToken cancellationToken)
+    {
+        var category = await dbContext.Categories
+            .FirstOrDefaultAsync(item => item.Id == categoryId && item.IsActive, cancellationToken);
+        if (category is null)
+        {
+            return false;
+        }
+
+        if (category.IsMultiPost)
+        {
+            return true;
+        }
+
+        var mappings = await dbContext.BudgetPostCategoryMappings
+            .Where(mapping => mapping.CategoryId == categoryId)
+            .ToListAsync(cancellationToken);
+        var transactions = await dbContext.Transactions
+            .Where(transaction => transaction.CategoryId == categoryId)
+            .ToListAsync(cancellationToken);
+        category.EnableMultiPost();
+        dbContext.BudgetPostCategoryMappings.RemoveRange(mappings);
+        foreach (var transaction in transactions)
+        {
+            transaction.SetBudgetAssignment(null, transaction.BudgetDescription);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> DisableMultiPostAsync(Guid categoryId, CancellationToken cancellationToken)
+    {
+        var category = await dbContext.Categories
+            .FirstOrDefaultAsync(item => item.Id == categoryId && item.IsActive, cancellationToken);
+        if (category is null)
+        {
+            return false;
+        }
+
+        if (!category.IsMultiPost)
+        {
+            return true;
+        }
+
+        var transactions = await dbContext.Transactions
+            .Where(transaction => transaction.CategoryId == categoryId && transaction.BudgetPostId != null)
+            .ToListAsync(cancellationToken);
+        category.DisableMultiPost();
+        foreach (var transaction in transactions)
+        {
+            transaction.SetBudgetAssignment(null, transaction.BudgetDescription);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 
     public async Task DeactivateWithDependenciesAsync(Guid categoryId, CancellationToken cancellationToken)
     {

@@ -1,7 +1,11 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Konta.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 
 namespace Konta.Tests.Integration;
@@ -329,6 +333,280 @@ public sealed class AnnualBudgetsApiIntegrationTests
 
         // Assert
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetCategoryMappings_ReassignsPastAndFutureTransactions_WhenMappingChanges()
+    {
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "mapping-sync");
+        var categoryId = await CreateCategoryAsync(client, "Achats");
+        var firstPostId = await CreatePostAsync(client, "Ancien", "Expense");
+        var secondPostId = await CreatePostAsync(client, "Nouveau", "Expense");
+        using var imported = await PostCsvAsync(client, Csv("10/09/2026", "mapping-sync", "Achat 1", "Achats", "-10,00"));
+        imported.EnsureSuccessStatusCode();
+
+        using var first = await client.PutAsync($"/api/annual-budgets/posts/{firstPostId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
+        first.EnsureSuccessStatusCode();
+        using var remove = await client.PutAsync($"/api/annual-budgets/posts/{firstPostId}/categories", JsonContent("""{"categoryIds":[]}"""));
+        remove.EnsureSuccessStatusCode();
+        using var second = await client.PutAsync($"/api/annual-budgets/posts/{secondPostId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
+        second.EnsureSuccessStatusCode();
+        using var future = await PostCsvAsync(client, Csv("11/09/2026", "mapping-sync", "Achat 2", "Achats", "-20,00"));
+        future.EnsureSuccessStatusCode();
+
+        using var transactions = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        Assert.All(transactions.RootElement.EnumerateArray(), transaction =>
+            Assert.Equal(secondPostId, transaction.GetProperty("budgetPostId").GetGuid()));
+        using var month = JsonDocument.Parse(await client.GetStringAsync("/api/annual-budgets/2026/months/9"));
+        var post = month.RootElement.GetProperty("posts").EnumerateArray()
+            .Single(item => item.GetProperty("id").GetGuid() == secondPostId);
+        Assert.Equal(30m, post.GetProperty("actualAmount").GetDecimal());
+        Assert.Equal(0, month.RootElement.GetProperty("unassignedTransactionCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task MultiPost_AssignsTransactionsSeparately_WithoutDoubleCounting()
+    {
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "multi-test");
+        var categoryId = await CreateCategoryAsync(client, "Amazon");
+        var firstPostId = await CreatePostAsync(client, "Travaux", "Expense");
+        var secondPostId = await CreatePostAsync(client, "Loisirs", "Expense");
+        var incomePostId = await CreatePostAsync(client, "Revenus", "Income");
+        using var mapping = await client.PutAsync($"/api/annual-budgets/posts/{firstPostId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
+        mapping.EnsureSuccessStatusCode();
+        using var imported = await PostCsvAsync(client,
+            Csv("10/09/2026", "multi-test", "Achat 1", "Amazon", "-10,00")
+            + Csv("11/09/2026", "multi-test", "Achat 2", "Amazon", "-20,00")
+            + Csv("12/09/2026", "multi-test", "Achat 3", "Amazon", "-30,00"));
+        imported.EnsureSuccessStatusCode();
+        using var enabled = await client.PutAsync($"/api/categories/{categoryId}/multi-post", null);
+        Assert.Equal(HttpStatusCode.NoContent, enabled.StatusCode);
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var operations = initial.RootElement.EnumerateArray().OrderBy(item => item.GetProperty("label").GetString()).ToArray();
+        Assert.Equal(3, operations.Length);
+        Assert.All(operations, item => Assert.Equal(JsonValueKind.Null, item.GetProperty("budgetPostId").ValueKind));
+        var firstId = operations[0].GetProperty("id").GetGuid();
+        var secondId = operations[1].GetProperty("id").GetGuid();
+
+        using var first = await client.PutAsync($"/api/transactions/{firstId}/budget-assignment",
+            JsonContent(JsonSerializer.Serialize(new { budgetPostId = firstPostId, description = "Charnière" })));
+        using var second = await client.PutAsync($"/api/transactions/{secondId}/budget-assignment",
+            JsonContent(JsonSerializer.Serialize(new { budgetPostId = secondPostId, description = "Livre" })));
+        Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
+        using var invalid = await client.PutAsync($"/api/transactions/{firstId}/budget-assignment",
+            JsonContent(JsonSerializer.Serialize(new { budgetPostId = incomePostId, description = "Erreur" })));
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        using var repeated = await client.PutAsync($"/api/categories/{categoryId}/multi-post", null);
+        Assert.Equal(HttpStatusCode.NoContent, repeated.StatusCode);
+        using var conflict = await client.PutAsync($"/api/annual-budgets/posts/{firstPostId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
+        Assert.Equal(HttpStatusCode.BadRequest, conflict.StatusCode);
+
+        using var month = JsonDocument.Parse(await client.GetStringAsync("/api/annual-budgets/2026/months/9"));
+        var root = month.RootElement;
+        var posts = root.GetProperty("posts").EnumerateArray().ToArray();
+        Assert.Equal(10m, posts.Single(item => item.GetProperty("id").GetGuid() == firstPostId).GetProperty("actualAmount").GetDecimal());
+        Assert.Equal(20m, posts.Single(item => item.GetProperty("id").GetGuid() == secondPostId).GetProperty("actualAmount").GetDecimal());
+        Assert.Equal(60m, root.GetProperty("actualExpenseTotal").GetDecimal());
+        Assert.Equal(30m, root.GetProperty("unassignedExpenseTotal").GetDecimal());
+        using var saved = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var savedFirst = saved.RootElement.EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == firstId);
+        Assert.Equal("Charnière", savedFirst.GetProperty("budgetDescription").GetString());
+        Assert.Equal(firstPostId, savedFirst.GetProperty("budgetPostId").GetGuid());
+        using var orphans = JsonDocument.Parse(await client.GetStringAsync("/api/categories/orphans"));
+        Assert.DoesNotContain(orphans.RootElement.EnumerateArray(), item => item.GetProperty("id").GetGuid() == categoryId);
+
+        using var future = await PostCsvAsync(client, Csv("13/09/2026", "multi-test", "Achat 4", "Amazon", "-40,00"));
+        future.EnsureSuccessStatusCode();
+        using var afterImport = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var newOperation = afterImport.RootElement.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "Achat 4");
+        Assert.Equal(JsonValueKind.Null, newOperation.GetProperty("budgetPostId").ValueKind);
+    }
+
+    [Fact]
+    public async Task DisableMultiPost_ClearsAssignmentsAndAllowsNormalReassignment()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "multi-revert");
+        var categoryId = await CreateCategoryAsync(client, "Boutique");
+        var otherCategoryId = await CreateCategoryAsync(client, "Autre");
+        var firstPostId = await CreatePostAsync(client, "Travaux", "Expense");
+        var secondPostId = await CreatePostAsync(client, "Loisirs", "Expense");
+        using var otherMapping = await client.PutAsync($"/api/annual-budgets/posts/{firstPostId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { otherCategoryId } })));
+        otherMapping.EnsureSuccessStatusCode();
+        using var enabled = await client.PutAsync($"/api/categories/{categoryId}/multi-post", null);
+        enabled.EnsureSuccessStatusCode();
+        using var imported = await PostCsvAsync(client,
+            Csv("10/09/2026", "multi-revert", "Achat 1", "Boutique", "-10,00")
+            + Csv("11/09/2026", "multi-revert", "Achat 2", "Boutique", "-20,00")
+            + Csv("12/09/2026", "multi-revert", "Autre achat", "Autre", "-5,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var firstId = initial.RootElement.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "Achat 1").GetProperty("id").GetGuid();
+        var secondId = initial.RootElement.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "Achat 2").GetProperty("id").GetGuid();
+        using var first = await client.PutAsync($"/api/transactions/{firstId}/budget-assignment",
+            JsonContent(JsonSerializer.Serialize(new { budgetPostId = firstPostId, description = "Charnière" })));
+        using var second = await client.PutAsync($"/api/transactions/{secondId}/budget-assignment",
+            JsonContent(JsonSerializer.Serialize(new { budgetPostId = secondPostId, description = "Livre" })));
+        first.EnsureSuccessStatusCode();
+        second.EnsureSuccessStatusCode();
+
+        // Act
+        using var disabled = await client.DeleteAsync($"/api/categories/{categoryId}/multi-post");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, disabled.StatusCode);
+        using var category = JsonDocument.Parse(await client.GetStringAsync($"/api/categories/{categoryId}"));
+        Assert.False(category.RootElement.GetProperty("isMultiPost").GetBoolean());
+        using var orphans = JsonDocument.Parse(await client.GetStringAsync("/api/categories/orphans"));
+        Assert.Contains(orphans.RootElement.EnumerateArray(), item => item.GetProperty("id").GetGuid() == categoryId);
+        using var operations = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var categoryOperations = operations.RootElement.EnumerateArray()
+            .Where(item => item.GetProperty("categoryId").GetGuid() == categoryId).ToArray();
+        Assert.All(categoryOperations, item => Assert.Equal(JsonValueKind.Null, item.GetProperty("budgetPostId").ValueKind));
+        Assert.Equal("Charnière", categoryOperations.Single(item => item.GetProperty("id").GetGuid() == firstId).GetProperty("budgetDescription").GetString());
+        Assert.Equal("Livre", categoryOperations.Single(item => item.GetProperty("id").GetGuid() == secondId).GetProperty("budgetDescription").GetString());
+        Assert.Equal(firstPostId, operations.RootElement.EnumerateArray()
+            .Single(item => item.GetProperty("categoryId").GetGuid() == otherCategoryId).GetProperty("budgetPostId").GetGuid());
+        using var month = JsonDocument.Parse(await client.GetStringAsync("/api/annual-budgets/2026/months/9"));
+        Assert.Equal(30m, month.RootElement.GetProperty("unassignedExpenseTotal").GetDecimal());
+
+        using var mapping = await client.PutAsync($"/api/annual-budgets/posts/{secondPostId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
+        mapping.EnsureSuccessStatusCode();
+        using var repeated = await client.DeleteAsync($"/api/categories/{categoryId}/multi-post");
+        Assert.Equal(HttpStatusCode.NoContent, repeated.StatusCode);
+        using var future = await PostCsvAsync(client, Csv("13/09/2026", "multi-revert", "Achat 3", "Boutique", "-40,00"));
+        future.EnsureSuccessStatusCode();
+        using var reassigned = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var reassignedOperations = reassigned.RootElement.EnumerateArray()
+            .Where(item => item.GetProperty("categoryId").GetGuid() == categoryId).ToArray();
+        Assert.Equal(3, reassignedOperations.Length);
+        Assert.All(reassignedOperations, item => Assert.Equal(secondPostId, item.GetProperty("budgetPostId").GetGuid()));
+        using var updatedMonth = JsonDocument.Parse(await client.GetStringAsync("/api/annual-budgets/2026/months/9"));
+        var post = updatedMonth.RootElement.GetProperty("posts").EnumerateArray()
+            .Single(item => item.GetProperty("id").GetGuid() == secondPostId);
+        Assert.Equal(70m, post.GetProperty("actualAmount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task DisableMultiPost_ReturnsNotFound_WhenCategoryDoesNotExist()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.DeleteAsync($"/api/categories/{Guid.NewGuid()}/multi-post");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeCategory_UsesNewCategoryRule_AndLeavesMultiPostUnassigned()
+    {
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "category-change");
+        var firstCategoryId = await CreateCategoryAsync(client, "Achats");
+        var secondCategoryId = await CreateCategoryAsync(client, "Courses");
+        var multiCategoryId = await CreateCategoryAsync(client, "Amazon");
+        var firstPostId = await CreatePostAsync(client, "Achats", "Expense");
+        var secondPostId = await CreatePostAsync(client, "Courses", "Expense");
+        using var firstMapping = await client.PutAsync($"/api/annual-budgets/posts/{firstPostId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { firstCategoryId } })));
+        using var secondMapping = await client.PutAsync($"/api/annual-budgets/posts/{secondPostId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { secondCategoryId } })));
+        firstMapping.EnsureSuccessStatusCode();
+        secondMapping.EnsureSuccessStatusCode();
+        using var enabled = await client.PutAsync($"/api/categories/{multiCategoryId}/multi-post", null);
+        enabled.EnsureSuccessStatusCode();
+        using var imported = await PostCsvAsync(client, Csv("10/09/2026", "category-change", "Achat", "Achats", "-10,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var id = Assert.Single(initial.RootElement.EnumerateArray()).GetProperty("id").GetGuid();
+
+        using var changed = await client.PutAsync($"/api/transactions/{id}/category",
+            JsonContent(JsonSerializer.Serialize(new { categoryId = secondCategoryId })));
+        changed.EnsureSuccessStatusCode();
+        using var normal = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        Assert.Equal(secondPostId, Assert.Single(normal.RootElement.EnumerateArray()).GetProperty("budgetPostId").GetGuid());
+        using var toMulti = await client.PutAsync($"/api/transactions/{id}/category",
+            JsonContent(JsonSerializer.Serialize(new { categoryId = multiCategoryId })));
+        toMulti.EnsureSuccessStatusCode();
+        using var multi = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        Assert.Equal(JsonValueKind.Null, Assert.Single(multi.RootElement.EnumerateArray()).GetProperty("budgetPostId").ValueKind);
+    }
+
+    [Fact]
+    public async Task DeletePost_LeavesMultiPostTransactionsUnassigned()
+    {
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "multi-delete");
+        var categoryId = await CreateCategoryAsync(client, "Amazon");
+        var postId = await CreatePostAsync(client, "Travaux", "Expense");
+        using var enabled = await client.PutAsync($"/api/categories/{categoryId}/multi-post", null);
+        enabled.EnsureSuccessStatusCode();
+        using var imported = await PostCsvAsync(client, Csv("10/09/2026", "multi-delete", "Achat", "Amazon", "-10,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var id = Assert.Single(initial.RootElement.EnumerateArray()).GetProperty("id").GetGuid();
+        using var assigned = await client.PutAsync($"/api/transactions/{id}/budget-assignment",
+            JsonContent(JsonSerializer.Serialize(new { budgetPostId = postId, description = "Charnière" })));
+        assigned.EnsureSuccessStatusCode();
+
+        using var deleted = await client.DeleteAsync($"/api/annual-budgets/posts/{postId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        using var saved = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var operation = Assert.Single(saved.RootElement.EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, operation.GetProperty("budgetPostId").ValueKind);
+        Assert.Equal("Charnière", operation.GetProperty("budgetDescription").GetString());
+    }
+
+    [Fact]
+    public async Task Migration_BackfillsBudgetPosts_ForPreviouslyMappedTransactions()
+    {
+        using var dataDirectory = new TemporaryDirectory();
+        var path = Path.Combine(dataDirectory.FullName, "migration.db");
+        var options = new DbContextOptionsBuilder<KontaDbContext>().UseSqlite($"Data Source={path}").Options;
+        await using var db = new KontaDbContext(options);
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261108202911_AddImportSettings");
+        var categoryId = Guid.NewGuid();
+        var postId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid();
+        var unmappedId = Guid.NewGuid();
+        var mappingId = Guid.NewGuid();
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Categories (Id, Name, IsActive) VALUES ({categoryId}, {"Achats"}, {true})");
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO AnnualBudgetPosts (Id, Name, Type, IsActive, SortOrder) VALUES ({postId}, {"Travaux"}, {"Expense"}, {true}, {0})");
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO BudgetPostCategoryMappings (Id, AnnualBudgetPostId, CategoryId) VALUES ({mappingId}, {postId}, {categoryId})");
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Transactions (Id, Date, Label, Amount, Type, CategoryId, Source, CreatedAt, UpdatedAt) VALUES ({transactionId}, {"2026-09-10"}, {"Achat"}, {"10.00"}, {"Expense"}, {categoryId}, {"Manual"}, {"2026-09-10T00:00:00+00:00"}, {"2026-09-10T00:00:00+00:00"})");
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Transactions (Id, Date, Label, Amount, Type, Source, CreatedAt, UpdatedAt) VALUES ({unmappedId}, {"2026-09-10"}, {"Autre"}, {"5.00"}, {"Expense"}, {"Manual"}, {"2026-09-10T00:00:00+00:00"}, {"2026-09-10T00:00:00+00:00"})");
+
+        await migrator.MigrateAsync();
+
+        var transactions = await db.Transactions.AsNoTracking().ToListAsync();
+        Assert.Equal(postId, transactions.Single(item => item.Id == transactionId).BudgetPostId);
+        Assert.Null(transactions.Single(item => item.Id == unmappedId).BudgetPostId);
     }
 
     [Fact]

@@ -70,6 +70,12 @@ public sealed class CategoryService(ICategoryRepository repository) : ICategoryS
         return true;
     }
 
+    public Task<bool> EnableMultiPostAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.EnableMultiPostAsync(id, cancellationToken);
+
+    public Task<bool> DisableMultiPostAsync(Guid id, CancellationToken cancellationToken) =>
+        repository.DisableMultiPostAsync(id, cancellationToken);
+
     private static string NormalizeName(string name)
     {
         var normalized = name.Trim();
@@ -84,5 +90,6 @@ public sealed class CategoryService(ICategoryRepository repository) : ICategoryS
     private static CategoryListItem ToListItem(Category category) => new(
         category.Id,
         category.Name,
-        category.IsActive);
+        category.IsActive,
+        category.IsMultiPost);
 }

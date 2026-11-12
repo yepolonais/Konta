@@ -15,6 +15,24 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public Task<Guid?> GetCategoryBudgetPostIdAsync(Guid categoryId, CancellationToken cancellationToken) =>
+        dbContext.BudgetPostCategoryMappings
+            .Where(mapping => mapping.CategoryId == categoryId)
+            .Select(mapping => (Guid?)mapping.AnnualBudgetPostId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+    public Task<bool> IsTransferAsync(Guid transactionId, CancellationToken cancellationToken) =>
+        dbContext.AccountTransfers.AnyAsync(transfer =>
+            transfer.SourceTransactionId == transactionId || transfer.DestinationTransactionId == transactionId,
+            cancellationToken);
+
+    public async Task<IReadOnlySet<Guid>> ListAssignedBudgetPostIdsAsync(CancellationToken cancellationToken) =>
+        (await dbContext.Transactions.AsNoTracking()
+            .Where(transaction => transaction.BudgetPostId.HasValue)
+            .Select(transaction => transaction.BudgetPostId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken)).ToHashSet();
+
     public async Task<IReadOnlyList<TransactionListItem>> ListAsync(CancellationToken cancellationToken)
     {
         return await dbContext.Transactions
@@ -36,7 +54,9 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 dbContext.AccountTransfers.Any(transfer =>
                     transfer.SourceTransactionId == transaction.Id
                     || transfer.DestinationTransactionId == transaction.Id),
-                transaction.Details))
+                transaction.Details,
+                transaction.BudgetPostId,
+                transaction.BudgetDescription))
             .ToListAsync(cancellationToken);
     }
 
@@ -78,7 +98,9 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 dbContext.AccountTransfers.Any(transfer =>
                     transfer.SourceTransactionId == transaction.Id
                     || transfer.DestinationTransactionId == transaction.Id),
-                transaction.Details))
+                transaction.Details,
+                transaction.BudgetPostId,
+                transaction.BudgetDescription))
             .ToListAsync(cancellationToken);
     }
 }

@@ -59,32 +59,29 @@ public sealed class AnnualBudgetService(
             null,
             null,
             cancellationToken);
+        var assignedPostIds = await transactionRepository.ListAssignedBudgetPostIdsAsync(cancellationToken);
         var activePosts = posts.Where(post => post.IsActive).ToArray();
-        var savingsCategoryIds = activePosts
+        var savingsPostIds = activePosts
             .Where(post => post.Type == AnnualBudgetPostType.Savings)
-            .SelectMany(post => post.CategoryMappings.Select(mapping => mapping.CategoryId))
+            .Select(post => post.Id)
             .ToHashSet();
         // Les transferts sont écartés du réel, sauf pour l'épargne où ils constituent le versement.
         var transactions = allTransactions
             .Where(transaction => !transaction.IsTransfer
-                && !(transaction.CategoryId.HasValue && savingsCategoryIds.Contains(transaction.CategoryId.Value)))
+                && !(transaction.BudgetPostId.HasValue && savingsPostIds.Contains(transaction.BudgetPostId.Value)))
             .ToArray();
-        var categoryPostMappings = activePosts
-            .SelectMany(post => post.CategoryMappings.Select(mapping => (mapping.CategoryId, Post: post)))
-            .ToDictionary(mapping => mapping.CategoryId, mapping => mapping.Post);
+        var postsById = activePosts.ToDictionary(post => post.Id);
         var postItems = activePosts.Select(post =>
         {
             var plannedAmount = post.MonthlyAmounts
                 .Where(amount => amount.Year == year && amount.Month == month)
                 .Select(amount => (decimal?)amount.Amount)
                 .SingleOrDefault();
-            var categoryIds = post.CategoryMappings.Select(mapping => mapping.CategoryId).ToHashSet();
-            var isComparable = categoryIds.Count > 0;
+            var isComparable = post.CategoryMappings.Count > 0 || assignedPostIds.Contains(post.Id);
             var source = post.Type == AnnualBudgetPostType.Savings ? allTransactions : transactions;
             var matchedTransactions = isComparable
                 ? source
-                    .Where(transaction => transaction.CategoryId.HasValue
-                        && categoryIds.Contains(transaction.CategoryId.Value)
+                    .Where(transaction => transaction.BudgetPostId == post.Id
                         && TransactionTypeMatches(post.Type, transaction.Type))
                     .ToArray()
                 : [];
@@ -109,8 +106,8 @@ public sealed class AnnualBudgetService(
 
         var unassignedTransactions = transactions.Where(transaction =>
         {
-            if (!transaction.CategoryId.HasValue
-                || !categoryPostMappings.TryGetValue(transaction.CategoryId.Value, out var post))
+            if (!transaction.BudgetPostId.HasValue
+                || !postsById.TryGetValue(transaction.BudgetPostId.Value, out var post))
             {
                 return true;
             }
@@ -341,9 +338,14 @@ public sealed class AnnualBudgetService(
 
         foreach (var categoryId in categoryIds)
         {
-            if (await categoryRepository.GetAsync(categoryId, cancellationToken) is null)
+            var category = await categoryRepository.GetAsync(categoryId, cancellationToken);
+            if (category is null)
             {
                 throw new ArgumentException("Une catégorie sélectionnée n'existe pas ou n'est plus active.", nameof(categoryIds));
+            }
+            if (category.IsMultiPost)
+            {
+                throw new ArgumentException("Une catégorie multi-postes ne peut pas être rattachée directement à un poste.", nameof(categoryIds));
             }
         }
 

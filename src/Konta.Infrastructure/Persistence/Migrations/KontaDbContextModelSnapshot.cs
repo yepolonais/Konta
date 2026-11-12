@@ -172,6 +172,9 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsMultiPost")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -243,6 +246,13 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("BudgetDescription")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("BudgetPostId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("TEXT");
 
@@ -282,6 +292,8 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BudgetPostId");
 
                     b.HasIndex("CategoryId");
 
@@ -392,12 +404,19 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Konta.Domain.Budgets.AnnualBudgetPost", "BudgetPost")
+                        .WithMany()
+                        .HasForeignKey("BudgetPostId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Konta.Domain.Categories.Category", "Category")
                         .WithMany()
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Account");
+
+                    b.Navigation("BudgetPost");
 
                     b.Navigation("Category");
                 });

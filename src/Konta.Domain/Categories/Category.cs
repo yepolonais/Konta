@@ -21,6 +21,7 @@ public sealed class Category
     public Guid Id { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public bool IsActive { get; private set; }
+    public bool IsMultiPost { get; private set; }
 
     public void Rename(string name)
     {
@@ -33,4 +34,8 @@ public sealed class Category
     }
 
     public void SetActive(bool isActive) => IsActive = isActive;
+
+    public void EnableMultiPost() => IsMultiPost = true;
+
+    public void DisableMultiPost() => IsMultiPost = false;
 }

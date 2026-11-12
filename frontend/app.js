@@ -49,6 +49,8 @@ class KontaApp extends HTMLElement {
     this.annualBudgetCategories = [];
     this.mappingPosts = [];
     this.mappingOrphans = [];
+    this.mappingMultiCategories = [];
+    this.mappingTransactions = [];
     this.mappingRequestId = 0;
     this.annualBudgetMonth = null;
     this.draggedBudgetPostId = null;
@@ -270,13 +272,16 @@ class KontaApp extends HTMLElement {
             <p id="balance-result" class="balance-result" role="status"></p>
             <p class="feedback" id="balance-feedback" role="status" aria-live="polite" hidden></p>
           </section>
-          <section class="panel mapping-panel" id="mapping" data-page="mapping" aria-labelledby="mapping-title">
-            <div class="panel-head"><h2 id="mapping-title">Rapprochement catégories / postes</h2></div>
-            <p class="rules-intro">Une catégorie réelle alimente au plus un poste budgétaire. Une catégorie sans poste est « à rattacher » : ses opérations ne sont pas rapprochées du budget.</p>
-            <p class="feedback" id="mapping-feedback" role="status" aria-live="polite" hidden></p>
-            <div class="mapping-orphans" id="mapping-orphans"></div>
-            <div class="mapping-posts" id="mapping-posts"></div>
-          </section>
+          <div id="mapping" data-page="mapping">
+            <section class="panel mapping-panel" aria-labelledby="mapping-title">
+              <div class="panel-head"><h2 id="mapping-title">Rapprochement catégories / postes</h2></div>
+              <p class="rules-intro">Une catégorie normale rattache automatiquement ses opérations à un poste. En mode multi-postes, chaque opération est rattachée individuellement.</p>
+              <p class="feedback" id="mapping-feedback" role="status" aria-live="polite" hidden></p>
+              <div class="mapping-orphans" id="mapping-orphans"></div>
+              <div class="mapping-posts" id="mapping-posts"></div>
+            </section>
+            <div class="mapping-multi" id="mapping-multi"></div>
+          </div>
           <section class="panel rules-panel" id="category-rules" data-page="category-rules" aria-labelledby="rules-title">
             <div class="panel-head">
               <div class="rules-title-group">
@@ -439,6 +444,7 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#category-form").addEventListener("submit", event => this.createCategory(event));
     this.shadowRoot.querySelector("#category-cancel").addEventListener("click", () => this.resetCategoryForm());
     this.shadowRoot.querySelector("#mapping").addEventListener("click", event => this.handleMappingClick(event));
+    this.shadowRoot.querySelector("#mapping").addEventListener("submit", event => this.saveMultiPostTransaction(event));
     this.shadowRoot.querySelector("#category-list").addEventListener("click", event => {
       this.handleRuleAction(event);
       this.handleCategoryAction(event);
@@ -1234,18 +1240,26 @@ class KontaApp extends HTMLElement {
     const requestId = ++this.mappingRequestId;
     try {
       const year = this.annualBudget?.year ?? new Date().getFullYear();
-      const [budgetResponse, orphansResponse] = await Promise.all([
+      const [budgetResponse, orphansResponse, categoriesResponse, transactionsResponse] = await Promise.all([
         fetch(`/api/annual-budgets/${year}`),
-        fetch("/api/categories/orphans")
+        fetch("/api/categories/orphans"),
+        fetch("/api/categories"),
+        fetch("/api/transactions")
       ]);
-      if (!budgetResponse.ok || !orphansResponse.ok) throw new Error("Impossible de charger le rapprochement.");
-      const [budget, orphans] = await Promise.all([budgetResponse.json(), orphansResponse.json()]);
-      if (requestId !== this.mappingRequestId) return;
+      if (!budgetResponse.ok || !orphansResponse.ok || !categoriesResponse.ok || !transactionsResponse.ok) throw new Error("Impossible de charger le rapprochement.");
+      const [budget, orphans, categories, transactions] = await Promise.all([
+        budgetResponse.json(), orphansResponse.json(), categoriesResponse.json(), transactionsResponse.json()
+      ]);
+      if (requestId !== this.mappingRequestId) return false;
       this.mappingPosts = budget.posts.filter(post => post.isActive);
       this.mappingOrphans = orphans;
+      this.mappingMultiCategories = categories.filter(category => category.isMultiPost);
+      this.mappingTransactions = transactions;
       this.renderMapping();
+      return true;
     } catch (exception) {
       if (requestId === this.mappingRequestId) this.setMappingFeedback(exception.message, true);
+      return false;
     }
   }
 
@@ -1269,7 +1283,7 @@ class KontaApp extends HTMLElement {
     if (this.mappingOrphans.length === 0) {
       const empty = document.createElement("p");
       empty.className = "mapping-empty";
-      empty.textContent = "Toutes les catégories sont rattachées à un poste.";
+      empty.textContent = "Aucune catégorie normale à rattacher.";
       orphans.append(empty);
     }
     for (const orphan of this.mappingOrphans) {
@@ -1320,7 +1334,7 @@ class KontaApp extends HTMLElement {
       button.append(icon);
       const heading = document.createElement("div");
       heading.className = "mapping-orphan-heading";
-      heading.append(name, detail);
+      heading.append(name, detail, this.multiPostButton(orphan));
       const controls = document.createElement("div");
       controls.className = "mapping-orphan-controls";
       controls.append(select, button);
@@ -1370,12 +1384,134 @@ class KontaApp extends HTMLElement {
         posts.append(row);
       }
     }
+    this.renderMultiPostCategories();
+  }
+
+  multiPostButton(category) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button mapping-multi-button";
+    button.dataset.enableMultiPost = category.id;
+    button.dataset.categoryName = category.name;
+    button.textContent = "Multi-postes";
+    button.setAttribute("aria-label", `Activer multi-postes pour ${category.name}`);
+    return button;
+  }
+
+  renderMultiPostCategories() {
+    const container = this.shadowRoot.querySelector("#mapping-multi");
+    container.replaceChildren();
+    for (const category of this.mappingMultiCategories) {
+      const section = document.createElement("section");
+      section.className = "panel mapping-multi-section";
+      const heading = document.createElement("div");
+      heading.className = "panel-head";
+      const title = document.createElement("h2");
+      title.id = `mapping-multi-title-${category.id}`;
+      title.textContent = category.name;
+      section.setAttribute("aria-labelledby", title.id);
+      const disable = document.createElement("button");
+      disable.type = "button";
+      disable.className = "secondary-button mapping-disable-multi-button";
+      disable.dataset.disableMultiPost = category.id;
+      disable.dataset.categoryName = category.name;
+      disable.textContent = "Quitter le mode multi-postes";
+      disable.setAttribute("aria-label", `Quitter le mode multi-postes pour ${category.name}`);
+      heading.append(title, disable);
+      const body = document.createElement("div");
+      body.className = "mapping-multi-body";
+      section.append(heading, body);
+      const transactions = this.mappingTransactions.filter(transaction => transaction.categoryId === category.id);
+      if (transactions.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "mapping-empty";
+        empty.textContent = "Aucune opération dans cette catégorie.";
+        body.append(empty);
+      }
+      for (const transaction of transactions) {
+        const form = document.createElement("form");
+        form.className = "mapping-multi-transaction";
+        form.dataset.transactionId = transaction.id;
+        const details = document.createElement("div");
+        details.className = "mapping-multi-details";
+        const operation = document.createElement("strong");
+        operation.textContent = transaction.details || transaction.label;
+        const info = document.createElement("span");
+        info.textContent = `${this.formatDate(transaction.date)} · ${this.formatAmount(transaction.amount, transaction.type)} · ${transaction.accountName ?? transaction.accountLabel ?? "Compte inconnu"}`;
+        details.append(operation, info);
+        const descriptionLabel = document.createElement("label");
+        descriptionLabel.textContent = "Libellé";
+        const description = document.createElement("input");
+        description.name = "description";
+        description.maxLength = 200;
+        description.placeholder = "Ex. charnière de meuble";
+        description.value = transaction.budgetDescription ?? "";
+        descriptionLabel.append(description);
+        const postLabel = document.createElement("label");
+        postLabel.textContent = "Poste budgétaire";
+        const select = document.createElement("select");
+        select.name = "budgetPostId";
+        select.append(this.option("", "À rapprocher"));
+        for (const { type, expenseKind, label } of BUDGET_GROUPS) {
+          if ((type === "Income") !== (transaction.type === "Income")) continue;
+          if (transaction.isTransfer && type !== "Savings") continue;
+          const posts = this.mappingPosts.filter(post => post.type === type
+            && (type !== "Expense" || (post.expenseKind ?? "Variable") === expenseKind))
+            .sort((first, second) => first.name.localeCompare(second.name, "fr", { sensitivity: "base" }));
+          if (posts.length === 0) continue;
+          const group = document.createElement("optgroup");
+          group.label = label;
+          for (const post of posts) group.append(this.option(post.id, post.name));
+          select.append(group);
+        }
+        select.value = transaction.budgetPostId ?? "";
+        postLabel.append(select);
+        const save = document.createElement("button");
+        save.type = "submit";
+        save.className = "secondary-button";
+        save.textContent = "Enregistrer";
+        form.append(details, descriptionLabel, postLabel, save);
+        body.append(form);
+      }
+      container.append(section);
+    }
   }
 
   async handleMappingClick(event) {
     const attach = event.target.closest("[data-attach-category]");
     const detach = event.target.closest("[data-detach-category]");
-    if (attach) {
+    const multiPost = event.target.closest("[data-enable-multi-post]");
+    const disableMultiPost = event.target.closest("[data-disable-multi-post]");
+    if (disableMultiPost) {
+      if (!window.confirm(`Quitter le mode multi-postes pour « ${disableMultiPost.dataset.categoryName} » ? Les postes attribués à ses opérations seront retirés et la catégorie sera à rattacher à un poste. Les libellés déjà enregistrés seront conservés ; les modifications non enregistrées seront perdues.`)) return;
+      disableMultiPost.disabled = true;
+      try {
+        const response = await fetch(`/api/categories/${disableMultiPost.dataset.disableMultiPost}/multi-post`, { method: "DELETE" });
+        if (!response.ok) throw new Error("Impossible de quitter le mode multi-postes.");
+        if (!await this.loadMapping()) {
+          disableMultiPost.disabled = false;
+          return;
+        }
+        if (this.annualBudget) await this.loadAnnualBudgetMonth();
+        this.setMappingFeedback("Mode multi-postes désactivé. La catégorie est à rattacher.");
+      } catch (exception) {
+        disableMultiPost.disabled = false;
+        this.setMappingFeedback(exception.message, true);
+      }
+    } else if (multiPost) {
+      if (!window.confirm(`Activer le mode multi-postes pour « ${multiPost.dataset.categoryName} » ? Son rattachement actuel sera supprimé et toutes ses opérations seront à rapprocher individuellement.`)) return;
+      multiPost.disabled = true;
+      try {
+        const response = await fetch(`/api/categories/${multiPost.dataset.enableMultiPost}/multi-post`, { method: "PUT" });
+        if (!response.ok) throw new Error("Impossible d’activer le mode multi-postes.");
+        await this.loadMapping();
+        if (this.annualBudget) await this.loadAnnualBudgetMonth();
+        this.setMappingFeedback("Mode multi-postes activé. Rattachez les opérations individuellement.");
+      } catch (exception) {
+        multiPost.disabled = false;
+        this.setMappingFeedback(exception.message, true);
+      }
+    } else if (attach) {
       const row = attach.closest("[data-category-id]");
       const postId = row.querySelector("[data-mapping-post-select]").value;
       if (!postId) {
@@ -1387,6 +1523,38 @@ class KontaApp extends HTMLElement {
     } else if (detach) {
       const post = this.mappingPosts.find(item => item.id === detach.dataset.postId);
       await this.saveMapping(post, post.categories.map(category => category.id).filter(id => id !== detach.dataset.detachCategory));
+    }
+  }
+
+  async saveMultiPostTransaction(event) {
+    const form = event.target.closest(".mapping-multi-transaction");
+    if (!form) return;
+    event.preventDefault();
+    const button = form.querySelector("button");
+    const post = form.querySelector('[name="budgetPostId"]');
+    const description = form.querySelector('[name="description"]');
+    button.disabled = true;
+    try {
+      const response = await fetch(`/api/transactions/${form.dataset.transactionId}/budget-assignment`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ budgetPostId: post.value || null, description: description.value })
+      });
+      if (!response.ok) {
+        const problem = await response.json();
+        throw new Error(problem.detail ?? problem.title ?? "Impossible d’enregistrer l’opération.");
+      }
+      const transaction = this.mappingTransactions.find(item => item.id === form.dataset.transactionId);
+      if (transaction) {
+        transaction.budgetPostId = post.value || null;
+        transaction.budgetDescription = description.value.trim() || null;
+      }
+      this.setMappingFeedback("Opération enregistrée.");
+      if (this.annualBudget) await this.loadAnnualBudgetMonth();
+    } catch (exception) {
+      this.setMappingFeedback(exception.message, true);
+    } finally {
+      button.disabled = false;
     }
   }
 
@@ -2498,8 +2666,8 @@ class KontaApp extends HTMLElement {
   transactionLabelCell(transaction) {
     const cell = document.createElement("td");
     const label = document.createElement("span");
-    label.textContent = transaction.details || transaction.label;
-    if (transaction.details) label.title = transaction.label;
+    label.textContent = transaction.budgetDescription || transaction.details || transaction.label;
+    if (transaction.budgetDescription || transaction.details) label.title = transaction.details || transaction.label;
     cell.append(label);
     return cell;
   }
@@ -2549,6 +2717,7 @@ class KontaApp extends HTMLElement {
         throw new Error(problem?.detail ?? problem?.title ?? "Impossible de modifier la catégorie.");
       }
       await this.loadSummary();
+      await this.loadMapping();
     } catch (exception) {
       select.value = previous;
       select.disabled = false;

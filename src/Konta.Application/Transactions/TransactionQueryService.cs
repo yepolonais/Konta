@@ -1,11 +1,14 @@
 using Konta.Application.Categories;
+using Konta.Application.Budgets;
+using Konta.Domain.Budgets;
 using Konta.Domain.Transactions;
 
 namespace Konta.Application.Transactions;
 
 public sealed class TransactionQueryService(
     ITransactionRepository repository,
-    ICategoryRepository categoryRepository) : ITransactionQueryService
+    ICategoryRepository categoryRepository,
+    IAnnualBudgetRepository budgetRepository) : ITransactionQueryService
 {
     public async Task<bool> ChangeCategoryAsync(
         Guid transactionId,
@@ -25,6 +28,50 @@ public sealed class TransactionQueryService(
         }
 
         transaction.ChangeCategory(categoryId);
+        var postId = category.IsMultiPost
+            ? null
+            : await repository.GetCategoryBudgetPostIdAsync(categoryId, cancellationToken);
+        transaction.SetBudgetAssignment(postId, transaction.BudgetDescription);
+        await repository.UpdateAsync(transaction, cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> SetBudgetAssignmentAsync(
+        Guid transactionId,
+        Guid? postId,
+        string? description,
+        CancellationToken cancellationToken)
+    {
+        var transaction = await repository.GetAsync(transactionId, cancellationToken);
+        if (transaction is null)
+        {
+            return false;
+        }
+
+        var category = transaction.CategoryId.HasValue
+            ? await categoryRepository.GetAsync(transaction.CategoryId.Value, cancellationToken)
+            : null;
+        if (category is null || !category.IsMultiPost)
+        {
+            throw new InvalidOperationException("L'opération doit appartenir à une catégorie multi-postes.");
+        }
+
+        if (postId.HasValue)
+        {
+            var post = await budgetRepository.GetPostAsync(postId.Value, cancellationToken);
+            if (post is null || !post.IsActive
+                || (post.Type == AnnualBudgetPostType.Income) != (transaction.Type == TransactionType.Income))
+            {
+                throw new ArgumentException("Le poste choisi n'existe pas, n'est pas actif ou ne correspond pas au type de l'opération.", nameof(postId));
+            }
+            if (post.Type != AnnualBudgetPostType.Savings
+                && await repository.IsTransferAsync(transactionId, cancellationToken))
+            {
+                throw new ArgumentException("Un transfert interne ne peut être rattaché qu'à un poste d'épargne.", nameof(postId));
+            }
+        }
+
+        transaction.SetBudgetAssignment(postId, description);
         await repository.UpdateAsync(transaction, cancellationToken);
         return true;
     }

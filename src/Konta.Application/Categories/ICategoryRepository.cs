@@ -12,4 +12,6 @@ public interface ICategoryRepository
     Task<IReadOnlyList<OrphanCategoryItem>> ListOrphansAsync(CancellationToken cancellationToken);
     Task<int> CountTransactionsAsync(Guid categoryId, CancellationToken cancellationToken);
     Task DeactivateWithDependenciesAsync(Guid categoryId, CancellationToken cancellationToken);
+    Task<bool> EnableMultiPostAsync(Guid categoryId, CancellationToken cancellationToken);
+    Task<bool> DisableMultiPostAsync(Guid categoryId, CancellationToken cancellationToken);
 }

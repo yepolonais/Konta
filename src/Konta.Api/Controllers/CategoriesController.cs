@@ -118,7 +118,22 @@ public sealed class CategoriesController(ICategoryService categoryService) : Con
                 Status = StatusCodes.Status409Conflict
             });
         }
+
     }
+
+    /// <summary>Enables individual budget assignments for a category and removes its automatic mapping.</summary>
+    [HttpPut("{id:guid}/multi-post")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> EnableMultiPost(Guid id, CancellationToken cancellationToken) =>
+        await categoryService.EnableMultiPostAsync(id, cancellationToken) ? NoContent() : NotFound();
+
+    /// <summary>Disables individual budget assignments and leaves the category unassigned.</summary>
+    [HttpDelete("{id:guid}/multi-post")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DisableMultiPost(Guid id, CancellationToken cancellationToken) =>
+        await categoryService.DisableMultiPostAsync(id, cancellationToken) ? NoContent() : NotFound();
 }
 
 public sealed record CreateCategoryRequest

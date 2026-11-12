@@ -8,6 +8,18 @@ Accept: application/json
 GET {{baseUrl}}/api/transactions
 Accept: application/json
 
+### Enable individual assignments for a category (replace the ID)
+PUT {{baseUrl}}/api/categories/00000000-0000-0000-0000-000000000001/multi-post
+
+### Return a category to normal mode (replace the ID)
+DELETE {{baseUrl}}/api/categories/00000000-0000-0000-0000-000000000001/multi-post
+
+### Assign an operation to a budget post (replace the IDs)
+PUT {{baseUrl}}/api/transactions/00000000-0000-0000-0000-000000000001/budget-assignment
+Content-Type: application/json
+
+{"budgetPostId":"00000000-0000-0000-0000-000000000002","description":"Charnière de meuble"}
+
 ### Preview the supplied Société Générale sample CSV (does not persist transactions)
 POST {{baseUrl}}/api/imports/preview
 Content-Type: multipart/form-data; boundary=kontaBoundary
