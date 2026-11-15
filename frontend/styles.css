@@ -70,7 +70,7 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .nav { align-items: center; display: flex; flex: 1; gap: 26px; height: 100%; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
 .nav a { align-items: center; border-bottom: 2px solid transparent; color: var(--muted); display: flex; flex: none; font-size: 13px; font-weight: 700; height: 100%; text-decoration: none; white-space: nowrap; }
 .nav a[aria-current="page"] { border-color: var(--wine); color: var(--wine-dark); }
-.nav a[href="#category-rules"] { margin-left: auto; }
+.nav a[href="#import"] { margin-left: auto; }
 .nav-plan { flex-direction: column; gap: 1px; justify-content: center; }
 .nav-plan-kicker { color: var(--muted); font-family: "DM Mono", monospace; font-size: 9px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
 .nav a.nav-plan[aria-current="page"] .nav-plan-kicker { color: var(--wine); }
@@ -85,6 +85,8 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 main { margin: 0 auto; max-width: 1180px; padding: 48px 24px 72px; position: relative; z-index: 1; }
 .eyebrow { color: var(--wine); font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .heading { align-items: end; display: flex; gap: 24px; justify-content: space-between; margin-bottom: 32px; }
+.heading-action { flex: none; width: auto; }
+.heading-action .info-tip-bubble { left: auto; right: 0; transform: none; }
 h1 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -.03em; line-height: 1.15; margin: 8px 0 0; }
 .intro { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
 .content-grid { align-items: start; display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr) 340px; }
@@ -547,6 +549,7 @@ main[data-current-page="budget"] { max-width: 1560px; }
   .nav-plan-kicker, .nav-separator { display: none; }
   .ambiance-select { width: 150px; }
   .heading { align-items: start; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+  .heading-action .info-tip-bubble { left: 0; right: auto; }
   h1 { font-size: 30px; }
   .panel-head { padding: 0 16px; }
   .rules-intro { padding-left: 16px; padding-right: 16px; }

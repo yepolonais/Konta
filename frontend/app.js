@@ -98,11 +98,9 @@ class KontaApp extends HTMLElement {
           <nav class="nav" aria-label="Navigation principale">
             <a class="nav-plan" href="#budget" aria-current="page"><span class="nav-plan-kicker">Prévisionnel</span>Budget</a>
             <span class="nav-separator" aria-hidden="true"></span>
-            <a href="#monthly">Prévu vs réalisé</a>
+            <a href="#monthly">Prévu vs réalisé <span class="nav-badge mapping-badge" hidden></span></a>
             <a href="#summary">Synthèses</a>
-            <a href="#mapping">Rapprochement<span class="nav-badge" id="mapping-badge" hidden></span></a>
             <a href="#transactions">Opérations</a>
-            <a href="#category-rules">Catégorisation</a>
             <a href="#import">Import CSV</a>
           </nav>
           <div class="appearance-controls" aria-label="Apparence">
@@ -123,6 +121,16 @@ class KontaApp extends HTMLElement {
         <main>
           <div class="heading">
             <div><div class="eyebrow">Espace finances · 01</div><h1>Budget</h1><p class="intro">Planifiez les revenus, dépenses et montants mis de côté sur l’année.</p></div>
+            <span class="info-tip heading-action" id="mapping-action" hidden>
+              <button type="button" class="secondary-button" id="open-mapping" aria-describedby="mapping-tip">Rapprochement des opérations <span class="nav-badge mapping-badge" hidden></span></button>
+              <span class="info-tip-bubble" id="mapping-tip" role="tooltip">Rapproche une catégorie d'opération à un poste budgétaire</span>
+            </span>
+            <button type="button" class="secondary-button heading-action" id="return-monthly" hidden>← Retour à Prévu vs réalisé</button>
+            <span class="info-tip heading-action" id="categorization-action" hidden>
+              <button type="button" class="secondary-button" id="open-categorization" aria-describedby="categorization-tip">Catégorisation des opérations</button>
+              <span class="info-tip-bubble" id="categorization-tip" role="tooltip">catégorise automatiquement une opération via son libellé</span>
+            </span>
+            <button type="button" class="secondary-button heading-action" id="return-import" hidden>← Retour à Import CSV</button>
           </div>
           <section class="panel annual-budget-panel" id="budget" data-page="budget" aria-labelledby="annual-budget-title">
             <div class="panel-head annual-budget-heading">
@@ -377,6 +385,18 @@ class KontaApp extends HTMLElement {
         this.showPage(page);
       }
     });
+    this.shadowRoot.querySelector("#open-categorization").addEventListener("click", () => {
+      window.location.hash = "category-rules";
+    });
+    this.shadowRoot.querySelector("#return-import").addEventListener("click", () => {
+      window.location.hash = "import";
+    });
+    this.shadowRoot.querySelector("#open-mapping").addEventListener("click", () => {
+      window.location.hash = "mapping";
+    });
+    this.shadowRoot.querySelector("#return-monthly").addEventListener("click", () => {
+      window.location.hash = "monthly";
+    });
     this.shadowRoot.querySelector(".theme-toggle").addEventListener("click", () => {
       this.setTheme(this.dataset.theme === "dark" ? "light" : "dark", true);
     });
@@ -584,8 +604,13 @@ class KontaApp extends HTMLElement {
     const [title, description] = pages[page];
     this.shadowRoot.querySelector(".heading h1").textContent = title;
     this.shadowRoot.querySelector(".heading .intro").textContent = description;
+    this.shadowRoot.querySelector("#mapping-action").hidden = page !== "monthly";
+    this.shadowRoot.querySelector("#return-monthly").hidden = page !== "mapping";
+    this.shadowRoot.querySelector("#categorization-action").hidden = page !== "import";
+    this.shadowRoot.querySelector("#return-import").hidden = page !== "category-rules";
+    const activePage = page === "category-rules" ? "import" : page === "mapping" ? "monthly" : page;
     for (const link of this.shadowRoot.querySelectorAll(".nav a")) {
-      if (link.hash === `#${page}`) {
+      if (link.hash === `#${activePage}`) {
         link.setAttribute("aria-current", "page");
       } else {
         link.removeAttribute("aria-current");
@@ -1317,9 +1342,12 @@ class KontaApp extends HTMLElement {
   }
 
   renderMapping() {
-    const badge = this.shadowRoot.querySelector("#mapping-badge");
-    badge.textContent = String(this.mappingOrphans.length);
-    badge.hidden = this.mappingOrphans.length === 0;
+    for (const badge of this.shadowRoot.querySelectorAll(".mapping-badge")) {
+      const count = this.mappingOrphans.length;
+      badge.textContent = String(count);
+      badge.setAttribute("aria-label", `${count} catégorie${count === 1 ? "" : "s"} à rapprocher`);
+      badge.hidden = count === 0;
+    }
 
     const orphans = this.shadowRoot.querySelector("#mapping-orphans");
     orphans.replaceChildren();
