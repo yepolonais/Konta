@@ -79,8 +79,12 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.Property(rule => rule.Pattern).HasMaxLength(200).IsRequired();
             entity.Property(rule => rule.CategoryId).IsRequired();
             entity.Property(rule => rule.OperationType).HasConversion<string>().HasMaxLength(32);
-            entity.HasIndex(rule => new { rule.Pattern, rule.OperationType }).IsUnique();
-            entity.HasIndex(rule => rule.Name).IsUnique();
+            entity.HasIndex(rule => new { rule.Pattern, rule.OperationType })
+                .IsUnique()
+                .HasFilter("\"IsActive\" = 1");
+            entity.HasIndex(rule => rule.Name)
+                .IsUnique()
+                .HasFilter("\"IsActive\" = 1");
         });
 
         modelBuilder.Entity<AnnualBudgetPost>(entity =>

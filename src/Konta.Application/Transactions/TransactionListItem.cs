@@ -17,4 +17,9 @@ public sealed record TransactionListItem(
     bool IsTransfer = false,
     string? Details = null,
     Guid? BudgetPostId = null,
-    string? BudgetDescription = null);
+    string? BudgetDescription = null,
+    TransactionSource? Source = null,
+    string? ImportFingerprint = null,
+    int? ImportOccurrence = null,
+    DateTimeOffset? CreatedAt = null,
+    DateTimeOffset? UpdatedAt = null);

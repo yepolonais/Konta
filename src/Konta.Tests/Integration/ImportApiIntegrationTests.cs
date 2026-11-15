@@ -104,6 +104,34 @@ public sealed class ImportApiIntegrationTests
     }
 
     [Fact]
+    public async Task List_ExposesStoredImportDetails_WhenTransactionWasImported()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "0001", "Compte Commun", "Current");
+        const string csv = "Date transaction;Date comptabilisation;Num Compte;Libellé Compte;Libellé opération;Libellé complet;Catégorie;Sous-Catégorie;Montant;Pointée;\n"
+            + "25/09/2026;25/09/2026;0001;Compte Commun;ACHAT;ACHAT COMPLET;;;-12,00;Non\n";
+        using var commit = await PostCsvAsync(client, "/api/imports/commit", csv);
+        commit.EnsureSuccessStatusCode();
+
+        // Act
+        using var response = await client.GetAsync("/api/transactions");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var transaction = Assert.Single(document.RootElement.EnumerateArray());
+        Assert.Equal("Import", transaction.GetProperty("source").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(transaction.GetProperty("importFingerprint").GetString()));
+        Assert.True(transaction.GetProperty("importOccurrence").GetInt32() > 0);
+        Assert.True(transaction.GetProperty("createdAt").TryGetDateTimeOffset(out var createdAt));
+        Assert.True(transaction.GetProperty("updatedAt").TryGetDateTimeOffset(out var updatedAt));
+        Assert.Equal(createdAt, updatedAt);
+    }
+
+    [Fact]
     public async Task Commit_ReturnsConflict_WhenAccountIsUnmapped()
     {
         // Arrange

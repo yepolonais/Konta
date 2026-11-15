@@ -67,8 +67,8 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 :host([data-ambiance]:not([data-ambiance="plain"])[data-theme="dark"]) .topbar { background: rgba(33, 28, 31, .84); }
 .brand { align-items: center; color: var(--ink); display: flex; font-size: 20px; font-weight: 800; gap: 10px; text-decoration: none; }
 .brand-mark { align-items: center; background: var(--wine); border-radius: 8px; color: var(--rose); display: inline-flex; font-family: "DM Mono", monospace; font-size: 16px; height: 32px; justify-content: center; width: 32px; }
-.nav { align-items: center; display: flex; flex: 1; gap: 26px; height: 100%; }
-.nav a { align-items: center; border-bottom: 2px solid transparent; color: var(--muted); display: flex; font-size: 13px; font-weight: 700; height: 100%; text-decoration: none; }
+.nav { align-items: center; display: flex; flex: 1; gap: 26px; height: 100%; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.nav a { align-items: center; border-bottom: 2px solid transparent; color: var(--muted); display: flex; flex: none; font-size: 13px; font-weight: 700; height: 100%; text-decoration: none; white-space: nowrap; }
 .nav a[aria-current="page"] { border-color: var(--wine); color: var(--wine-dark); }
 .nav a[href="#category-rules"] { margin-left: auto; }
 .nav-plan { flex-direction: column; gap: 1px; justify-content: center; }
@@ -375,6 +375,16 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .summary-table tbody tr:hover { background: var(--surface-subtle); }
 .summary-table .summary-category-name { font-weight: 700; }
 .summary-table .summary-empty { color: var(--muted); padding: 28px 16px; text-align: center; }
+.transactions-table { min-width: 860px; }
+.transaction-details summary { color: var(--wine-dark); cursor: pointer; font-weight: 700; white-space: nowrap; }
+.transaction-details dl { margin: 12px 0 0; min-width: 220px; overflow-wrap: anywhere; }
+.transaction-details dt { color: var(--muted); font-weight: 700; margin-top: 8px; }
+.transaction-details dd { margin: 2px 0 0; }
+.transactions-pagination { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; padding: 16px 22px; }
+.transactions-pagination label { align-items: center; color: var(--muted); display: flex; font-size: 12px; gap: 8px; margin-right: auto; }
+.transactions-pagination select { width: auto; }
+.transactions-pagination span { color: var(--muted); font-size: 12px; }
+.transactions-pagination button { width: auto; }
 .text-button { background: transparent; color: var(--wine); min-height: 30px; padding: 0 4px; text-align: left; width: auto; }
 .text-button:hover { background: transparent; color: var(--wine-dark); text-decoration: underline; }
 .summary-accordion-button { align-items: center; display: inline-flex; gap: 7px; }
@@ -442,6 +452,7 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .category-picker input[type="search"] { margin-top: 6px; }
 .preview-category .category-picker select { display: block; margin-top: 4px; padding: 2px; width: 100%; }
 .category-picker option { padding: 5px; }
+.category-picker option[data-add-category] { background: var(--wine); color: var(--paper); }
 .category-search-empty { color: var(--muted); font-size: 11px; margin: 5px 0 0; }
 .category-suggestion { color: var(--positive); font-size: 10px; line-height: 1.4; }
 .remember-rule { align-items: center; color: var(--muted); display: flex; font-size: 11px; gap: 6px; line-height: 1.3; }
@@ -579,7 +590,7 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .mapping-orphan { align-items: stretch; flex-direction: column; gap: 8px; padding: 12px 0; }
 .mapping-orphan-heading { align-items: baseline; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .mapping-orphan-controls { align-items: stretch; display: flex; gap: 8px; max-width: 100%; }
-.mapping-orphan-controls select { flex: 0 1 320px; min-height: 32px; }
+.mapping-orphan-controls .mapping-post-picker { flex: 0 1 320px; min-width: 0; }
 .mapping-orphan .mapping-attach-button { align-items: center; aspect-ratio: 1; display: inline-flex; flex: none; justify-content: center; min-height: 32px; padding: 0; width: auto; }
 .mapping-attach-button svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; width: 16px; }
 :host .secondary-button.mapping-multi-button, :host .secondary-button.mapping-disable-multi-button { background: #f8c58d; border: 1px solid #e8a45f; color: #5c2d06; }
@@ -587,18 +598,23 @@ main[data-current-page="budget"] { max-width: 1560px; }
 :host([data-theme="dark"]) .secondary-button.mapping-multi-button, :host([data-theme="dark"]) .secondary-button.mapping-disable-multi-button { background: #df8d43; border-color: #f0ad6c; color: #321806; }
 :host([data-theme="dark"]) .secondary-button.mapping-multi-button:hover, :host([data-theme="dark"]) .secondary-button.mapping-disable-multi-button:hover { background: #f0a65e; border-color: #ffc184; }
 .mapping-multi-button { font-size: 10px; min-height: 24px; padding: 0 7px; width: auto; }
-.mapping-multi-section { margin-top: 12px; }
+.mapping-multi-section { --mapping-unassigned-color: #a14c08; margin-top: 12px; }
+:host([data-theme="dark"]) .mapping-multi-section { --mapping-unassigned-color: #f0ad6c; }
 .mapping-multi-section .panel-head { flex-wrap: wrap; gap: 8px; padding-bottom: 12px; padding-top: 12px; }
 .mapping-multi-section .panel-head h2 { color: #a14c08; font-size: 19px; min-width: 0; overflow-wrap: anywhere; }
 :host([data-theme="dark"]) .mapping-multi-section .panel-head h2 { color: #f0ad6c; }
 .mapping-disable-multi-button { font-size: 11px; max-width: 100%; min-height: 32px; width: auto; }
 .mapping-multi-body { padding: 0 22px 12px; }
-.mapping-multi-transaction { align-items: end; border-top: 1px solid var(--line-soft); display: grid; gap: 12px; grid-template-columns: minmax(180px, 2fr) minmax(140px, 1fr) minmax(140px, 1fr) auto; padding: 12px 0; }
+.mapping-multi-transaction { align-items: end; border-top: 1px solid var(--line-soft); display: grid; gap: 12px; grid-template-columns: minmax(180px, 2fr) minmax(140px, 1fr) minmax(140px, 1fr); padding: 12px 0; }
 .mapping-multi-transaction:first-child { border-top: 0; }
 .mapping-multi-details { display: grid; font-size: 12px; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
 .mapping-multi-details span { color: var(--muted); font-size: 11px; }
-.mapping-multi-transaction label { color: var(--muted); display: grid; font-size: 11px; font-weight: 700; gap: 5px; min-width: 0; }
+.mapping-multi-transaction label, .mapping-multi-post-field { color: var(--muted); display: grid; font-size: 11px; font-weight: 700; gap: 5px; min-width: 0; }
 .mapping-multi-transaction input, .mapping-multi-transaction select { background: var(--field); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font: inherit; font-size: 12px; min-height: 38px; min-width: 0; padding: 0 8px; width: 100%; }
+.mapping-multi-transaction .mapping-post-picker input { min-height: 36px; }
+.mapping-post-picker select { display: block; margin-top: 4px; padding: 2px; width: 100%; }
+.mapping-multi-post-field[data-unassigned="true"] .mapping-post-picker summary,
+.mapping-multi-post-field[data-unassigned="true"] .mapping-post-picker select { border-color: var(--mapping-unassigned-color); }
 .mapping-multi-transaction button { min-height: 38px; width: auto; }
 @media (max-width: 800px) {
   .mapping-multi-transaction { grid-template-columns: repeat(2, minmax(0, 1fr)); }

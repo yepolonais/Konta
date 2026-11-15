@@ -217,10 +217,12 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = 1");
 
                     b.HasIndex("Pattern", "OperationType")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = 1");
 
                     b.ToTable("CategoryRules");
                 });

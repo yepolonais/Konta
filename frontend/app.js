@@ -24,6 +24,8 @@ const BUDGET_GROUPS = [
   { type: "Savings", label: "Épargne planifiée", emptyLabel: "Aucune épargne planifiée", typeLabel: "Épargne" }
 ];
 
+const normalizeSearchText = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr-FR");
+
 const AMBIANCE_IMAGES = {
   plain: null,
   "black-mesa": "/medias/okeeffe_black-mesa-landscape-new-mexico-out-back-of-maries.jpg",
@@ -45,6 +47,8 @@ class KontaApp extends HTMLElement {
     this.editingRuleId = null;
     this.editingCategoryId = null;
     this.transactions = [];
+    this.transactionPage = 1;
+    this.transactionFilters = { year: "", month: "", account: "", category: "" };
     this.annualBudget = null;
     this.annualBudgetCategories = [];
     this.mappingPosts = [];
@@ -97,6 +101,7 @@ class KontaApp extends HTMLElement {
             <a href="#monthly">Prévu vs réalisé</a>
             <a href="#summary">Synthèses</a>
             <a href="#mapping">Rapprochement<span class="nav-badge" id="mapping-badge" hidden></span></a>
+            <a href="#transactions">Opérations</a>
             <a href="#category-rules">Catégorisation</a>
             <a href="#import">Import CSV</a>
           </nav>
@@ -224,13 +229,27 @@ class KontaApp extends HTMLElement {
               <p class="feedback" id="import-source-feedback" role="status" aria-live="polite" hidden></p>
             </section>
             <section class="panel" id="transactions" data-page="transactions" aria-labelledby="transactions-title">
-              <div class="panel-head"><h2 id="transactions-title">Dernières opérations</h2><span class="count" id="transaction-count">…</span></div>
-              <div class="table-wrap"><table>
-                <thead><tr><th>Date</th><th>Opération</th><th>Compte</th><th>Type</th><th style="text-align:right">Montant</th></tr></thead>
+              <div class="panel-head"><h2 id="transactions-title">Toutes les opérations</h2><span class="count" id="transaction-count" aria-live="polite">…</span></div>
+              <form class="summary-filters" id="transactions-form">
+                <div class="summary-filter-heading"><strong>Filtrer les opérations</strong><span>La période correspond à la date bancaire.</span></div>
+                <label>Année<input id="transactions-year" type="number" min="1" max="9998" placeholder="Toutes les années"></label>
+                <label>Mois<select id="transactions-month"><option value="">Tous les mois</option></select></label>
+                <label>Compte<select id="transactions-account"><option value="">Tous les comptes</option></select></label>
+                <label>Catégorie<select id="transactions-category"><option value="">Toutes les catégories</option></select></label>
+                <button class="summary-submit" type="submit"><span aria-hidden="true">↻</span> Actualiser</button>
+              </form>
+              <div class="table-wrap"><table class="transactions-table">
+                <thead><tr><th>Date</th><th>Opération</th><th>Compte</th><th>Catégorie</th><th>Type</th><th style="text-align:right">Montant</th><th>Détail</th></tr></thead>
                 <tbody id="transactions-body"></tbody>
               </table></div>
-              <p class="empty" id="transactions-empty">Aucune opération enregistrée pour le moment. Les aperçus CSV ne sont pas enregistrés.</p>
+              <p class="empty" id="transactions-empty" hidden>Aucune opération ne correspond aux filtres.</p>
               <p class="feedback error" id="transactions-error" role="status" hidden></p>
+              <div class="transactions-pagination">
+                <label>Opérations par page <select id="transactions-page-size"><option>25</option><option>50</option><option>100</option></select></label>
+                <span id="transactions-page-info" aria-live="polite"></span>
+                <button type="button" class="secondary-button" id="transactions-prev">Précédent</button>
+                <button type="button" class="secondary-button" id="transactions-next">Suivant</button>
+              </div>
             </section>
             <section class="panel import-panel" id="import" data-page="import" aria-labelledby="import-title">
               <div class="eyebrow">Relevé bancaire</div>
@@ -370,6 +389,29 @@ class KontaApp extends HTMLElement {
       event.preventDefault();
       this.loadSummary();
     });
+    this.shadowRoot.querySelector("#transactions-form").addEventListener("submit", event => {
+      event.preventDefault();
+      this.transactionFilters = {
+        year: this.shadowRoot.querySelector("#transactions-year").value,
+        month: this.shadowRoot.querySelector("#transactions-month").value,
+        account: this.shadowRoot.querySelector("#transactions-account").value,
+        category: this.shadowRoot.querySelector("#transactions-category").value
+      };
+      this.transactionPage = 1;
+      this.renderTransactions();
+    });
+    this.shadowRoot.querySelector("#transactions-page-size").addEventListener("change", () => {
+      this.transactionPage = 1;
+      this.renderTransactions();
+    });
+    this.shadowRoot.querySelector("#transactions-prev").addEventListener("click", () => {
+      this.transactionPage--;
+      this.renderTransactions();
+    });
+    this.shadowRoot.querySelector("#transactions-next").addEventListener("click", () => {
+      this.transactionPage++;
+      this.renderTransactions();
+    });
     this.shadowRoot.querySelector("#annual-budget-form").addEventListener("submit", event => this.createAnnualBudgetPost(event));
     this.shadowRoot.querySelector("#annual-budget-post-type").addEventListener("change", event => {
       this.shadowRoot.querySelector("#annual-budget-expense-kind-field").hidden = event.target.value !== "Expense";
@@ -499,6 +541,7 @@ class KontaApp extends HTMLElement {
     annualYear.value = year.value;
     this.shadowRoot.querySelector("#monthly-review-year").value = this.selectedMonthlyYear;
     const month = this.shadowRoot.querySelector("#summary-month");
+    const transactionsMonth = this.shadowRoot.querySelector("#transactions-month");
     const monthlyMonth = this.shadowRoot.querySelector("#monthly-review-month");
     for (let value = 1; value <= 12; value++) {
       const option = document.createElement("option");
@@ -506,6 +549,7 @@ class KontaApp extends HTMLElement {
       const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(2026, value - 1, 1));
       option.textContent = monthName;
       month.append(option.cloneNode(true));
+      transactionsMonth.append(option.cloneNode(true));
       monthlyMonth.append(option);
     }
     monthlyMonth.value = String(this.selectedBudgetMonth);
@@ -522,7 +566,9 @@ class KontaApp extends HTMLElement {
       "category-rules": ["Catégorisation", "Gérez vos catégories et associez-leur des motifs pour classer automatiquement les opérations."]
     };
     if (!Object.hasOwn(pages, page)) page = "budget";
+    const refreshTransactions = page === "transactions" && this.currentPage && this.currentPage !== page;
     this.currentPage = page;
+    if (refreshTransactions) this.loadTransactions();
     this.shadowRoot.querySelector("main").dataset.currentPage = page;
     for (const element of this.shadowRoot.querySelectorAll("[data-page]")) {
       element.hidden = element.dataset.page !== page || (element.id === "preview-panel" && !this.preview);
@@ -1317,6 +1363,7 @@ class KontaApp extends HTMLElement {
         }
         select.append(optgroup);
       }
+      const postPicker = this.createMappingPostPicker(select, `Rechercher un poste pour la catégorie ${orphan.name}`);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "secondary-button mapping-attach-button";
@@ -1337,7 +1384,7 @@ class KontaApp extends HTMLElement {
       heading.append(name, detail, this.multiPostButton(orphan));
       const controls = document.createElement("div");
       controls.className = "mapping-orphan-controls";
-      controls.append(select, button);
+      controls.append(postPicker, button);
       row.append(heading, controls);
       orphans.append(row);
     }
@@ -1446,11 +1493,17 @@ class KontaApp extends HTMLElement {
         description.maxLength = 200;
         description.placeholder = "Ex. charnière de meuble";
         description.value = transaction.budgetDescription ?? "";
+        description.addEventListener("blur", event => this.saveMultiPostTransaction(event));
         descriptionLabel.append(description);
-        const postLabel = document.createElement("label");
-        postLabel.textContent = "Poste budgétaire";
+        const postField = document.createElement("div");
+        postField.className = "mapping-multi-post-field";
+        postField.dataset.unassigned = String(!transaction.budgetPostId);
+        const postFieldLabel = document.createElement("span");
+        postFieldLabel.textContent = "Poste budgétaire";
         const select = document.createElement("select");
         select.name = "budgetPostId";
+        select.setAttribute("aria-label", "Poste budgétaire");
+        select.addEventListener("blur", event => this.saveMultiPostTransaction(event));
         select.append(this.option("", "À rapprocher"));
         for (const { type, expenseKind, label } of BUDGET_GROUPS) {
           if ((type === "Income") !== (transaction.type === "Income")) continue;
@@ -1465,12 +1518,11 @@ class KontaApp extends HTMLElement {
           select.append(group);
         }
         select.value = transaction.budgetPostId ?? "";
-        postLabel.append(select);
-        const save = document.createElement("button");
-        save.type = "submit";
-        save.className = "secondary-button";
-        save.textContent = "Enregistrer";
-        form.append(details, descriptionLabel, postLabel, save);
+        postField.append(postFieldLabel, this.createMappingPostPicker(
+          select,
+          `Rechercher un poste pour l’opération ${transaction.details || transaction.label}`
+        ));
+        form.append(details, descriptionLabel, postField);
         body.append(form);
       }
       container.append(section);
@@ -1529,33 +1581,102 @@ class KontaApp extends HTMLElement {
   async saveMultiPostTransaction(event) {
     const form = event.target.closest(".mapping-multi-transaction");
     if (!form) return;
-    event.preventDefault();
-    const button = form.querySelector("button");
-    const post = form.querySelector('[name="budgetPostId"]');
-    const description = form.querySelector('[name="description"]');
-    button.disabled = true;
+    if (event.type === "submit") event.preventDefault();
+    if (form.dataset.saving === "true") {
+      form.dataset.savePending = "true";
+      return;
+    }
+    form.dataset.saving = "true";
     try {
-      const response = await fetch(`/api/transactions/${form.dataset.transactionId}/budget-assignment`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ budgetPostId: post.value || null, description: description.value })
-      });
-      if (!response.ok) {
-        const problem = await response.json();
-        throw new Error(problem.detail ?? problem.title ?? "Impossible d’enregistrer l’opération.");
-      }
-      const transaction = this.mappingTransactions.find(item => item.id === form.dataset.transactionId);
-      if (transaction) {
-        transaction.budgetPostId = post.value || null;
-        transaction.budgetDescription = description.value.trim() || null;
-      }
-      this.setMappingFeedback("Opération enregistrée.");
-      if (this.annualBudget) await this.loadAnnualBudgetMonth();
+      do {
+        form.dataset.savePending = "false";
+        const post = form.querySelector('[name="budgetPostId"]');
+        const description = form.querySelector('[name="description"]');
+        const postId = post.value || null;
+        const descriptionValue = description.value.trim() || null;
+        const transaction = this.mappingTransactions.find(item => item.id === form.dataset.transactionId);
+        if (transaction?.budgetPostId === postId && transaction.budgetDescription === descriptionValue) continue;
+        const response = await fetch(`/api/transactions/${form.dataset.transactionId}/budget-assignment`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ budgetPostId: postId, description: description.value })
+        });
+        if (!response.ok) {
+          const problem = await response.json();
+          throw new Error(problem.detail ?? problem.title ?? "Impossible d’enregistrer l’opération.");
+        }
+        if (transaction) {
+          transaction.budgetPostId = postId;
+          transaction.budgetDescription = descriptionValue;
+        }
+        form.querySelector(".mapping-multi-post-field").dataset.unassigned = String(!postId);
+        this.setMappingFeedback("Opération enregistrée.");
+        if (this.annualBudget) await this.loadAnnualBudgetMonth();
+      } while (form.dataset.savePending === "true");
     } catch (exception) {
       this.setMappingFeedback(exception.message, true);
     } finally {
-      button.disabled = false;
+      delete form.dataset.saving;
+      delete form.dataset.savePending;
     }
+  }
+
+  createMappingPostPicker(select, searchLabel) {
+    select.size = 6;
+    const picker = document.createElement("details");
+    picker.className = "category-picker mapping-post-picker";
+    const summary = document.createElement("summary");
+    summary.textContent = select.selectedOptions[0]?.textContent ?? "";
+    summary.setAttribute("aria-label", `${select.getAttribute("aria-label")}: ${summary.textContent}`);
+    const search = document.createElement("input");
+    search.type = "search";
+    search.placeholder = "Rechercher un poste";
+    search.setAttribute("aria-label", searchLabel);
+    const noResults = document.createElement("p");
+    noResults.className = "category-search-empty";
+    noResults.textContent = "Aucun poste correspondant.";
+    noResults.hidden = true;
+    picker.append(summary, search, select, noResults);
+    picker.addEventListener("toggle", () => {
+      if (!picker.open) return;
+      for (const other of this.shadowRoot.querySelectorAll(".category-picker[open]")) {
+        if (other !== picker) other.open = false;
+      }
+      search.value = "";
+      this.filterMappingPosts(search, select, noResults);
+      search.focus();
+    });
+    search.addEventListener("input", () => this.filterMappingPosts(search, select, noResults));
+    picker.addEventListener("keydown", event => {
+      if (event.key === "Escape" && picker.open) {
+        event.preventDefault();
+        picker.open = false;
+        summary.focus();
+      } else if (event.key === "ArrowDown" && event.target === search) {
+        event.preventDefault();
+        select.focus();
+      }
+    });
+    select.addEventListener("change", () => {
+      summary.textContent = select.selectedOptions[0]?.textContent ?? "";
+      summary.setAttribute("aria-label", `${select.getAttribute("aria-label")}: ${summary.textContent}`);
+      picker.open = false;
+      summary.focus();
+    });
+    return picker;
+  }
+
+  filterMappingPosts(search, select, noResults) {
+    const query = normalizeSearchText(search.value.trim());
+    let matches = 0;
+    for (const option of select.options) {
+      option.hidden = Boolean(query) && (!option.value || !normalizeSearchText(option.textContent).includes(query));
+      if (option.value && !option.hidden) matches++;
+    }
+    for (const group of select.querySelectorAll("optgroup")) {
+      group.hidden = [...group.querySelectorAll("option")].every(option => option.hidden);
+    }
+    noResults.hidden = !query || matches > 0;
   }
 
   async saveMapping(post, categoryIds) {
@@ -1743,24 +1864,117 @@ class KontaApp extends HTMLElement {
   }
 
   async loadTransactions() {
-    const empty = this.shadowRoot.querySelector("#transactions-empty");
-    const body = this.shadowRoot.querySelector("#transactions-body");
     const error = this.shadowRoot.querySelector("#transactions-error");
     try {
       const response = await fetch("/api/transactions");
       if (!response.ok) throw new Error("Impossible de charger les opérations.");
-      const transactions = await response.json();
-      this.transactions = transactions;
-      this.shadowRoot.querySelector("#transaction-count").textContent = `${transactions.length} opération${transactions.length === 1 ? "" : "s"}`;
-      empty.hidden = transactions.length > 0;
-      body.replaceChildren();
-      for (const transaction of transactions) body.append(this.transactionRow(transaction));
+      this.transactions = await response.json();
+      error.hidden = true;
+      this.renderTransactionFilterOptions();
+      this.renderTransactions();
       this.renderBalanceForm();
     } catch (exception) {
       error.textContent = exception.message;
       error.hidden = false;
       this.shadowRoot.querySelector("#transaction-count").textContent = "indisponible";
     }
+  }
+
+  renderTransactionFilterOptions() {
+    for (const [selector, idKey, nameKey, placeholder, missing] of [
+      ["#transactions-account", "accountId", "accountName", "Tous les comptes", "Sans compte associé"],
+      ["#transactions-category", "categoryId", "categoryName", "Toutes les catégories", "Non catégorisé"]
+    ]) {
+      const select = this.shadowRoot.querySelector(selector);
+      const selected = select.value;
+      const choices = new Map();
+      for (const transaction of this.transactions) {
+        const id = transaction[idKey] ?? "none";
+        const name = transaction[nameKey] ?? (idKey === "accountId" ? transaction.accountLabel : null) ?? missing;
+        choices.set(id, name);
+      }
+      select.replaceChildren(this.option("", placeholder));
+      for (const [id, name] of [...choices].sort((a, b) => a[1].localeCompare(b[1], "fr"))) {
+        select.append(this.option(id, name));
+      }
+      if ([...select.options].some(option => option.value === selected)) select.value = selected;
+      const filterKey = idKey === "accountId" ? "account" : "category";
+      if (![...select.options].some(option => option.value === this.transactionFilters[filterKey])) {
+        this.transactionFilters[filterKey] = "";
+      }
+    }
+  }
+
+  renderTransactions() {
+    const { year, month, account, category } = this.transactionFilters;
+    const filtered = this.transactions.filter(transaction => {
+      const [transactionYear, transactionMonth] = transaction.date.split("-");
+      return (!year || Number(transactionYear) === Number(year))
+        && (!month || Number(transactionMonth) === Number(month))
+        && (!account || (transaction.accountId ?? "none") === account)
+        && (!category || (transaction.categoryId ?? "none") === category);
+    });
+    const size = Number(this.shadowRoot.querySelector("#transactions-page-size").value);
+    const pages = Math.max(1, Math.ceil(filtered.length / size));
+    this.transactionPage = Math.max(1, Math.min(this.transactionPage, pages));
+    const start = (this.transactionPage - 1) * size;
+    const body = this.shadowRoot.querySelector("#transactions-body");
+    body.replaceChildren();
+    for (const transaction of filtered.slice(start, start + size)) {
+      const row = this.transactionRow(transaction);
+      row.insertBefore(this.cell(transaction.categoryName ?? "Non catégorisé"), row.children[3]);
+      row.append(this.transactionDetailsCell(transaction));
+      body.append(row);
+    }
+    this.shadowRoot.querySelector("#transaction-count").textContent =
+      `${filtered.length} opération${filtered.length === 1 ? "" : "s"}`;
+    this.shadowRoot.querySelector("#transactions-empty").hidden = filtered.length > 0;
+    this.shadowRoot.querySelector("#transactions-page-info").textContent = filtered.length
+      ? `${start + 1}–${Math.min(start + size, filtered.length)} sur ${filtered.length} · Page ${this.transactionPage} / ${pages}`
+      : "Page 0 / 0";
+    this.shadowRoot.querySelector("#transactions-prev").disabled = this.transactionPage <= 1;
+    this.shadowRoot.querySelector("#transactions-next").disabled = this.transactionPage >= pages;
+  }
+
+  transactionDetailsCell(transaction) {
+    const cell = document.createElement("td");
+    const details = document.createElement("details");
+    details.className = "transaction-details";
+    const summary = document.createElement("summary");
+    summary.textContent = "Détails";
+    summary.setAttribute("aria-label", `Détails de l’opération ${transaction.label}`);
+    const list = document.createElement("dl");
+    for (const [label, value] of [
+      ["Identifiant", transaction.id],
+      ["Date bancaire", this.formatDate(transaction.date)],
+      ["Libellé", transaction.label],
+      ["Détail bancaire", transaction.details],
+      ["Montant", this.formatAmount(transaction.amount, transaction.type)],
+      ["Type", transaction.type === "Expense" || transaction.type === 0 ? "Dépense" : "Revenu"],
+      ["Virement interne", transaction.isTransfer ? "Oui" : "Non"],
+      ["Compte", transaction.accountName],
+      ["Identifiant du compte", transaction.accountId],
+      ["Numéro de compte du relevé", transaction.accountNumber],
+      ["Libellé de compte du relevé", transaction.accountLabel],
+      ["Catégorie", transaction.categoryName],
+      ["Identifiant de catégorie", transaction.categoryId],
+      ["Identifiant du poste budgétaire", transaction.budgetPostId],
+      ["Libellé budgétaire", transaction.budgetDescription],
+      ["Source", transaction.source === "Import" ? "Import" : transaction.source === "Manual" ? "Saisie manuelle" : transaction.source],
+      ["Empreinte d’import", transaction.importFingerprint],
+      ["Occurrence d’import", transaction.importOccurrence],
+      ["Créée le", transaction.createdAt ? new Date(transaction.createdAt).toLocaleString("fr-FR") : null],
+      ["Modifiée le", transaction.updatedAt ? new Date(transaction.updatedAt).toLocaleString("fr-FR") : null]
+    ]) {
+      const term = document.createElement("dt");
+      term.textContent = label;
+      const description = document.createElement("dd");
+      description.textContent = value == null || value === "" ? "—" : String(value);
+      list.append(term, description);
+    }
+    details.append(summary, list);
+    cell.append(details);
+    return cell;
   }
 
   async loadPhase2Data() {
@@ -2759,13 +2973,13 @@ class KontaApp extends HTMLElement {
     const categorySelect = document.createElement("select");
     categorySelect.dataset.category = "";
     categorySelect.setAttribute("aria-label", `Catégorie de l'opération, ligne ${transaction.rowNumber}`);
+    const addCategoryOption = this.option("__add_category__", "＋ Créer une catégorie…");
+    addCategoryOption.dataset.addCategory = "";
+    categorySelect.append(addCategoryOption);
     categorySelect.append(this.option("", "Non catégorisé"));
     for (const categoryOption of this.categories.filter(item => item.isActive)) {
       categorySelect.append(this.option(categoryOption.name, categoryOption.name));
     }
-    const addCategoryOption = this.option("__add_category__", "＋ Créer une catégorie…");
-    addCategoryOption.dataset.addCategory = "";
-    categorySelect.append(addCategoryOption);
     const currentCategory = transaction.categoryName ?? "";
     if (currentCategory && ![...categorySelect.options].some(option => option.value === currentCategory)) {
       categorySelect.append(this.option(currentCategory, currentCategory));
@@ -2946,8 +3160,7 @@ class KontaApp extends HTMLElement {
   }
 
   filterPreviewCategories(picker) {
-    const normalize = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr-FR");
-    const query = normalize(picker.querySelector('input[type="search"]').value.trim());
+    const query = normalizeSearchText(picker.querySelector('input[type="search"]').value.trim());
     const select = picker.querySelector("[data-category]");
     let matches = 0;
     for (const option of select.options) {
@@ -2955,7 +3168,7 @@ class KontaApp extends HTMLElement {
         option.hidden = false;
         continue;
       }
-      option.hidden = Boolean(query) && (!option.value || !normalize(option.textContent).includes(query));
+      option.hidden = Boolean(query) && (!option.value || !normalizeSearchText(option.textContent).includes(query));
       if (option.value && !option.hidden) matches++;
     }
     picker.querySelector(".category-search-empty").hidden = !query || matches > 0;

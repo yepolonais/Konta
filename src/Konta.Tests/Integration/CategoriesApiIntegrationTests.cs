@@ -57,6 +57,48 @@ public sealed class CategoriesApiIntegrationTests
     }
 
     [Fact]
+    public async Task CreateCategoryRule_ReusesPatternAfterRuleIsDeleted()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        using var restaurantResponse = await client.PostAsync(
+            "/api/categories",
+            JsonContent("{ \"name\": \"Restaurant\" }"));
+        using var marketResponse = await client.PostAsync(
+            "/api/categories",
+            JsonContent("{ \"name\": \"Marché\" }"));
+        using var restaurant = JsonDocument.Parse(await restaurantResponse.Content.ReadAsStringAsync());
+        using var market = JsonDocument.Parse(await marketResponse.Content.ReadAsStringAsync());
+        var restaurantId = restaurant.RootElement.GetProperty("id").GetGuid();
+        var marketId = market.RootElement.GetProperty("id").GetGuid();
+        using var originalRuleResponse = await client.PostAsync(
+            "/api/category-rules",
+            JsonContent($"{{ \"name\": \"Restaurant · Carte · BOURBON CAFE\", \"pattern\": \"BOURBON CAFE\", \"categoryId\": \"{restaurantId}\", \"operationType\": \"Card\" }}"));
+        originalRuleResponse.EnsureSuccessStatusCode();
+        using var originalRule = JsonDocument.Parse(await originalRuleResponse.Content.ReadAsStringAsync());
+        var originalRuleId = originalRule.RootElement.GetProperty("id").GetGuid();
+        using var duplicateRuleResponse = await client.PostAsync(
+            "/api/category-rules",
+            JsonContent($"{{ \"name\": \"Marché · Carte · BOURBON CAFE\", \"pattern\": \"BOURBON CAFE\", \"categoryId\": \"{marketId}\", \"operationType\": \"Card\" }}"));
+        using var deleteResponse = await client.DeleteAsync($"/api/category-rules/{originalRuleId}");
+        deleteResponse.EnsureSuccessStatusCode();
+
+        // Act
+        using var movedRuleResponse = await client.PostAsync(
+            "/api/category-rules",
+            JsonContent($"{{ \"name\": \"Marché · Carte · BOURBON CAFE\", \"pattern\": \"BOURBON CAFE\", \"categoryId\": \"{marketId}\", \"operationType\": \"Card\" }}"));
+
+        // Assert
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, duplicateRuleResponse.StatusCode);
+        movedRuleResponse.EnsureSuccessStatusCode();
+        using var movedRule = JsonDocument.Parse(await movedRuleResponse.Content.ReadAsStringAsync());
+        Assert.Equal(marketId, movedRule.RootElement.GetProperty("categoryId").GetGuid());
+        Assert.Equal("BOURBON CAFE", movedRule.RootElement.GetProperty("pattern").GetString());
+    }
+
+    [Fact]
     public async Task ChangeTransactionCategory_MovesTheTransactionToAnotherCategory()
     {
         // Arrange

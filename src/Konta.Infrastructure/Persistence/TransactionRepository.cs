@@ -56,7 +56,12 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                     || transfer.DestinationTransactionId == transaction.Id),
                 transaction.Details,
                 transaction.BudgetPostId,
-                transaction.BudgetDescription))
+                transaction.BudgetDescription,
+                transaction.Source,
+                transaction.ImportFingerprint,
+                transaction.ImportOccurrence,
+                transaction.CreatedAt,
+                transaction.UpdatedAt))
             .ToListAsync(cancellationToken);
     }
 
@@ -100,7 +105,12 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                     || transfer.DestinationTransactionId == transaction.Id),
                 transaction.Details,
                 transaction.BudgetPostId,
-                transaction.BudgetDescription))
+                transaction.BudgetDescription,
+                transaction.Source,
+                transaction.ImportFingerprint,
+                transaction.ImportOccurrence,
+                transaction.CreatedAt,
+                transaction.UpdatedAt))
             .ToListAsync(cancellationToken);
     }
 }
