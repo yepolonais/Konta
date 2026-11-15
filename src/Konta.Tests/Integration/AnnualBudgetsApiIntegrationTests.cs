@@ -519,6 +519,173 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
+    public async Task UpdateDetails_ChangesCategoryAndDescription_UsingCategoryBudgetPost()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "details-change");
+        var firstCategoryId = await CreateCategoryAsync(client, "Achats");
+        var secondCategoryId = await CreateCategoryAsync(client, "Courses");
+        var postId = await CreatePostAsync(client, "Courses", "Expense");
+        using var mapping = await client.PutAsync($"/api/annual-budgets/posts/{postId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { secondCategoryId } })));
+        mapping.EnsureSuccessStatusCode();
+        using var imported = await PostCsvAsync(client, Csv("10/09/2026", "details-change", "Achat", "Achats", "-10,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var id = Assert.Single(initial.RootElement.EnumerateArray()).GetProperty("id").GetGuid();
+
+        // Act
+        using var changed = await client.PutAsync($"/api/transactions/{id}/details",
+            JsonContent(JsonSerializer.Serialize(new { categoryId = secondCategoryId, description = "  Courses du mois  " })));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, changed.StatusCode);
+        using var saved = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var transaction = Assert.Single(saved.RootElement.EnumerateArray());
+        Assert.Equal(secondCategoryId, transaction.GetProperty("categoryId").GetGuid());
+        Assert.NotEqual(firstCategoryId, transaction.GetProperty("categoryId").GetGuid());
+        Assert.Equal(postId, transaction.GetProperty("budgetPostId").GetGuid());
+        Assert.Equal("Courses du mois", transaction.GetProperty("budgetDescription").GetString());
+    }
+
+    [Fact]
+    public async Task UpdateDetails_PreservesMultiPostAssignment_WhenCategoryIsUnchanged()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "details-multi");
+        var categoryId = await CreateCategoryAsync(client, "Boutique");
+        var postId = await CreatePostAsync(client, "Loisirs", "Expense");
+        using var enabled = await client.PutAsync($"/api/categories/{categoryId}/multi-post", null);
+        enabled.EnsureSuccessStatusCode();
+        using var imported = await PostCsvAsync(client, Csv("10/09/2026", "details-multi", "Achat", "Boutique", "-10,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var id = Assert.Single(initial.RootElement.EnumerateArray()).GetProperty("id").GetGuid();
+        using var assigned = await client.PutAsync($"/api/transactions/{id}/budget-assignment",
+            JsonContent(JsonSerializer.Serialize(new { budgetPostId = postId, description = "Ancien" })));
+        assigned.EnsureSuccessStatusCode();
+
+        // Act
+        using var response = await client.PutAsync($"/api/transactions/{id}/details",
+            JsonContent(JsonSerializer.Serialize(new { categoryId, description = "Nouveau" })));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        using var saved = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var transaction = Assert.Single(saved.RootElement.EnumerateArray());
+        Assert.Equal(postId, transaction.GetProperty("budgetPostId").GetGuid());
+        Assert.Equal("Nouveau", transaction.GetProperty("budgetDescription").GetString());
+    }
+
+    [Fact]
+    public async Task UpdateDetails_ClearsAssignment_WhenCategoryChangesToMultiPost()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "details-to-multi");
+        var firstCategoryId = await CreateCategoryAsync(client, "Achats");
+        var multiCategoryId = await CreateCategoryAsync(client, "Boutique");
+        var postId = await CreatePostAsync(client, "Achats", "Expense");
+        using var mapping = await client.PutAsync($"/api/annual-budgets/posts/{postId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { firstCategoryId } })));
+        mapping.EnsureSuccessStatusCode();
+        using var enabled = await client.PutAsync($"/api/categories/{multiCategoryId}/multi-post", null);
+        enabled.EnsureSuccessStatusCode();
+        using var imported = await PostCsvAsync(client, Csv("10/09/2026", "details-to-multi", "Achat", "Achats", "-10,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var id = Assert.Single(initial.RootElement.EnumerateArray()).GetProperty("id").GetGuid();
+
+        // Act
+        using var response = await client.PutAsync($"/api/transactions/{id}/details",
+            JsonContent(JsonSerializer.Serialize(new { categoryId = multiCategoryId, description = "  " })));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        using var saved = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var transaction = Assert.Single(saved.RootElement.EnumerateArray());
+        Assert.Equal(multiCategoryId, transaction.GetProperty("categoryId").GetGuid());
+        Assert.Equal(JsonValueKind.Null, transaction.GetProperty("budgetPostId").ValueKind);
+        Assert.Equal(JsonValueKind.Null, transaction.GetProperty("budgetDescription").ValueKind);
+    }
+
+    [Fact]
+    public async Task UpdateDetails_UpdatesDescription_WhenTransactionHasNoCategory()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "details-uncategorized");
+        using var imported = await PostCsvAsync(client, Csv("10/09/2026", "details-uncategorized", "Achat", "", "-10,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var id = Assert.Single(initial.RootElement.EnumerateArray()).GetProperty("id").GetGuid();
+
+        // Act
+        using var response = await client.PutAsync($"/api/transactions/{id}/details",
+            JsonContent("""{"categoryId":null,"description":"Libellé libre"}"""));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        using var saved = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var transaction = Assert.Single(saved.RootElement.EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, transaction.GetProperty("categoryId").ValueKind);
+        Assert.Equal("Libellé libre", transaction.GetProperty("budgetDescription").GetString());
+    }
+
+    [Fact]
+    public async Task UpdateDetails_ReturnsNotFound_WhenTransactionDoesNotExist()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.PutAsync($"/api/transactions/{Guid.NewGuid()}/details",
+            JsonContent("""{"categoryId":null,"description":"Test"}"""));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateDetails_LeavesTransactionUnchanged_WhenDescriptionIsTooLong()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "details-invalid");
+        var firstCategoryId = await CreateCategoryAsync(client, "Achats");
+        var secondCategoryId = await CreateCategoryAsync(client, "Courses");
+        using var imported = await PostCsvAsync(client, Csv("10/09/2026", "details-invalid", "Achat", "Achats", "-10,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var id = Assert.Single(initial.RootElement.EnumerateArray()).GetProperty("id").GetGuid();
+
+        // Act
+        using var response = await client.PutAsync($"/api/transactions/{id}/details",
+            JsonContent(JsonSerializer.Serialize(new { categoryId = secondCategoryId, description = new string('x', 201) })));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var saved = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var transaction = Assert.Single(saved.RootElement.EnumerateArray());
+        Assert.Equal(firstCategoryId, transaction.GetProperty("categoryId").GetGuid());
+        Assert.Equal(JsonValueKind.Null, transaction.GetProperty("budgetDescription").ValueKind);
+    }
+
+    [Fact]
     public async Task ChangeCategory_UsesNewCategoryRule_AndLeavesMultiPostUnassigned()
     {
         using var dataDirectory = new TemporaryDirectory();

@@ -47,6 +47,11 @@ class KontaApp extends HTMLElement {
     this.editingRuleId = null;
     this.editingCategoryId = null;
     this.transactions = [];
+    this.transactionsLoaded = false;
+    this.transactionsRequestId = 0;
+    this.categoriesLoaded = false;
+    this.transactionDetailId = null;
+    this.transactionReturnPage = "transactions";
     this.transactionPage = 1;
     this.transactionFilters = { year: "", month: "", account: "", category: "" };
     this.annualBudget = null;
@@ -259,6 +264,21 @@ class KontaApp extends HTMLElement {
                 <button type="button" class="secondary-button" id="transactions-next">Suivant</button>
               </div>
             </section>
+            <section class="panel transaction-detail-panel" id="transaction-detail" data-page="transactions" aria-labelledby="transaction-detail-title" hidden>
+              <div class="panel-head"><h2 id="transaction-detail-title">Détail de l’opération</h2><button type="button" class="secondary-button" id="transaction-return">← Retour aux opérations</button></div>
+              <p class="feedback" id="transaction-detail-feedback" role="status" aria-live="polite">Chargement de l’opération…</p>
+              <p class="transaction-detail-summary" id="transaction-detail-summary"></p>
+              <form id="transaction-detail-form" hidden>
+                <div class="transaction-detail-fields">
+                  <label>Catégorie<select name="categoryId" id="transaction-detail-category"></select></label>
+                  <label>Libellé personnel<input name="description" id="transaction-detail-description" maxlength="200"></label>
+                  <div class="transaction-detail-post"><span>Poste budgétaire</span><strong id="transaction-detail-post"></strong></div>
+                </div>
+                <p class="transaction-detail-help">Le poste budgétaire est défini dans le rapprochement. Pour une catégorie multi-postes, il est choisi individuellement dans l’écran Rapprochement.</p>
+                <button type="submit" id="transaction-detail-save">Enregistrer</button>
+              </form>
+              <div id="transaction-detail-values"></div>
+            </section>
             <section class="panel import-panel" id="import" data-page="import" aria-labelledby="import-title">
               <div class="eyebrow">Relevé bancaire</div>
               <h2 id="import-title">Prévisualiser un CSV</h2>
@@ -293,6 +313,7 @@ class KontaApp extends HTMLElement {
             <form class="balance-form" id="balance-form">
               <label>Compte<select id="balance-account" required></select></label>
               <label>Opération de référence<select id="balance-transaction" required></select></label>
+              <button type="button" class="secondary-button" id="balance-open-transaction" disabled>Ouvrir l’opération de référence</button>
               <label>Solde juste après l’opération (€)<input id="reference-balance" type="number" step="0.01" required></label>
               <button type="submit">Définir le solde</button>
             </form>
@@ -432,6 +453,10 @@ class KontaApp extends HTMLElement {
       this.transactionPage++;
       this.renderTransactions();
     });
+    this.shadowRoot.querySelector("#transaction-return").addEventListener("click", () => {
+      window.location.hash = this.transactionReturnPage;
+    });
+    this.shadowRoot.querySelector("#transaction-detail-form").addEventListener("submit", event => this.saveTransactionDetails(event));
     this.shadowRoot.querySelector("#annual-budget-form").addEventListener("submit", event => this.createAnnualBudgetPost(event));
     this.shadowRoot.querySelector("#annual-budget-post-type").addEventListener("change", event => {
       this.shadowRoot.querySelector("#annual-budget-expense-kind-field").hidden = event.target.value !== "Expense";
@@ -524,6 +549,12 @@ class KontaApp extends HTMLElement {
       this.renderBalanceTransactions(true);
       this.loadBalance();
     });
+    this.shadowRoot.querySelector("#balance-transaction").addEventListener("change", event => {
+      this.shadowRoot.querySelector("#balance-open-transaction").disabled = !event.target.value;
+    });
+    this.shadowRoot.querySelector("#balance-open-transaction").addEventListener("click", () => {
+      this.openTransaction(this.shadowRoot.querySelector("#balance-transaction").value);
+    });
     this.shadowRoot.querySelector("#preview-body").addEventListener("change", event => {
       if (event.target.matches("[data-category]")) {
         this.updateReviewCategory(event.target);
@@ -576,6 +607,9 @@ class KontaApp extends HTMLElement {
   }
 
   showPage(page) {
+    const detailMatch = /^transactions\/([0-9a-f-]+)$/i.exec(page);
+    this.transactionDetailId = detailMatch?.[1] ?? null;
+    if (detailMatch) page = "transactions";
     const pages = {
       budget: ["Budget", "Planifiez les revenus, dépenses et montants mis de côté sur l’année."],
       monthly: ["Prévu vs réalisé", "Comparez le prévu et le réalisé du mois."],
@@ -597,7 +631,8 @@ class KontaApp extends HTMLElement {
     const contentGrid = this.shadowRoot.querySelector(".content-grid");
     contentGrid.hidden = page !== "transactions" && page !== "import";
     contentGrid.classList.add("single-page");
-    this.shadowRoot.querySelector("#transactions").hidden = page !== "transactions";
+    this.shadowRoot.querySelector("#transactions").hidden = page !== "transactions" || Boolean(this.transactionDetailId);
+    this.shadowRoot.querySelector("#transaction-detail").hidden = page !== "transactions" || !this.transactionDetailId;
     this.shadowRoot.querySelector("#import").hidden = page !== "import";
     this.shadowRoot.querySelector("#preview-panel").hidden = page !== "import" || !this.preview;
 
@@ -616,6 +651,7 @@ class KontaApp extends HTMLElement {
         link.removeAttribute("aria-current");
       }
     }
+    if (this.transactionDetailId) this.renderTransactionDetail();
     window.scrollTo(0, 0);
   }
 
@@ -1035,6 +1071,14 @@ class KontaApp extends HTMLElement {
   renderAnnualBudgetMonth() {
     if (!this.annualBudgetMonth) return;
     const summary = this.annualBudgetMonth;
+    const periodKey = `${summary.year}-${summary.month}`;
+    const samePeriod = this.renderedMonthlyPeriod === periodKey;
+    const openedPosts = new Set(samePeriod
+      ? [...this.shadowRoot.querySelectorAll("#budget-monthly-body tr[data-post-id] details[open]")]
+        .map(details => details.closest("tr[data-post-id]").dataset.postId)
+      : []);
+    const unassignedOpen = samePeriod && Boolean(this.shadowRoot.querySelector("#budget-unassigned details[open]"));
+    this.renderedMonthlyPeriod = periodKey;
     const period = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" })
       .format(new Date(summary.year, summary.month - 1, 1));
     this.shadowRoot.querySelector("#budget-monthly-period").textContent = period;
@@ -1097,7 +1141,9 @@ class KontaApp extends HTMLElement {
         } else {
           actualCell.textContent = this.formatCurrency(post.actualAmount);
           if (post.transactionCount > 0) {
-            actualCell.append(this.budgetTransactionDetails(post.transactions, `${post.transactionCount} opération${post.transactionCount === 1 ? "" : "s"}`));
+            const details = this.budgetTransactionDetails(post.transactions, `${post.transactionCount} opération${post.transactionCount === 1 ? "" : "s"}`);
+            details.open = openedPosts.has(post.id);
+            actualCell.append(details);
           }
         }
         row.append(actualCell);
@@ -1148,7 +1194,9 @@ class KontaApp extends HTMLElement {
       const amount = document.createElement("span");
       amount.textContent = `Revenus ${this.formatCurrency(summary.unassignedIncomeTotal)} · Dépenses ${this.formatCurrency(summary.unassignedExpenseTotal)}`;
       heading.append(title, amount);
-      unassigned.append(heading, this.budgetTransactionDetails(summary.unassignedTransactions, "Voir les opérations à rapprocher"));
+      const details = this.budgetTransactionDetails(summary.unassignedTransactions, "Voir les opérations à rapprocher");
+      details.open = unassignedOpen;
+      unassigned.append(heading, details);
       const help = document.createElement("p");
       help.textContent = "Rattachez leurs catégories au poste correspondant dans la colonne « Catégories réelles » du suivi mensuel pour les inclure dans les comparaisons.";
       unassigned.append(help);
@@ -1209,12 +1257,12 @@ class KontaApp extends HTMLElement {
     const table = document.createElement("table");
     const head = document.createElement("thead");
     const header = document.createElement("tr");
-    for (const label of ["Date", "Opération", "Compte", "Type", "Montant"]) {
+    for (const label of ["Date", "Opération", "Compte", "Type", "Montant", ""]) {
       header.append(this.budgetCell(label, "th"));
     }
     head.append(header);
     const tableBody = document.createElement("tbody");
-    for (const transaction of transactions) tableBody.append(this.transactionRow(transaction));
+    for (const transaction of transactions) tableBody.append(this.transactionRow(transaction, this.transactionOpenCell(transaction)));
     table.append(head, tableBody);
     details.append(table);
     return details;
@@ -1327,6 +1375,7 @@ class KontaApp extends HTMLElement {
       this.mappingMultiCategories = categories.filter(category => category.isMultiPost);
       this.mappingTransactions = transactions;
       this.renderMapping();
+      if (this.transactionDetailId) this.updateTransactionDetailPost();
       return true;
     } catch (exception) {
       if (requestId === this.mappingRequestId) this.setMappingFeedback(exception.message, true);
@@ -1513,7 +1562,11 @@ class KontaApp extends HTMLElement {
         operation.textContent = transaction.details || transaction.label;
         const info = document.createElement("span");
         info.textContent = `${this.formatDate(transaction.date)} · ${this.formatAmount(transaction.amount, transaction.type)} · ${transaction.accountName ?? transaction.accountLabel ?? "Compte inconnu"}`;
-        details.append(operation, info);
+        const open = this.transactionOpenButton(transaction);
+        open.addEventListener("click", async () => {
+          if (await this.saveMultiPostTransaction({ target: open, type: "open" })) this.openTransaction(transaction.id);
+        });
+        details.append(operation, info, open);
         const descriptionLabel = document.createElement("label");
         descriptionLabel.textContent = "Libellé";
         const description = document.createElement("input");
@@ -1608,44 +1661,51 @@ class KontaApp extends HTMLElement {
 
   async saveMultiPostTransaction(event) {
     const form = event.target.closest(".mapping-multi-transaction");
-    if (!form) return;
+    if (!form) return false;
     if (event.type === "submit") event.preventDefault();
-    if (form.dataset.saving === "true") {
+    if (form.savePromise) {
       form.dataset.savePending = "true";
-      return;
+      return form.savePromise;
     }
-    form.dataset.saving = "true";
+    form.savePromise = (async () => {
+      try {
+        do {
+          form.dataset.savePending = "false";
+          const post = form.querySelector('[name="budgetPostId"]');
+          const description = form.querySelector('[name="description"]');
+          const postId = post.value || null;
+          const descriptionValue = description.value.trim() || null;
+          const transaction = this.mappingTransactions.find(item => item.id === form.dataset.transactionId);
+          if (transaction?.budgetPostId === postId && transaction.budgetDescription === descriptionValue) continue;
+          const response = await fetch(`/api/transactions/${form.dataset.transactionId}/budget-assignment`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ budgetPostId: postId, description: description.value })
+          });
+          if (!response.ok) {
+            const problem = await response.json();
+            throw new Error(problem.detail ?? problem.title ?? "Impossible d’enregistrer l’opération.");
+          }
+          if (transaction) {
+            transaction.budgetPostId = postId;
+            transaction.budgetDescription = descriptionValue;
+          }
+          form.querySelector(".mapping-multi-post-field").dataset.unassigned = String(!postId);
+          this.setMappingFeedback("Opération enregistrée.");
+          if (this.annualBudget) await this.loadAnnualBudgetMonth();
+        } while (form.dataset.savePending === "true");
+        return true;
+      } catch (exception) {
+        this.setMappingFeedback(exception.message, true);
+        return false;
+      } finally {
+        delete form.dataset.savePending;
+      }
+    })();
     try {
-      do {
-        form.dataset.savePending = "false";
-        const post = form.querySelector('[name="budgetPostId"]');
-        const description = form.querySelector('[name="description"]');
-        const postId = post.value || null;
-        const descriptionValue = description.value.trim() || null;
-        const transaction = this.mappingTransactions.find(item => item.id === form.dataset.transactionId);
-        if (transaction?.budgetPostId === postId && transaction.budgetDescription === descriptionValue) continue;
-        const response = await fetch(`/api/transactions/${form.dataset.transactionId}/budget-assignment`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ budgetPostId: postId, description: description.value })
-        });
-        if (!response.ok) {
-          const problem = await response.json();
-          throw new Error(problem.detail ?? problem.title ?? "Impossible d’enregistrer l’opération.");
-        }
-        if (transaction) {
-          transaction.budgetPostId = postId;
-          transaction.budgetDescription = descriptionValue;
-        }
-        form.querySelector(".mapping-multi-post-field").dataset.unassigned = String(!postId);
-        this.setMappingFeedback("Opération enregistrée.");
-        if (this.annualBudget) await this.loadAnnualBudgetMonth();
-      } while (form.dataset.savePending === "true");
-    } catch (exception) {
-      this.setMappingFeedback(exception.message, true);
+      return await form.savePromise;
     } finally {
-      delete form.dataset.saving;
-      delete form.dataset.savePending;
+      delete form.savePromise;
     }
   }
 
@@ -1893,18 +1953,33 @@ class KontaApp extends HTMLElement {
 
   async loadTransactions() {
     const error = this.shadowRoot.querySelector("#transactions-error");
+    const requestId = ++this.transactionsRequestId;
+    this.transactionLoading = true;
+    this.transactionLoadError = "";
+    if (this.transactionDetailId) this.renderTransactionDetail();
     try {
       const response = await fetch("/api/transactions");
       if (!response.ok) throw new Error("Impossible de charger les opérations.");
-      this.transactions = await response.json();
+      const transactions = await response.json();
+      if (requestId !== this.transactionsRequestId) return false;
+      this.transactions = transactions;
+      this.transactionsLoaded = true;
+      this.transactionLoading = false;
       error.hidden = true;
       this.renderTransactionFilterOptions();
       this.renderTransactions();
+      if (this.transactionDetailId) this.renderTransactionDetail();
       this.renderBalanceForm();
+      return true;
     } catch (exception) {
+      if (requestId !== this.transactionsRequestId) return false;
+      this.transactionLoading = false;
+      this.transactionLoadError = exception.message;
+      if (this.transactionDetailId) this.renderTransactionDetail();
       error.textContent = exception.message;
       error.hidden = false;
       this.shadowRoot.querySelector("#transaction-count").textContent = "indisponible";
+      return false;
     }
   }
 
@@ -1951,7 +2026,7 @@ class KontaApp extends HTMLElement {
     for (const transaction of filtered.slice(start, start + size)) {
       const row = this.transactionRow(transaction);
       row.insertBefore(this.cell(transaction.categoryName ?? "Non catégorisé"), row.children[3]);
-      row.append(this.transactionDetailsCell(transaction));
+      row.append(this.transactionOpenCell(transaction));
       body.append(row);
     }
     this.shadowRoot.querySelector("#transaction-count").textContent =
@@ -1964,8 +2039,115 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#transactions-next").disabled = this.transactionPage >= pages;
   }
 
-  transactionDetailsCell(transaction) {
-    const cell = document.createElement("td");
+  openTransaction(id) {
+    this.transactionReturnPage = this.currentPage;
+    window.location.hash = `transactions/${id}`;
+  }
+
+  renderTransactionDetail() {
+    const feedback = this.shadowRoot.querySelector("#transaction-detail-feedback");
+    const form = this.shadowRoot.querySelector("#transaction-detail-form");
+    const values = this.shadowRoot.querySelector("#transaction-detail-values");
+    const summary = this.shadowRoot.querySelector("#transaction-detail-summary");
+    const back = this.shadowRoot.querySelector("#transaction-return");
+    const labels = {
+      transactions: "← Retour aux opérations",
+      summary: "← Retour aux synthèses",
+      monthly: "← Retour à prévu vs réalisé",
+      mapping: "← Retour au rapprochement",
+      import: "← Retour à l’import CSV"
+    };
+    back.textContent = labels[this.transactionReturnPage] ?? labels.transactions;
+    form.hidden = true;
+    values.replaceChildren();
+    summary.textContent = "";
+    const error = this.transactionLoadError || this.transactionCategoryLoadError;
+    if (error || this.transactionLoading || !this.transactionsLoaded || !this.categoriesLoaded) {
+      feedback.className = `feedback${error ? " error" : ""}`;
+      feedback.textContent = error || "Chargement de l’opération…";
+      feedback.hidden = false;
+      return;
+    }
+
+    const transaction = this.transactions.find(item => item.id.toLowerCase() === this.transactionDetailId.toLowerCase());
+    if (!transaction) {
+      feedback.className = "feedback error";
+      feedback.textContent = "Cette opération est introuvable.";
+      feedback.hidden = false;
+      return;
+    }
+
+    const select = this.shadowRoot.querySelector("#transaction-detail-category");
+    summary.textContent = `${this.formatDate(transaction.date)} · ${transaction.details || transaction.label} · ${transaction.accountName ?? transaction.accountLabel ?? "Compte inconnu"} · ${this.formatAmount(transaction.amount, transaction.type)}`;
+    select.replaceChildren(this.option("", "Non catégorisé"));
+    select.options[0].disabled = Boolean(transaction.categoryId);
+    for (const category of this.categories.filter(item => item.isActive)) {
+      select.append(this.option(category.id, category.name));
+    }
+    if (transaction.categoryId && ![...select.options].some(option => option.value === transaction.categoryId)) {
+      const current = this.option(transaction.categoryId, `${transaction.categoryName ?? "Catégorie"} (désactivée)`);
+      current.disabled = true;
+      select.append(current);
+    }
+    select.value = transaction.categoryId ?? "";
+    this.shadowRoot.querySelector("#transaction-detail-description").value = transaction.budgetDescription ?? "";
+    this.updateTransactionDetailPost();
+    values.append(this.transactionTechnicalDetails(transaction));
+    form.hidden = false;
+    feedback.hidden = true;
+  }
+
+  updateTransactionDetailPost() {
+    const transaction = this.transactions.find(item => item.id.toLowerCase() === this.transactionDetailId?.toLowerCase());
+    if (!transaction) return;
+    const post = this.mappingPosts.find(item => item.id === transaction.budgetPostId);
+    this.shadowRoot.querySelector("#transaction-detail-post").textContent =
+      post?.name ?? transaction.budgetPostId ?? "À rapprocher";
+  }
+
+  async saveTransactionDetails(event) {
+    event.preventDefault();
+    const button = this.shadowRoot.querySelector("#transaction-detail-save");
+    const feedback = this.shadowRoot.querySelector("#transaction-detail-feedback");
+    const id = this.transactionDetailId;
+    const category = this.shadowRoot.querySelector("#transaction-detail-category");
+    const description = this.shadowRoot.querySelector("#transaction-detail-description");
+    const payload = { categoryId: category.value || null, description: description.value };
+    button.disabled = true;
+    category.disabled = true;
+    description.disabled = true;
+    feedback.hidden = true;
+    try {
+      const response = await fetch(`/api/transactions/${id}/details`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const problem = response.headers.get("content-type")?.includes("json") ? await response.json() : null;
+        throw new Error(problem?.detail ?? problem?.title ?? "Impossible d’enregistrer l’opération.");
+      }
+      if (!await this.loadTransactions()) {
+        throw new Error("Opération enregistrée, mais impossible de recharger ses données.");
+      }
+      await Promise.all([this.loadSummary(), this.loadMapping(), this.loadAnnualBudgetMonth()]);
+      if (this.transactionDetailId === id) {
+        feedback.className = "feedback success";
+        feedback.textContent = "Opération enregistrée.";
+        feedback.hidden = false;
+      }
+    } catch (exception) {
+      feedback.className = "feedback error";
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+    } finally {
+      button.disabled = false;
+      category.disabled = false;
+      description.disabled = false;
+    }
+  }
+
+  transactionTechnicalDetails(transaction) {
     const details = document.createElement("details");
     details.className = "transaction-details";
     const summary = document.createElement("summary");
@@ -2001,8 +2183,7 @@ class KontaApp extends HTMLElement {
       list.append(term, description);
     }
     details.append(summary, list);
-    cell.append(details);
-    return cell;
+    return details;
   }
 
   async loadPhase2Data() {
@@ -2021,6 +2202,9 @@ class KontaApp extends HTMLElement {
         accountsResponse.json(),
         rulesResponse.json()
       ]);
+      this.categoriesLoaded = true;
+      this.transactionCategoryLoadError = "";
+      if (this.transactionDetailId) this.renderTransactionDetail();
       this.annualBudgetCategories = this.categories.filter(category => category.isActive);
       this.renderPhase2Data();
       await this.loadMapping();
@@ -2033,6 +2217,10 @@ class KontaApp extends HTMLElement {
       feedback.className = "feedback error";
       feedback.textContent = exception.message;
       feedback.hidden = false;
+      if (!this.categoriesLoaded) {
+        this.transactionCategoryLoadError = exception.message;
+        if (this.transactionDetailId) this.renderTransactionDetail();
+      }
     }
   }
 
@@ -2075,6 +2263,7 @@ class KontaApp extends HTMLElement {
     } else if (latest) {
       transactionSelect.value = latest.id;
     }
+    this.shadowRoot.querySelector("#balance-open-transaction").disabled = !transactionSelect.value;
   }
 
   showBalanceFeedback(message, isError) {
@@ -2574,7 +2763,7 @@ class KontaApp extends HTMLElement {
     table.className = "summary-operations-table";
     const head = document.createElement("thead");
     const headerRow = document.createElement("tr");
-    for (const label of ["Date", "Opération", "Compte", "Type", "Montant", "Catégorie"]) {
+    for (const label of ["Date", "Opération", "Compte", "Type", "Montant", ""]) {
       const th = document.createElement("th");
       th.textContent = label;
       headerRow.append(th);
@@ -2582,7 +2771,7 @@ class KontaApp extends HTMLElement {
     head.append(headerRow);
     const body = document.createElement("tbody");
     for (const transaction of category.transactions) {
-      body.append(this.transactionRow(transaction, this.transactionCategoryCell(transaction)));
+      body.append(this.transactionRow(transaction, this.transactionOpenCell(transaction)));
     }
     table.append(head, body);
     details.append(title, table);
@@ -2927,45 +3116,32 @@ class KontaApp extends HTMLElement {
     return row;
   }
 
-  transactionCategoryCell(transaction) {
+  transactionOpenCell(transaction) {
     const cell = document.createElement("td");
-    const select = document.createElement("select");
-    select.className = "transaction-category-select";
-    select.setAttribute("aria-label", `Catégorie de l'opération ${transaction.label}`);
-    select.append(this.option("", "Non catégorisé"));
-    select.options[0].disabled = true;
-    for (const category of this.categories.filter(item => item.isActive)) {
-      select.append(this.option(category.id, category.name));
-    }
-    select.value = transaction.categoryId ?? "";
-    select.addEventListener("change", () => this.changeTransactionCategory(transaction, select));
-    cell.append(select);
+    const button = this.transactionOpenButton(transaction);
+    button.addEventListener("click", () => this.openTransaction(transaction.id));
+    cell.append(button);
     return cell;
   }
 
-  async changeTransactionCategory(transaction, select) {
-    const error = this.shadowRoot.querySelector("#summary-error");
-    const previous = transaction.categoryId ?? "";
-    select.disabled = true;
-    error.hidden = true;
-    try {
-      const response = await fetch(`/api/transactions/${transaction.id}/category`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categoryId: select.value })
-      });
-      if (!response.ok) {
-        const problem = await response.json().catch(() => null);
-        throw new Error(problem?.detail ?? problem?.title ?? "Impossible de modifier la catégorie.");
-      }
-      await this.loadSummary();
-      await this.loadMapping();
-    } catch (exception) {
-      select.value = previous;
-      select.disabled = false;
-      error.textContent = exception.message;
-      error.hidden = false;
-    }
+  transactionOpenButton(transaction) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button icon-button transaction-open";
+    button.title = "Ouvrir l’opération";
+    button.setAttribute("aria-label", `Ouvrir l’opération ${transaction.budgetDescription || transaction.details || transaction.label}`);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const outline = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    outline.setAttribute("d", "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7");
+    const pupil = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    pupil.setAttribute("cx", "12");
+    pupil.setAttribute("cy", "12");
+    pupil.setAttribute("r", "3");
+    svg.append(outline, pupil);
+    button.append(svg);
+    return button;
   }
 
   previewRow(transaction) {

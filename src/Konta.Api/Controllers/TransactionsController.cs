@@ -16,6 +16,33 @@ public sealed class TransactionsController(ITransactionQueryService transactionQ
         return Ok(transactions);
     }
 
+    /// <summary>Updates the category and personal description of a saved transaction.</summary>
+    [HttpPut("{id:guid}/details")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateDetails(
+        Guid id,
+        UpdateTransactionDetailsRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var changed = await transactionQueryService.UpdateDetailsAsync(
+                id, request.CategoryId, request.Description, cancellationToken);
+            return changed ? NoContent() : NotFound();
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Opération invalide",
+                Detail = exception.Message,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+    }
+
     /// <summary>Changes the category of a saved transaction.</summary>
     [HttpPut("{id:guid}/category")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -114,6 +141,13 @@ public sealed class TransactionsController(ITransactionQueryService transactionQ
 public sealed record ChangeTransactionCategoryRequest
 {
     public Guid CategoryId { get; init; }
+}
+
+/// <summary>Category and optional personal description for an operation.</summary>
+public sealed record UpdateTransactionDetailsRequest
+{
+    public required Guid? CategoryId { get; init; }
+    public required string? Description { get; init; }
 }
 
 /// <summary>Budget post and optional personal description for an operation.</summary>

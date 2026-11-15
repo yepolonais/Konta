@@ -380,8 +380,20 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .transactions-table { min-width: 860px; }
 .transaction-details summary { color: var(--wine-dark); cursor: pointer; font-weight: 700; white-space: nowrap; }
 .transaction-details dl { margin: 12px 0 0; min-width: 220px; overflow-wrap: anywhere; }
-.transaction-details dt { color: var(--muted); font-weight: 700; margin-top: 8px; }
-.transaction-details dd { margin: 2px 0 0; }
+.transaction-details dt { color: var(--wine-dark); font-size: 13px; font-weight: 700; margin-top: 8px; }
+.transaction-details dd { font-size: 12px; margin: 2px 0 0; }
+.transaction-open { height: 28px; min-height: 28px; width: 28px; }
+.transaction-open svg { height: 14px; width: 14px; }
+.transaction-detail-panel > .panel-head { gap: 12px; }
+.transaction-detail-panel > .panel-head button { width: auto; }
+.transaction-detail-panel > .feedback, .transaction-detail-summary { margin: 16px 22px; }
+.transaction-detail-summary, .transaction-detail-help { color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.transaction-detail-panel form, #transaction-detail-values { padding: 0 22px 22px; }
+.transaction-detail-fields { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.transaction-detail-fields label, .transaction-detail-post { color: var(--muted); display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
+.transaction-detail-fields input, .transaction-detail-fields select { background: var(--field); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font: inherit; font-size: 12px; min-height: 40px; min-width: 0; padding: 0 9px; width: 100%; }
+.transaction-detail-post strong { color: var(--ink); font-size: 12px; overflow-wrap: anywhere; }
+.transaction-detail-panel form > button { width: auto; }
 .transactions-pagination { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; padding: 16px 22px; }
 .transactions-pagination label { align-items: center; color: var(--muted); display: flex; font-size: 12px; gap: 8px; margin-right: auto; }
 .transactions-pagination select { width: auto; }
@@ -397,7 +409,6 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .summary-operations { border-top: 1px solid var(--line); overflow-x: auto; padding: 16px 22px; }
 .summary-operations h3 { font-size: 13px; margin: 0 0 10px; }
 .summary-operations-table { min-width: 760px; }
-.transaction-category-select { font-size: 12px; max-width: 220px; min-height: 32px; width: 100%; }
 .balance-panel { margin: 24px 0; padding: 22px; }
 .balance-panel h2 { margin-bottom: 8px; }
 .balance-panel p { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 18px; }
@@ -550,6 +561,8 @@ main[data-current-page="budget"] { max-width: 1560px; }
   .ambiance-select { width: 150px; }
   .heading { align-items: start; flex-direction: column; gap: 8px; margin-bottom: 22px; }
   .heading-action .info-tip-bubble { left: 0; right: auto; }
+  .transaction-detail-panel > .panel-head { align-items: flex-start; flex-direction: column; padding: 16px; }
+  .transaction-detail-fields { grid-template-columns: minmax(0, 1fr); }
   h1 { font-size: 30px; }
   .panel-head { padding: 0 16px; }
   .rules-intro { padding-left: 16px; padding-right: 16px; }

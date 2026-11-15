@@ -21,19 +21,57 @@ public sealed class TransactionQueryService(
             return false;
         }
 
+        var postId = await ResolveCategoryBudgetPostIdAsync(categoryId, cancellationToken);
+        transaction.ChangeCategory(categoryId);
+        transaction.SetBudgetAssignment(postId, transaction.BudgetDescription);
+        await repository.UpdateAsync(transaction, cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> UpdateDetailsAsync(
+        Guid transactionId,
+        Guid? categoryId,
+        string? description,
+        CancellationToken cancellationToken)
+    {
+        var transaction = await repository.GetAsync(transactionId, cancellationToken);
+        if (transaction is null)
+        {
+            return false;
+        }
+
+        var categoryChanged = categoryId != transaction.CategoryId;
+        var postId = transaction.BudgetPostId;
+        if (categoryChanged)
+        {
+            if (!categoryId.HasValue)
+            {
+                throw new ArgumentException("Une catégorie est requise.", nameof(categoryId));
+            }
+
+            postId = await ResolveCategoryBudgetPostIdAsync(categoryId.Value, cancellationToken);
+        }
+
+        transaction.SetBudgetAssignment(postId, description);
+        if (categoryChanged && categoryId.HasValue)
+        {
+            transaction.ChangeCategory(categoryId.Value);
+        }
+        await repository.UpdateAsync(transaction, cancellationToken);
+        return true;
+    }
+
+    private async Task<Guid?> ResolveCategoryBudgetPostIdAsync(Guid categoryId, CancellationToken cancellationToken)
+    {
         var category = await categoryRepository.GetAsync(categoryId, cancellationToken);
         if (category is null || !category.IsActive)
         {
             throw new ArgumentException("La catégorie choisie n'existe pas ou est désactivée.", nameof(categoryId));
         }
 
-        transaction.ChangeCategory(categoryId);
-        var postId = category.IsMultiPost
+        return category.IsMultiPost
             ? null
             : await repository.GetCategoryBudgetPostIdAsync(categoryId, cancellationToken);
-        transaction.SetBudgetAssignment(postId, transaction.BudgetDescription);
-        await repository.UpdateAsync(transaction, cancellationToken);
-        return true;
     }
 
     public async Task<bool> SetBudgetAssignmentAsync(

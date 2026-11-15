@@ -8,6 +8,12 @@ Accept: application/json
 GET {{baseUrl}}/api/transactions
 Accept: application/json
 
+### Update an operation's category and personal description (replace the IDs)
+PUT {{baseUrl}}/api/transactions/00000000-0000-0000-0000-000000000001/details
+Content-Type: application/json
+
+{"categoryId":"00000000-0000-0000-0000-000000000002","description":"Libellé personnel"}
+
 ### Enable individual assignments for a category (replace the ID)
 PUT {{baseUrl}}/api/categories/00000000-0000-0000-0000-000000000001/multi-post
 
