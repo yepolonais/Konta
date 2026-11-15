@@ -252,6 +252,9 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateOnly>("BudgetMonth")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("BudgetPostId")
                         .HasColumnType("TEXT");
 
@@ -294,6 +297,8 @@ namespace Konta.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BudgetMonth");
 
                     b.HasIndex("BudgetPostId");
 

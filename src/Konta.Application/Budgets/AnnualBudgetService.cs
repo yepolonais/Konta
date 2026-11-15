@@ -52,13 +52,7 @@ public sealed class AnnualBudgetService(
         }
 
         var posts = await repository.ListPostsAsync(cancellationToken);
-        var startDate = new DateOnly(year, month, 1);
-        var allTransactions = await transactionRepository.ListForPeriodAsync(
-            startDate,
-            startDate.AddMonths(1),
-            null,
-            null,
-            cancellationToken);
+        var allTransactions = await transactionRepository.ListForBudgetMonthAsync(year, month, cancellationToken);
         var assignedPostIds = await transactionRepository.ListAssignedBudgetPostIdsAsync(cancellationToken);
         var activePosts = posts.Where(post => post.IsActive).ToArray();
         var savingsPostIds = activePosts

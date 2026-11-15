@@ -32,12 +32,24 @@ public sealed class TransactionQueryService(
         Guid transactionId,
         Guid? categoryId,
         string? description,
+        int? budgetYear,
+        int? budgetMonth,
         CancellationToken cancellationToken)
     {
         var transaction = await repository.GetAsync(transactionId, cancellationToken);
         if (transaction is null)
         {
             return false;
+        }
+
+        if (budgetYear.HasValue != budgetMonth.HasValue)
+        {
+            throw new ArgumentException("Indiquez le mois et l'année comptables.");
+        }
+
+        if (budgetYear.HasValue && budgetMonth.HasValue)
+        {
+            transaction.SetBudgetMonth(budgetYear.Value, budgetMonth.Value);
         }
 
         var categoryChanged = categoryId != transaction.CategoryId;

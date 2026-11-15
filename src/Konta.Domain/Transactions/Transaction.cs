@@ -36,6 +36,7 @@ public sealed class Transaction
 
         Id = Guid.NewGuid();
         Date = date;
+        BudgetMonth = new DateOnly(date.Year, date.Month, 1);
         Label = label.Trim();
         Amount = amount;
         Type = type;
@@ -79,8 +80,25 @@ public sealed class Transaction
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    public void SetBudgetMonth(int year, int month)
+    {
+        if (year is < 1 or > 9998)
+        {
+            throw new ArgumentOutOfRangeException(nameof(year), "L'année doit être comprise entre 1 et 9998.");
+        }
+
+        if (month is < 1 or > 12)
+        {
+            throw new ArgumentOutOfRangeException(nameof(month), "Le mois doit être compris entre 1 et 12.");
+        }
+
+        BudgetMonth = new DateOnly(year, month, 1);
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public Guid Id { get; private set; }
     public DateOnly Date { get; private set; }
+    public DateOnly BudgetMonth { get; private set; }
     public string Label { get; private set; } = string.Empty;
     public string? Details { get; private set; }
     public decimal Amount { get; private set; }

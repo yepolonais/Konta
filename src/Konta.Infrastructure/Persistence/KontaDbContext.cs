@@ -35,6 +35,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.Property(transaction => transaction.AccountLabel).HasMaxLength(200);
             entity.Property(transaction => transaction.ImportFingerprint).HasMaxLength(64);
             entity.HasIndex(transaction => transaction.Date);
+            entity.HasIndex(transaction => transaction.BudgetMonth);
             entity.HasIndex(transaction => new
             {
                 transaction.AccountId,

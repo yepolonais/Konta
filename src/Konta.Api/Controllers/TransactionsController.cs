@@ -16,7 +16,7 @@ public sealed class TransactionsController(ITransactionQueryService transactionQ
         return Ok(transactions);
     }
 
-    /// <summary>Updates the category and personal description of a saved transaction.</summary>
+    /// <summary>Updates the category, personal description and accounting month of a saved transaction.</summary>
     [HttpPut("{id:guid}/details")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -29,7 +29,7 @@ public sealed class TransactionsController(ITransactionQueryService transactionQ
         try
         {
             var changed = await transactionQueryService.UpdateDetailsAsync(
-                id, request.CategoryId, request.Description, cancellationToken);
+                id, request.CategoryId, request.Description, request.BudgetYear, request.BudgetMonth, cancellationToken);
             return changed ? NoContent() : NotFound();
         }
         catch (ArgumentException exception)
@@ -143,11 +143,13 @@ public sealed record ChangeTransactionCategoryRequest
     public Guid CategoryId { get; init; }
 }
 
-/// <summary>Category and optional personal description for an operation.</summary>
+/// <summary>Category, optional personal description and accounting period for an operation.</summary>
 public sealed record UpdateTransactionDetailsRequest
 {
     public required Guid? CategoryId { get; init; }
     public required string? Description { get; init; }
+    public int? BudgetYear { get; init; }
+    public int? BudgetMonth { get; init; }
 }
 
 /// <summary>Budget post and optional personal description for an operation.</summary>

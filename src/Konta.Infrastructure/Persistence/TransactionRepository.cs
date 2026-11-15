@@ -33,36 +33,18 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
             .Distinct()
             .ToListAsync(cancellationToken)).ToHashSet();
 
-    public async Task<IReadOnlyList<TransactionListItem>> ListAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<TransactionListItem>> ListAsync(CancellationToken cancellationToken) =>
+        ListItemsAsync(dbContext.Transactions.AsNoTracking(), cancellationToken);
+
+    public Task<IReadOnlyList<TransactionListItem>> ListForBudgetMonthAsync(
+        int year,
+        int month,
+        CancellationToken cancellationToken)
     {
-        return await dbContext.Transactions
-            .AsNoTracking()
-            .OrderByDescending(transaction => transaction.Date)
-            .ThenBy(transaction => transaction.Label)
-            .Select(transaction => new TransactionListItem(
-                transaction.Id,
-                transaction.Date,
-                transaction.Label,
-                transaction.Amount,
-                transaction.Type,
-                transaction.AccountNumber,
-                transaction.AccountLabel,
-                transaction.Account == null ? null : transaction.Account.Name,
-                transaction.Category == null ? null : transaction.Category.Name,
-                transaction.AccountId,
-                transaction.CategoryId,
-                dbContext.AccountTransfers.Any(transfer =>
-                    transfer.SourceTransactionId == transaction.Id
-                    || transfer.DestinationTransactionId == transaction.Id),
-                transaction.Details,
-                transaction.BudgetPostId,
-                transaction.BudgetDescription,
-                transaction.Source,
-                transaction.ImportFingerprint,
-                transaction.ImportOccurrence,
-                transaction.CreatedAt,
-                transaction.UpdatedAt))
-            .ToListAsync(cancellationToken);
+        var budgetMonth = new DateOnly(year, month, 1);
+        return ListItemsAsync(
+            dbContext.Transactions.AsNoTracking().Where(transaction => transaction.BudgetMonth == budgetMonth),
+            cancellationToken);
     }
 
     public async Task<IReadOnlyList<TransactionListItem>> ListForPeriodAsync(
@@ -85,6 +67,13 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
             query = query.Where(transaction => transaction.CategoryId == categoryId.Value);
         }
 
+        return await ListItemsAsync(query, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<TransactionListItem>> ListItemsAsync(
+        IQueryable<Transaction> query,
+        CancellationToken cancellationToken)
+    {
         return await query
             .OrderByDescending(transaction => transaction.Date)
             .ThenBy(transaction => transaction.Label)
@@ -110,7 +99,9 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
                 transaction.ImportFingerprint,
                 transaction.ImportOccurrence,
                 transaction.CreatedAt,
-                transaction.UpdatedAt))
+                transaction.UpdatedAt,
+                transaction.BudgetMonth.Year,
+                transaction.BudgetMonth.Month))
             .ToListAsync(cancellationToken);
     }
 }

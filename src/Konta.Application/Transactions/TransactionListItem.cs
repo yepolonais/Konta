@@ -22,4 +22,6 @@ public sealed record TransactionListItem(
     string? ImportFingerprint = null,
     int? ImportOccurrence = null,
     DateTimeOffset? CreatedAt = null,
-    DateTimeOffset? UpdatedAt = null);
+    DateTimeOffset? UpdatedAt = null,
+    int BudgetYear = 0,
+    int BudgetMonth = 0);

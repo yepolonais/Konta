@@ -272,6 +272,8 @@ class KontaApp extends HTMLElement {
                 <div class="transaction-detail-fields">
                   <label>Catégorie<select name="categoryId" id="transaction-detail-category"></select></label>
                   <label>Libellé personnel<input name="description" id="transaction-detail-description" maxlength="200"></label>
+                  <label>Mois comptable<select name="budgetMonth" id="transaction-detail-month" required></select></label>
+                  <label>Année comptable<input name="budgetYear" id="transaction-detail-year" type="number" min="1" max="9998" required></label>
                   <div class="transaction-detail-post"><span>Poste budgétaire</span><strong id="transaction-detail-post"></strong></div>
                 </div>
                 <p class="transaction-detail-help">Le poste budgétaire est défini dans le rapprochement. Pour une catégorie multi-postes, il est choisi individuellement dans l’écran Rapprochement.</p>
@@ -594,6 +596,7 @@ class KontaApp extends HTMLElement {
     const month = this.shadowRoot.querySelector("#summary-month");
     const transactionsMonth = this.shadowRoot.querySelector("#transactions-month");
     const monthlyMonth = this.shadowRoot.querySelector("#monthly-review-month");
+    const detailMonth = this.shadowRoot.querySelector("#transaction-detail-month");
     for (let value = 1; value <= 12; value++) {
       const option = document.createElement("option");
       option.value = value;
@@ -601,6 +604,7 @@ class KontaApp extends HTMLElement {
       option.textContent = monthName;
       month.append(option.cloneNode(true));
       transactionsMonth.append(option.cloneNode(true));
+      detailMonth.append(option.cloneNode(true));
       monthlyMonth.append(option);
     }
     monthlyMonth.value = String(this.selectedBudgetMonth);
@@ -2091,6 +2095,8 @@ class KontaApp extends HTMLElement {
     }
     select.value = transaction.categoryId ?? "";
     this.shadowRoot.querySelector("#transaction-detail-description").value = transaction.budgetDescription ?? "";
+    this.shadowRoot.querySelector("#transaction-detail-month").value = String(transaction.budgetMonth);
+    this.shadowRoot.querySelector("#transaction-detail-year").value = transaction.budgetYear;
     this.updateTransactionDetailPost();
     values.append(this.transactionTechnicalDetails(transaction));
     form.hidden = false;
@@ -2112,10 +2118,19 @@ class KontaApp extends HTMLElement {
     const id = this.transactionDetailId;
     const category = this.shadowRoot.querySelector("#transaction-detail-category");
     const description = this.shadowRoot.querySelector("#transaction-detail-description");
-    const payload = { categoryId: category.value || null, description: description.value };
+    const month = this.shadowRoot.querySelector("#transaction-detail-month");
+    const year = this.shadowRoot.querySelector("#transaction-detail-year");
+    const payload = {
+      categoryId: category.value || null,
+      description: description.value,
+      budgetMonth: Number(month.value),
+      budgetYear: Number(year.value)
+    };
     button.disabled = true;
     category.disabled = true;
     description.disabled = true;
+    month.disabled = true;
+    year.disabled = true;
     feedback.hidden = true;
     try {
       const response = await fetch(`/api/transactions/${id}/details`, {
@@ -2144,6 +2159,8 @@ class KontaApp extends HTMLElement {
       button.disabled = false;
       category.disabled = false;
       description.disabled = false;
+      month.disabled = false;
+      year.disabled = false;
     }
   }
 

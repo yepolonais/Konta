@@ -552,6 +552,112 @@ public sealed class AnnualBudgetsApiIntegrationTests
     }
 
     [Fact]
+    public async Task UpdateDetails_MovesActualsBetweenBudgetMonths_WithoutChangingBankPeriod()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "budget-period");
+        var categoryId = await CreateCategoryAsync(client, "Courses");
+        var postId = await CreatePostAsync(client, "Courses", "Expense");
+        using var mapping = await client.PutAsync($"/api/annual-budgets/posts/{postId}/categories",
+            JsonContent(JsonSerializer.Serialize(new { categoryIds = new[] { categoryId } })));
+        mapping.EnsureSuccessStatusCode();
+        using var imported = await PostCsvAsync(client,
+            Csv("29/12/2026", "budget-period", "Achat", "Courses", "-10,00")
+            + Csv("29/12/2026", "budget-period", "Revenu", "", "20,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var items = initial.RootElement.EnumerateArray().ToArray();
+        Assert.All(items, item =>
+        {
+            Assert.Equal(2026, item.GetProperty("budgetYear").GetInt32());
+            Assert.Equal(12, item.GetProperty("budgetMonth").GetInt32());
+        });
+
+        // Act
+        foreach (var item in items)
+        {
+            var id = item.GetProperty("id").GetGuid();
+            Guid? category = item.GetProperty("categoryId").ValueKind == JsonValueKind.Null
+                ? null : item.GetProperty("categoryId").GetGuid();
+            using var response = await client.PutAsync($"/api/transactions/{id}/details",
+                JsonContent(JsonSerializer.Serialize(new { categoryId = category, description = (string?)null, budgetYear = 2027, budgetMonth = 1 })));
+            response.EnsureSuccessStatusCode();
+        }
+
+        // Assert
+        using var oldMonth = JsonDocument.Parse(await client.GetStringAsync("/api/annual-budgets/2026/months/12"));
+        using var newMonth = JsonDocument.Parse(await client.GetStringAsync("/api/annual-budgets/2027/months/1"));
+        Assert.Equal(0m, oldMonth.RootElement.GetProperty("actualExpenseTotal").GetDecimal());
+        Assert.Equal(0m, oldMonth.RootElement.GetProperty("actualIncomeTotal").GetDecimal());
+        Assert.Equal(10m, newMonth.RootElement.GetProperty("actualExpenseTotal").GetDecimal());
+        Assert.Equal(20m, newMonth.RootElement.GetProperty("unassignedIncomeTotal").GetDecimal());
+        var post = Assert.Single(newMonth.RootElement.GetProperty("posts").EnumerateArray());
+        Assert.Equal(10m, post.GetProperty("actualAmount").GetDecimal());
+        Assert.Single(post.GetProperty("transactions").EnumerateArray());
+        using var bankSummary = JsonDocument.Parse(await client.GetStringAsync("/api/transactions/summary?year=2026&month=12"));
+        Assert.Equal(2, bankSummary.RootElement.GetProperty("transactionCount").GetInt32());
+        using var saved = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        Assert.All(saved.RootElement.EnumerateArray(), item =>
+        {
+            Assert.Equal("2026-12-29", item.GetProperty("date").GetString());
+            Assert.Equal(2027, item.GetProperty("budgetYear").GetInt32());
+            Assert.Equal(1, item.GetProperty("budgetMonth").GetInt32());
+        });
+
+        var income = items.Single(item => item.GetProperty("categoryId").ValueKind == JsonValueKind.Null);
+        using var legacyUpdate = await client.PutAsync($"/api/transactions/{income.GetProperty("id").GetGuid()}/details",
+            JsonContent("""{"categoryId":null,"description":"Libellé modifié"}"""));
+        legacyUpdate.EnsureSuccessStatusCode();
+        using var afterLegacyUpdate = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var savedIncome = afterLegacyUpdate.RootElement.EnumerateArray()
+            .Single(item => item.GetProperty("id").GetGuid() == income.GetProperty("id").GetGuid());
+        Assert.Equal(2027, savedIncome.GetProperty("budgetYear").GetInt32());
+        Assert.Equal(1, savedIncome.GetProperty("budgetMonth").GetInt32());
+
+        var expense = items.Single(item => item.GetProperty("categoryId").ValueKind != JsonValueKind.Null);
+        using var movedBack = await client.PutAsync($"/api/transactions/{expense.GetProperty("id").GetGuid()}/details",
+            JsonContent(JsonSerializer.Serialize(new { categoryId, description = (string?)null, budgetYear = 2026, budgetMonth = 11 })));
+        movedBack.EnsureSuccessStatusCode();
+        using var previousMonth = JsonDocument.Parse(await client.GetStringAsync("/api/annual-budgets/2026/months/11"));
+        Assert.Equal(10m, previousMonth.RootElement.GetProperty("actualExpenseTotal").GetDecimal());
+    }
+
+    [Theory]
+    [InlineData(2026, 0)]
+    [InlineData(2026, 13)]
+    [InlineData(0, 1)]
+    [InlineData(9999, 1)]
+    [InlineData(null, 1)]
+    [InlineData(2026, null)]
+    public async Task UpdateDetails_RejectsInvalidBudgetPeriod_WithoutSavingChanges(int? budgetYear, int? budgetMonth)
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte", "invalid-period");
+        using var imported = await PostCsvAsync(client, Csv("29/10/2026", "invalid-period", "Achat", "", "-10,00"));
+        imported.EnsureSuccessStatusCode();
+        using var initial = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var id = Assert.Single(initial.RootElement.EnumerateArray()).GetProperty("id").GetGuid();
+
+        // Act
+        using var response = await client.PutAsync($"/api/transactions/{id}/details",
+            JsonContent(JsonSerializer.Serialize(new { categoryId = (Guid?)null, description = "Nouveau", budgetYear, budgetMonth })));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var saved = JsonDocument.Parse(await client.GetStringAsync("/api/transactions"));
+        var item = Assert.Single(saved.RootElement.EnumerateArray());
+        Assert.Equal(2026, item.GetProperty("budgetYear").GetInt32());
+        Assert.Equal(10, item.GetProperty("budgetMonth").GetInt32());
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("budgetDescription").ValueKind);
+    }
+
+    [Fact]
     public async Task UpdateDetails_PreservesMultiPostAssignment_WhenCategoryIsUnchanged()
     {
         // Arrange
@@ -675,7 +781,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
 
         // Act
         using var response = await client.PutAsync($"/api/transactions/{id}/details",
-            JsonContent(JsonSerializer.Serialize(new { categoryId = secondCategoryId, description = new string('x', 201) })));
+            JsonContent(JsonSerializer.Serialize(new { categoryId = secondCategoryId, description = new string('x', 201), budgetYear = 2027, budgetMonth = 1 })));
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -683,6 +789,8 @@ public sealed class AnnualBudgetsApiIntegrationTests
         var transaction = Assert.Single(saved.RootElement.EnumerateArray());
         Assert.Equal(firstCategoryId, transaction.GetProperty("categoryId").GetGuid());
         Assert.Equal(JsonValueKind.Null, transaction.GetProperty("budgetDescription").ValueKind);
+        Assert.Equal(2026, transaction.GetProperty("budgetYear").GetInt32());
+        Assert.Equal(9, transaction.GetProperty("budgetMonth").GetInt32());
     }
 
     [Fact]
@@ -774,6 +882,28 @@ public sealed class AnnualBudgetsApiIntegrationTests
         var transactions = await db.Transactions.AsNoTracking().ToListAsync();
         Assert.Equal(postId, transactions.Single(item => item.Id == transactionId).BudgetPostId);
         Assert.Null(transactions.Single(item => item.Id == unmappedId).BudgetPostId);
+    }
+
+    [Fact]
+    public async Task Migration_BackfillsBudgetMonth_FromExistingBankDate()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        var path = Path.Combine(dataDirectory.FullName, "migration-month.db");
+        var options = new DbContextOptionsBuilder<KontaDbContext>().UseSqlite($"Data Source={path}").Options;
+        await using var db = new KontaDbContext(options);
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261112221153_AddTransactionBudgetAssignments");
+        var id = Guid.NewGuid();
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Transactions (Id, Date, Label, Amount, Type, Source, CreatedAt, UpdatedAt) VALUES ({id}, {"2026-12-29"}, {"Achat"}, {"10.00"}, {"Expense"}, {"Manual"}, {"2026-12-29T00:00:00+00:00"}, {"2026-12-29T00:00:00+00:00"})");
+
+        // Act
+        await migrator.MigrateAsync();
+
+        // Assert
+        var transaction = await db.Transactions.AsNoTracking().SingleAsync();
+        Assert.Equal(new DateOnly(2026, 12, 1), transaction.BudgetMonth);
+        Assert.Equal(new DateOnly(2026, 12, 29), transaction.Date);
     }
 
     [Fact]
