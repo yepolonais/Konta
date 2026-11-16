@@ -103,7 +103,7 @@ class KontaApp extends HTMLElement {
           <nav class="nav" aria-label="Navigation principale">
             <a class="nav-plan" href="#budget" aria-current="page"><span class="nav-plan-kicker">Prévisionnel</span>Budget</a>
             <span class="nav-separator" aria-hidden="true"></span>
-            <a href="#monthly">Prévu vs réalisé <span class="nav-badge mapping-badge" hidden></span></a>
+            <a href="#monthly">Prévu vs réalisé</a>
             <a href="#summary">Synthèses</a>
             <a href="#transactions">Opérations</a>
             <a href="#import">Import CSV</a>
