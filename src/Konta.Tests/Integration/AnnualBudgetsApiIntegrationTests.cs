@@ -1358,6 +1358,132 @@ public sealed class AnnualBudgetsApiIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task MonthlySections_PersistEditsAndDeletion_WithoutChangingBudgetCalculations()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var incomeId = await CreatePostAsync(client, "Remboursement impôts", "Income");
+        var expenseId = await CreatePostAsync(client, "Impôts", "Expense");
+        await SetMonthlyAmountAsync(client, incomeId, 10, 500m);
+        await SetMonthlyAmountAsync(client, expenseId, 10, 2000m);
+        var before = await client.GetStringAsync("/api/annual-budgets/2026/months/10");
+
+        // Act
+        using var created = await client.PostAsync("/api/monthly-display-sections",
+            JsonContent(JsonSerializer.Serialize(new { name = "  Impôts  ", postIds = new[] { incomeId, expenseId } })));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        using var createdPayload = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var id = createdPayload.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal("Impôts", createdPayload.RootElement.GetProperty("name").GetString());
+        Assert.Equal(2, createdPayload.RootElement.GetProperty("postIds").GetArrayLength());
+        Assert.NotNull(created.Headers.Location);
+        using var fetched = await client.GetAsync(created.Headers.Location);
+        fetched.EnsureSuccessStatusCode();
+        using var updated = await client.PutAsync($"/api/monthly-display-sections/{id}",
+            JsonContent(JsonSerializer.Serialize(new { name = "Foyer", postIds = new[] { expenseId } })));
+        updated.EnsureSuccessStatusCode();
+        using var list = JsonDocument.Parse(await client.GetStringAsync("/api/monthly-display-sections"));
+        var section = Assert.Single(list.RootElement.EnumerateArray());
+        Assert.Equal("Foyer", section.GetProperty("name").GetString());
+        Assert.Equal(expenseId, Assert.Single(section.GetProperty("postIds").EnumerateArray()).GetGuid());
+        Assert.Equal(before, await client.GetStringAsync("/api/annual-budgets/2026/months/10"));
+
+        using var deleted = await client.DeleteAsync($"/api/monthly-display-sections/{id}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        using var after = JsonDocument.Parse(await client.GetStringAsync("/api/monthly-display-sections"));
+        Assert.Empty(after.RootElement.EnumerateArray());
+        Assert.Equal(before, await client.GetStringAsync("/api/annual-budgets/2026/months/10"));
+    }
+
+    [Fact]
+    public async Task MonthlySections_RejectConflictingOrInvalidPosts_WithoutChangingExistingSection()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var incomeId = await CreatePostAsync(client, "Salaire", "Income");
+        var savingsId = await CreatePostAsync(client, "Livret", "Savings");
+        using var created = await client.PostAsync("/api/monthly-display-sections",
+            JsonContent(JsonSerializer.Serialize(new { name = "Impôts", postIds = new[] { incomeId } })));
+        created.EnsureSuccessStatusCode();
+        using var payload = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var id = payload.RootElement.GetProperty("id").GetGuid();
+
+        // Act
+        using var duplicateName = await client.PostAsync("/api/monthly-display-sections",
+            JsonContent("""{"name":"impôts","postIds":[]}"""));
+        using var duplicatePost = await client.PostAsync("/api/monthly-display-sections",
+            JsonContent(JsonSerializer.Serialize(new { name = "Autre", postIds = new[] { incomeId } })));
+        using var savings = await client.PutAsync($"/api/monthly-display-sections/{id}",
+            JsonContent(JsonSerializer.Serialize(new { name = "Modifié", postIds = new[] { savingsId } })));
+        using var missing = await client.PutAsync($"/api/monthly-display-sections/{id}",
+            JsonContent(JsonSerializer.Serialize(new { name = "Modifié", postIds = new[] { Guid.NewGuid() } })));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Conflict, duplicateName.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, duplicatePost.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, savings.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+        using var list = JsonDocument.Parse(await client.GetStringAsync("/api/monthly-display-sections"));
+        var section = Assert.Single(list.RootElement.EnumerateArray());
+        Assert.Equal("Impôts", section.GetProperty("name").GetString());
+        Assert.Equal(incomeId, Assert.Single(section.GetProperty("postIds").EnumerateArray()).GetGuid());
+    }
+
+    [Fact]
+    public async Task MonthlySections_RemoveDeletedPostLink_WithoutDeletingSection()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var postId = await CreatePostAsync(client, "Impôts", "Expense");
+        using var created = await client.PostAsync("/api/monthly-display-sections",
+            JsonContent(JsonSerializer.Serialize(new { name = "Foyer", postIds = new[] { postId } })));
+        created.EnsureSuccessStatusCode();
+
+        // Act
+        using var deleted = await client.DeleteAsync($"/api/annual-budgets/posts/{postId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        using var sections = JsonDocument.Parse(await client.GetStringAsync("/api/monthly-display-sections"));
+        Assert.Empty(Assert.Single(sections.RootElement.EnumerateArray()).GetProperty("postIds").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task MonthlySections_PreserveSelectedPost_WhenItsTypeChangesToSavings()
+    {
+        // Arrange
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+        var postId = await CreatePostAsync(client, "Vacances", "Expense");
+        using var created = await client.PostAsync("/api/monthly-display-sections",
+            JsonContent(JsonSerializer.Serialize(new { name = "Foyer", postIds = new[] { postId } })));
+        created.EnsureSuccessStatusCode();
+        using var payload = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var id = payload.RootElement.GetProperty("id").GetGuid();
+        using var typeChange = await client.PutAsync($"/api/annual-budgets/posts/{postId}",
+            JsonContent("""{"name":"Vacances","type":"Savings"}"""));
+        typeChange.EnsureSuccessStatusCode();
+
+        // Act
+        using var renamed = await client.PutAsync($"/api/monthly-display-sections/{id}",
+            JsonContent(JsonSerializer.Serialize(new { name = "Autre", postIds = new[] { postId } })));
+
+        // Assert
+        renamed.EnsureSuccessStatusCode();
+        using var result = JsonDocument.Parse(await renamed.Content.ReadAsStringAsync());
+        Assert.Equal(postId, Assert.Single(result.RootElement.GetProperty("postIds").EnumerateArray()).GetGuid());
+    }
+
     private static async Task<Guid> CreateAccountAsync(HttpClient client, string name, string accountNumber)
     {
         using var response = await client.PostAsync("/api/accounts", JsonContent(

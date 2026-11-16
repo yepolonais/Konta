@@ -1,5 +1,27 @@
 @baseUrl = http://localhost:5255
 
+### Custom monthly review sections
+GET {{baseUrl}}/api/monthly-display-sections
+Accept: application/json
+
+### Create a section (replace the budget post IDs)
+POST {{baseUrl}}/api/monthly-display-sections
+Content-Type: application/json
+
+{"name":"Impôts","postIds":["00000000-0000-0000-0000-000000000001","00000000-0000-0000-0000-000000000002"]}
+
+### Read a section (replace the ID)
+GET {{baseUrl}}/api/monthly-display-sections/00000000-0000-0000-0000-000000000001
+
+### Update a section (replace the IDs)
+PUT {{baseUrl}}/api/monthly-display-sections/00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{"name":"Impôts du foyer","postIds":["00000000-0000-0000-0000-000000000002"]}
+
+### Delete a section without deleting its posts (replace the ID)
+DELETE {{baseUrl}}/api/monthly-display-sections/00000000-0000-0000-0000-000000000001
+
 ### Health check
 GET {{baseUrl}}/api/health
 Accept: application/json

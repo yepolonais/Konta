@@ -14,6 +14,8 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
     public DbSet<CategoryRule> CategoryRules => Set<CategoryRule>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AnnualBudgetPost> AnnualBudgetPosts => Set<AnnualBudgetPost>();
+    public DbSet<MonthlyDisplaySection> MonthlyDisplaySections => Set<MonthlyDisplaySection>();
+    public DbSet<MonthlyDisplaySectionPost> MonthlyDisplaySectionPosts => Set<MonthlyDisplaySectionPost>();
     public DbSet<BudgetMonthlyAmount> BudgetMonthlyAmounts => Set<BudgetMonthlyAmount>();
     public DbSet<BudgetPostCategoryMapping> BudgetPostCategoryMappings => Set<BudgetPostCategoryMapping>();
     public DbSet<AccountBalanceReference> AccountBalanceReferences => Set<AccountBalanceReference>();
@@ -107,6 +109,22 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.HasKey(amount => amount.Id);
             entity.Property(amount => amount.Amount).HasPrecision(18, 2);
             entity.HasIndex(amount => new { amount.AnnualBudgetPostId, amount.Year, amount.Month }).IsUnique();
+        });
+
+        modelBuilder.Entity<MonthlyDisplaySection>(entity =>
+        {
+            entity.HasKey(section => section.Id);
+            entity.Property(section => section.Name).HasMaxLength(100).UseCollation("NOCASE").IsRequired();
+            entity.HasIndex(section => section.Name).IsUnique();
+            entity.HasMany(section => section.Posts).WithOne()
+                .HasForeignKey(post => post.SectionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MonthlyDisplaySectionPost>(entity =>
+        {
+            entity.HasKey(post => post.PostId);
+            entity.HasOne<AnnualBudgetPost>().WithMany()
+                .HasForeignKey(post => post.PostId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<BudgetPostCategoryMapping>(entity =>

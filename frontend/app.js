@@ -62,6 +62,10 @@ class KontaApp extends HTMLElement {
     this.mappingTransactions = [];
     this.mappingRequestId = 0;
     this.annualBudgetMonth = null;
+    this.monthlySections = [];
+    this.monthlyRequestId = 0;
+    this.editingMonthlySectionId = null;
+    this.monthlySectionSaving = false;
     this.draggedBudgetPostId = null;
     this.selectedBudgetMonth = new Date().getMonth() + 1;
     this.selectedMonthlyYear = new Date().getFullYear();
@@ -196,11 +200,23 @@ class KontaApp extends HTMLElement {
               <p class="feedback error" id="budget-month-feedback" role="status" aria-live="polite" hidden></p>
               <div class="table-wrap">
                 <table class="budget-monthly-table">
-                  <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th>Écart réalisé − prévu</th></tr></thead>
+                  <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th class="monthly-last-heading"><div><span>Écart réalisé − prévu</span><button type="button" class="secondary-button icon-button monthly-section-add" id="monthly-section-add" title="Créer une section personnalisée afin de regrouper des postes budgétaires" aria-label="Créer une section personnalisée afin de regrouper des postes budgétaires" disabled>+</button></div></th></tr></thead>
                   <tbody id="budget-monthly-body"></tbody>
                 </table>
               </div>
               <div class="budget-unassigned" id="budget-unassigned" hidden></div>
+              <dialog class="monthly-section-dialog" id="monthly-section-dialog" aria-labelledby="monthly-section-title">
+                <form id="monthly-section-form">
+                  <h3 id="monthly-section-title">Créer une section</h3>
+                  <label class="monthly-section-name">Nom de la section<input id="monthly-section-name" maxlength="100" required></label>
+                  <fieldset><legend>Postes budgétaires</legend><div class="monthly-section-choices" id="monthly-section-choices"></div></fieldset>
+                  <p class="feedback error" id="monthly-section-error" role="alert" hidden></p>
+                  <div class="monthly-section-actions">
+                    <button type="button" class="secondary-button" id="monthly-section-cancel">Annuler</button>
+                    <button type="submit" id="monthly-section-save">Créer</button>
+                  </div>
+                </form>
+              </dialog>
             </section>
           </section>
           <section class="panel summary-panel" id="summary" data-page="summary" aria-labelledby="summary-title">
@@ -511,6 +527,18 @@ class KontaApp extends HTMLElement {
       });
     }
     this.shadowRoot.querySelector("#budget-monthly-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
+    this.shadowRoot.querySelector("#monthly-section-add").addEventListener("click", () => this.openMonthlySectionDialog());
+    this.shadowRoot.querySelector("#monthly-section-form").addEventListener("submit", event => this.saveMonthlySection(event));
+    this.shadowRoot.querySelector("#monthly-section-cancel").addEventListener("click", () => this.shadowRoot.querySelector("#monthly-section-dialog").close());
+    this.shadowRoot.querySelector("#monthly-section-dialog").addEventListener("cancel", event => {
+      if (this.monthlySectionSaving) event.preventDefault();
+    });
+    this.shadowRoot.querySelector("#monthly-section-dialog").addEventListener("keydown", event => {
+      if (event.key === "Escape" && !this.monthlySectionSaving) {
+        event.preventDefault();
+        event.currentTarget.close();
+      }
+    });
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("focusin", event => {
       const input = event.target.closest("[data-month-amount]");
@@ -716,22 +744,146 @@ class KontaApp extends HTMLElement {
     const feedback = this.shadowRoot.querySelector("#budget-month-feedback");
     const year = this.selectedMonthlyYear;
     const month = this.selectedBudgetMonth;
+    const requestId = ++this.monthlyRequestId;
     feedback.hidden = true;
     try {
-      const [response, budgetResponse] = await Promise.all([
+      const [response, budgetResponse, sectionsResponse] = await Promise.all([
         fetch(`/api/annual-budgets/${year}/months/${month}`),
-        fetch(`/api/annual-budgets/${year}`)
+        fetch(`/api/annual-budgets/${year}`),
+        fetch("/api/monthly-display-sections")
       ]);
-      const [result, budget] = await Promise.all([response.json(), budgetResponse.json()]);
+      const [result, budget, sections] = await Promise.all([response.json(), budgetResponse.json(), sectionsResponse.json()]);
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de charger le suivi mensuel.");
       if (!budgetResponse.ok) throw new Error(budget.detail ?? budget.title ?? "Impossible de charger le budget du suivi mensuel.");
-      if (year !== this.selectedMonthlyYear || month !== this.selectedBudgetMonth) return;
+      if (!sectionsResponse.ok) throw new Error(sections.detail ?? sections.title ?? "Impossible de charger les sections personnalisées.");
+      if (requestId !== this.monthlyRequestId || year !== this.selectedMonthlyYear || month !== this.selectedBudgetMonth) return;
       this.annualBudgetMonth = result;
       this.monthlyBudget = budget;
+      this.monthlySections = sections;
+      this.shadowRoot.querySelector("#monthly-section-add").disabled = false;
       this.renderAnnualBudgetMonth();
+    } catch (exception) {
+      if (requestId !== this.monthlyRequestId) return;
+      feedback.textContent = exception.message;
+      feedback.hidden = false;
+    }
+  }
+
+  openMonthlySectionDialog(id = null) {
+    const section = id ? this.monthlySections.find(item => item.id === id) : null;
+    if (id && !section) return;
+    this.editingMonthlySectionId = id;
+    const dialog = this.shadowRoot.querySelector("#monthly-section-dialog");
+    const name = this.shadowRoot.querySelector("#monthly-section-name");
+    const choices = this.shadowRoot.querySelector("#monthly-section-choices");
+    this.shadowRoot.querySelector("#monthly-section-title").textContent = section ? "Modifier la section" : "Créer une section";
+    this.shadowRoot.querySelector("#monthly-section-save").textContent = section ? "Enregistrer" : "Créer";
+    this.shadowRoot.querySelector("#monthly-section-error").hidden = true;
+    name.value = section?.name ?? "";
+    choices.replaceChildren();
+    const selected = new Set(section?.postIds ?? []);
+    const otherSections = new Map(this.monthlySections
+      .filter(item => item.id !== id)
+      .flatMap(item => item.postIds.map(postId => [postId, item.name])));
+    const posts = this.monthlyBudget.posts.filter(post =>
+      (post.isActive && (post.type === "Income" || post.type === "Expense")) || selected.has(post.id));
+    for (const [type, label] of [["Income", "Revenus"], ["Expense", "Dépenses"], ["Savings", "Épargne déjà sélectionnée"]]) {
+      const group = posts.filter(post => post.type === type);
+      if (type === "Expense") group.sort((first, second) => first.name.localeCompare(second.name, "fr", { sensitivity: "base" }));
+      if (!group.length) continue;
+      const heading = document.createElement("strong");
+      heading.textContent = label;
+      choices.append(heading);
+      for (const post of group) {
+        const labelElement = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.value = post.id;
+        input.checked = selected.has(post.id);
+        input.disabled = otherSections.has(post.id);
+        const text = document.createElement("span");
+        text.textContent = `${post.name}${post.isActive ? "" : " (désactivé)"}${otherSections.has(post.id) ? ` · Déjà dans ${otherSections.get(post.id)}` : ""}`;
+        labelElement.append(input, text);
+        choices.append(labelElement);
+      }
+    }
+    if (!posts.length) {
+      const empty = document.createElement("p");
+      empty.textContent = "Aucun poste de revenu ou de dépense disponible.";
+      choices.append(empty);
+    }
+    dialog.showModal();
+    name.focus();
+  }
+
+  async saveMonthlySection(event) {
+    event.preventDefault();
+    if (this.monthlySectionSaving) return;
+    const dialog = this.shadowRoot.querySelector("#monthly-section-dialog");
+    const form = event.target;
+    const error = this.shadowRoot.querySelector("#monthly-section-error");
+    const id = this.editingMonthlySectionId;
+    const payload = {
+      name: this.shadowRoot.querySelector("#monthly-section-name").value.trim(),
+      postIds: [...form.querySelectorAll('#monthly-section-choices input:checked')].map(input => input.value)
+    };
+    if (!payload.name) {
+      error.textContent = "Saisissez un nom pour la section.";
+      error.hidden = false;
+      return;
+    }
+    this.monthlySectionSaving = true;
+    form.querySelectorAll("input, button").forEach(control => { control.disabled = true; });
+    error.hidden = true;
+    try {
+      const response = await fetch(id ? `/api/monthly-display-sections/${id}` : "/api/monthly-display-sections", {
+        method: id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’enregistrer la section.");
+      ++this.monthlyRequestId;
+      this.monthlySections = [...this.monthlySections.filter(item => item.id !== result.id), result]
+        .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+      dialog.close();
+      this.renderAnnualBudgetMonth();
+      this.shadowRoot.querySelector("#monthly-section-add").focus();
+      this.loadAnnualBudgetMonth();
+    } catch (exception) {
+      error.textContent = exception.message;
+      error.hidden = false;
+    } finally {
+      this.monthlySectionSaving = false;
+      form.querySelectorAll("input, button").forEach(control => { control.disabled = false; });
+      for (const input of form.querySelectorAll('#monthly-section-choices input')) {
+        input.disabled = this.monthlySections.some(section => section.id !== id && section.postIds.includes(input.value));
+      }
+    }
+  }
+
+  async deleteMonthlySection(id) {
+    const section = this.monthlySections.find(item => item.id === id);
+    if (!section || !window.confirm(`Supprimer la section « ${section.name} » ? Ses postes retourneront dans leurs sections d’origine.`)) return;
+    const feedback = this.shadowRoot.querySelector("#budget-month-feedback");
+    const buttons = this.shadowRoot.querySelectorAll(`[data-delete-monthly-section="${id}"], [data-edit-monthly-section="${id}"]`);
+    buttons.forEach(button => { button.disabled = true; });
+    try {
+      const response = await fetch(`/api/monthly-display-sections/${id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const problem = response.headers.get("content-type")?.includes("json") ? await response.json() : null;
+        throw new Error(problem?.detail ?? problem?.title ?? "Impossible de supprimer la section.");
+      }
+      ++this.monthlyRequestId;
+      this.monthlySections = this.monthlySections.filter(item => item.id !== id);
+      this.renderAnnualBudgetMonth();
+      feedback.hidden = true;
+      this.shadowRoot.querySelector("#monthly-section-add").focus();
+      this.loadAnnualBudgetMonth();
     } catch (exception) {
       feedback.textContent = exception.message;
       feedback.hidden = false;
+      buttons.forEach(button => { button.disabled = false; });
     }
   }
 
@@ -1112,16 +1264,42 @@ class KontaApp extends HTMLElement {
 
     const body = this.shadowRoot.querySelector("#budget-monthly-body");
     body.replaceChildren();
-    for (const { type, expenseKind, label, emptyLabel, typeLabel } of BUDGET_GROUPS) {
+    const assigned = new Set(this.monthlySections.flatMap(section => section.postIds));
+    const groups = BUDGET_GROUPS.map(group => ({
+      ...group,
+      posts: summary.posts.filter(post => !assigned.has(post.id) && post.type === group.type
+        && (group.type !== "Expense" || (post.expenseKind ?? "Variable") === group.expenseKind))
+    }));
+    groups.splice(1, 0, ...this.monthlySections.map(section => ({
+      label: section.name,
+      emptyLabel: "Aucun poste dans cette section",
+      section,
+      posts: summary.posts.filter(post => section.postIds.includes(post.id))
+    })));
+    for (const { type, label, emptyLabel, section, posts } of groups) {
       const sectionRow = document.createElement("tr");
-      sectionRow.className = `budget-section-row ${type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
+      sectionRow.className = `budget-section-row ${section ? "custom" : type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
       const sectionCell = this.budgetCell(label, "th");
       sectionCell.colSpan = 5;
+      if (section) {
+        const actions = document.createElement("span");
+        actions.className = "monthly-section-row-actions";
+        const edit = this.budgetIconButton({
+          label: `Modifier la section ${section.name}`, title: "Modifier la section",
+          dataAttribute: "editMonthlySection", paths: ["M4 20l4-1 11-11-3-3L5 16l-1 4", "M14 7l3 3"]
+        });
+        edit.dataset.editMonthlySection = section.id;
+        const remove = this.budgetIconButton({
+          label: `Supprimer la section ${section.name}`, title: "Supprimer la section",
+          dataAttribute: "deleteMonthlySection", paths: ["M4 7h16", "M10 11v6", "M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3"]
+        });
+        remove.dataset.deleteMonthlySection = section.id;
+        actions.append(edit, remove);
+        sectionCell.append(actions);
+      }
       sectionRow.append(sectionCell);
       body.append(sectionRow);
 
-      const posts = summary.posts.filter(post => post.type === type
-        && (type !== "Expense" || (post.expenseKind ?? "Variable") === expenseKind));
       if (posts.length === 0) {
         const row = document.createElement("tr");
         const emptyCell = this.budgetCell(emptyLabel, "td");
@@ -1132,6 +1310,7 @@ class KontaApp extends HTMLElement {
 
       for (const post of posts) {
         const row = document.createElement("tr");
+        const typeLabel = BUDGET_GROUPS.find(group => group.type === post.type)?.typeLabel ?? post.type;
         row.append(this.budgetCell(typeLabel, "td"), this.budgetCell(post.name, "td"));
         row.lastChild.className = "budget-month-post-name";
         row.append(this.budgetCell(
@@ -1185,6 +1364,10 @@ class KontaApp extends HTMLElement {
     body.onclick = event => {
       const button = event.target.closest("[data-align-planned]");
       if (button) this.alignPlannedWithActual(button);
+      const edit = event.target.closest("[data-edit-monthly-section]");
+      if (edit) this.openMonthlySectionDialog(edit.dataset.editMonthlySection);
+      const remove = event.target.closest("[data-delete-monthly-section]");
+      if (remove) this.deleteMonthlySection(remove.dataset.deleteMonthlySection);
     };
 
     const unassigned = this.shadowRoot.querySelector("#budget-unassigned");

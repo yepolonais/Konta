@@ -163,6 +163,41 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.ToTable("BudgetPostCategoryMappings");
                 });
 
+            modelBuilder.Entity("Konta.Domain.Budgets.MonthlyDisplaySection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("MonthlyDisplaySections");
+                });
+
+            modelBuilder.Entity("Konta.Domain.Budgets.MonthlyDisplaySectionPost", b =>
+                {
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SectionId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("PostId");
+
+                    b.HasIndex("SectionId");
+
+                    b.ToTable("MonthlyDisplaySectionPosts");
+                });
+
             modelBuilder.Entity("Konta.Domain.Categories.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -404,6 +439,21 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("Konta.Domain.Budgets.MonthlyDisplaySectionPost", b =>
+                {
+                    b.HasOne("Konta.Domain.Budgets.AnnualBudgetPost", null)
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Konta.Domain.Budgets.MonthlyDisplaySection", null)
+                        .WithMany("Posts")
+                        .HasForeignKey("SectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Konta.Domain.Transactions.Transaction", b =>
                 {
                     b.HasOne("Konta.Domain.Accounts.Account", "Account")
@@ -452,6 +502,11 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.Navigation("CategoryMappings");
 
                     b.Navigation("MonthlyAmounts");
+                });
+
+            modelBuilder.Entity("Konta.Domain.Budgets.MonthlyDisplaySection", b =>
+                {
+                    b.Navigation("Posts");
                 });
 #pragma warning restore 612, 618
         }

@@ -334,6 +334,30 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .budget-month-line.difference { border-top: 1px dashed var(--line); padding-top: 6px; }
 .budget-monthly-table { min-width: 780px; }
 .budget-monthly-table th { background: var(--surface-subtle); }
+.budget-monthly-table th.monthly-last-heading { position: sticky; right: 0; z-index: 2; }
+.monthly-last-heading > div { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.monthly-section-add { flex: none; font-size: 20px; line-height: 1; }
+:host .secondary-button.monthly-section-add { background: #e9efff; border-color: #9eafe0; color: #304d91; }
+:host .secondary-button.monthly-section-add:hover { background: #dce5fc; color: #304d91; }
+.monthly-section-row-actions { display: inline-flex; gap: 5px; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
+:host .monthly-section-row-actions .icon-button { background: transparent; border: 1px solid transparent; color: #304d91; height: 22px; min-height: 22px; width: 22px; }
+:host .monthly-section-row-actions .icon-button:hover, :host .monthly-section-row-actions .icon-button:focus-visible { background: rgba(48, 77, 145, .14); color: #304d91; }
+.monthly-section-row-actions svg { height: 14px; width: 14px; }
+.monthly-section-dialog { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); max-height: calc(100vh - 32px); max-width: 500px; padding: 22px; width: calc(100% - 32px); }
+.monthly-section-dialog::backdrop { background: rgba(0, 0, 0, .5); }
+.monthly-section-dialog h3 { font-size: 16px; margin: 0 0 18px; }
+.monthly-section-name { color: var(--muted); display: grid; font-size: 12px; font-weight: 700; gap: 6px; }
+.monthly-section-name input { background: var(--field); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font: inherit; min-height: 40px; padding: 0 9px; width: 100%; }
+.monthly-section-dialog fieldset { border: 1px solid var(--line); border-radius: 4px; margin: 16px 0 0; padding: 10px 12px; }
+.monthly-section-dialog legend { color: var(--muted); font-size: 12px; font-weight: 700; padding: 0 4px; }
+.monthly-section-choices { display: grid; gap: 8px; max-height: 40vh; overflow-y: auto; }
+.monthly-section-choices strong { color: var(--wine-dark); font-size: 12px; margin-top: 6px; }
+.monthly-section-choices label { align-items: start; display: flex; font-size: 12px; gap: 8px; }
+.monthly-section-choices input { accent-color: var(--wine); flex: none; height: 16px; margin: 0; width: 16px; }
+.monthly-section-choices input:disabled + span { color: var(--muted); }
+.monthly-section-choices p { color: var(--muted); font-size: 12px; margin: 0; }
+.monthly-section-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.monthly-section-actions button { width: auto; }
 .budget-month-post-name { font-weight: 700; }
 .budget-unmapped { color: var(--muted); font-size: 11px; }
 .budget-transaction-details { margin-top: 6px; }
@@ -347,6 +371,7 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .budget-section-row th { background: var(--surface-accent); color: var(--wine-dark); font-size: 10px; padding: 10px 12px; }
 .budget-section-row.income th { background: var(--positive-soft); color: var(--positive); }
 .budget-section-row.savings th { background: #eeeaf4; color: #66577f; }
+.budget-section-row.custom th { background: #e9efff; color: #304d91; padding-right: 73px; position: relative; }
 .budget-section-row.archived th { background: var(--surface-subtle); color: var(--muted); }
 .budget-empty-row td { color: var(--muted); font-size: 11px; padding: 10px 12px; }
 .budget-archived-row { opacity: .7; }
@@ -503,6 +528,11 @@ main[data-current-page="budget"] { max-width: 1560px; }
 :host([data-theme="dark"]) .budget-drag-handle-savings { background: #342d3e; border-color: #66577f; color: #c9badd; }
 :host([data-theme="dark"]) .budget-drag-handle-savings:hover { background: #443a53; border-color: #8b7aab; color: #e0d4f1; }
 :host([data-theme="dark"]) .budget-section-row.savings th { background: #342d3e; color: #c9badd; }
+:host([data-theme="dark"]) .budget-section-row.custom th { background: #252e47; color: #b6c5ff; }
+:host([data-theme="dark"]) .secondary-button.monthly-section-add { background: #252e47; border-color: #596a9a; color: #b6c5ff; }
+:host([data-theme="dark"]) .secondary-button.monthly-section-add:hover { background: #354463; color: #b6c5ff; }
+:host([data-theme="dark"]) .monthly-section-row-actions .icon-button { background: transparent; border-color: transparent; color: #f3edf0; }
+:host([data-theme="dark"]) .monthly-section-row-actions .icon-button:hover, :host([data-theme="dark"]) .monthly-section-row-actions .icon-button:focus-visible { background: rgba(255, 255, 255, .12); color: #f3edf0; }
 :host([data-theme="dark"]) .annual-budget-table tfoot .budget-carry-forward-row th,
 :host([data-theme="dark"]) .annual-budget-table tfoot .budget-carry-forward-row td { background: #1c2438; color: #9db4ee; }
 :host([data-theme="dark"]) .annual-budget-table tfoot .budget-month-result-row th,
