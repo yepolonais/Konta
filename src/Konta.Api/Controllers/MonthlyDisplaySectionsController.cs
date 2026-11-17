@@ -5,10 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 namespace Konta.Api.Controllers;
 
 [ApiController]
+[Route("api/budget-sections")]
 [Route("api/monthly-display-sections")]
 public sealed class MonthlyDisplaySectionsController(IMonthlyDisplaySectionService service) : ControllerBase
 {
-    /// <summary>Lists the custom sections of the monthly budget review.</summary>
+    /// <summary>Lists the custom sections used to group budget posts.</summary>
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<MonthlyDisplaySectionItem>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<MonthlyDisplaySectionItem>>> GetAll(CancellationToken cancellationToken) =>
@@ -25,7 +26,7 @@ public sealed class MonthlyDisplaySectionsController(IMonthlyDisplaySectionServi
         try
         {
             var section = await service.CreateAsync(request.Name, request.PostIds, cancellationToken);
-            return Created($"/api/monthly-display-sections/{section.Id}", section);
+            return Created($"/api/budget-sections/{section.Id}", section);
         }
         catch (ArgumentException exception) { return Invalid(exception, StatusCodes.Status400BadRequest); }
         catch (InvalidOperationException exception) { return Invalid(exception, StatusCodes.Status409Conflict); }
@@ -74,7 +75,7 @@ public sealed class MonthlyDisplaySectionsController(IMonthlyDisplaySectionServi
     });
 }
 
-/// <summary>Name and selected budget posts for a custom monthly review section.</summary>
+/// <summary>Name and selected budget posts for a custom budget section.</summary>
 public sealed record SaveMonthlyDisplaySectionRequest
 {
     [Required, StringLength(100, MinimumLength = 1)]

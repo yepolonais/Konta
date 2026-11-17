@@ -62,10 +62,10 @@ class KontaApp extends HTMLElement {
     this.mappingTransactions = [];
     this.mappingRequestId = 0;
     this.annualBudgetMonth = null;
-    this.monthlySections = [];
+    this.budgetSections = [];
     this.monthlyRequestId = 0;
-    this.editingMonthlySectionId = null;
-    this.monthlySectionSaving = false;
+    this.editingBudgetSectionId = null;
+    this.budgetSectionSaving = false;
     this.draggedBudgetPostId = null;
     this.selectedBudgetMonth = new Date().getMonth() + 1;
     this.selectedMonthlyYear = new Date().getFullYear();
@@ -164,6 +164,23 @@ class KontaApp extends HTMLElement {
               </select></label>
               <button type="submit">Ajouter un poste</button>
             </form>
+            <form class="budget-section-form" id="budget-section-form">
+              <label>Nom de la section<input id="budget-section-name" maxlength="100" required></label>
+              <div class="budget-section-post-picker">
+                <span id="budget-section-posts-label">Postes à regrouper</span>
+                <div class="budget-section-multiselect">
+                  <button type="button" class="secondary-button budget-section-multiselect-trigger"
+                    id="budget-section-posts-toggle" aria-labelledby="budget-section-posts-label budget-section-posts-summary"
+                    aria-expanded="false" aria-controls="budget-section-post-options">
+                    <span id="budget-section-posts-summary">Sélectionner des postes</span><span aria-hidden="true">▾</span>
+                  </button>
+                  <div class="budget-section-post-options" id="budget-section-post-options" role="group"
+                    aria-label="Postes à regrouper" hidden></div>
+                </div>
+              </div>
+              <button type="submit" class="secondary-button budget-section-submit" id="budget-section-save">Créer une section custom</button>
+            </form>
+            <p class="feedback" id="budget-section-feedback" role="status" aria-live="polite" hidden></p>
             <p class="feedback" id="annual-budget-feedback" role="status" aria-live="polite" hidden></p>
             <div class="table-wrap annual-budget-table-wrap">
               <table class="annual-budget-table">
@@ -200,23 +217,11 @@ class KontaApp extends HTMLElement {
               <p class="feedback error" id="budget-month-feedback" role="status" aria-live="polite" hidden></p>
               <div class="table-wrap">
                 <table class="budget-monthly-table">
-                  <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th class="monthly-last-heading"><div><span>Écart réalisé − prévu</span><button type="button" class="secondary-button icon-button monthly-section-add" id="monthly-section-add" title="Créer une section personnalisée afin de regrouper des postes budgétaires" aria-label="Créer une section personnalisée afin de regrouper des postes budgétaires" disabled>+</button></div></th></tr></thead>
+                  <thead><tr><th>Type</th><th>Poste</th><th>Prévu</th><th>Réalisé</th><th class="monthly-last-heading">Écart réalisé − prévu</th></tr></thead>
                   <tbody id="budget-monthly-body"></tbody>
                 </table>
               </div>
               <div class="budget-unassigned" id="budget-unassigned" hidden></div>
-              <dialog class="monthly-section-dialog" id="monthly-section-dialog" aria-labelledby="monthly-section-title">
-                <form id="monthly-section-form">
-                  <h3 id="monthly-section-title">Créer une section</h3>
-                  <label class="monthly-section-name">Nom de la section<input id="monthly-section-name" maxlength="100" required></label>
-                  <fieldset><legend>Postes budgétaires</legend><div class="monthly-section-choices" id="monthly-section-choices"></div></fieldset>
-                  <p class="feedback error" id="monthly-section-error" role="alert" hidden></p>
-                  <div class="monthly-section-actions">
-                    <button type="button" class="secondary-button" id="monthly-section-cancel">Annuler</button>
-                    <button type="submit" id="monthly-section-save">Créer</button>
-                  </div>
-                </form>
-              </dialog>
             </section>
           </section>
           <section class="panel summary-panel" id="summary" data-page="summary" aria-labelledby="summary-title">
@@ -476,6 +481,26 @@ class KontaApp extends HTMLElement {
     });
     this.shadowRoot.querySelector("#transaction-detail-form").addEventListener("submit", event => this.saveTransactionDetails(event));
     this.shadowRoot.querySelector("#annual-budget-form").addEventListener("submit", event => this.createAnnualBudgetPost(event));
+    this.shadowRoot.querySelector("#budget-section-form").addEventListener("submit", event => this.saveBudgetSection(event));
+    const sectionPicker = this.shadowRoot.querySelector("#budget-section-posts-toggle");
+    const sectionOptions = this.shadowRoot.querySelector("#budget-section-post-options");
+    sectionPicker.addEventListener("click", () => {
+      sectionOptions.hidden = !sectionOptions.hidden;
+      sectionPicker.setAttribute("aria-expanded", String(!sectionOptions.hidden));
+      this.shadowRoot.querySelector(".annual-budget-panel")
+        .classList.toggle("section-picker-open", !sectionOptions.hidden);
+    });
+    sectionOptions.addEventListener("change", () => this.updateBudgetSectionPickerLabel());
+    sectionOptions.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !sectionOptions.hidden) {
+        event.preventDefault();
+        this.closeBudgetSectionPicker();
+        sectionPicker.focus();
+      }
+    });
+    this.shadowRoot.addEventListener("click", event => {
+      if (!event.target.closest(".budget-section-multiselect")) this.closeBudgetSectionPicker();
+    });
     this.shadowRoot.querySelector("#annual-budget-post-type").addEventListener("change", event => {
       this.shadowRoot.querySelector("#annual-budget-expense-kind-field").hidden = event.target.value !== "Expense";
     });
@@ -527,19 +552,8 @@ class KontaApp extends HTMLElement {
       });
     }
     this.shadowRoot.querySelector("#budget-monthly-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
-    this.shadowRoot.querySelector("#monthly-section-add").addEventListener("click", () => this.openMonthlySectionDialog());
-    this.shadowRoot.querySelector("#monthly-section-form").addEventListener("submit", event => this.saveMonthlySection(event));
-    this.shadowRoot.querySelector("#monthly-section-cancel").addEventListener("click", () => this.shadowRoot.querySelector("#monthly-section-dialog").close());
-    this.shadowRoot.querySelector("#monthly-section-dialog").addEventListener("cancel", event => {
-      if (this.monthlySectionSaving) event.preventDefault();
-    });
-    this.shadowRoot.querySelector("#monthly-section-dialog").addEventListener("keydown", event => {
-      if (event.key === "Escape" && !this.monthlySectionSaving) {
-        event.preventDefault();
-        event.currentTarget.close();
-      }
-    });
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("change", event => this.handleAnnualBudgetChange(event));
+    this.shadowRoot.querySelector("#annual-budget-body").addEventListener("click", event => this.handleBudgetSectionAction(event));
     this.shadowRoot.querySelector("#annual-budget-body").addEventListener("focusin", event => {
       const input = event.target.closest("[data-month-amount]");
       if (input) input.closest("[data-post-id]").dataset.sourceMonth = input.dataset.month;
@@ -723,15 +737,22 @@ class KontaApp extends HTMLElement {
 
     this.setAnnualBudgetFeedback("Chargement du budget…");
     try {
-      const [budgetResponse, categoriesResponse] = await Promise.all([
+      const [budgetResponse, categoriesResponse, sectionsResponse] = await Promise.all([
         fetch(`/api/annual-budgets/${year}`),
-        fetch("/api/categories")
+        fetch("/api/categories"),
+        fetch("/api/budget-sections")
       ]);
-      const [budget, categories] = await Promise.all([budgetResponse.json(), categoriesResponse.json()]);
+      const [budget, categories, sections] = await Promise.all([
+        budgetResponse.json(),
+        categoriesResponse.json(),
+        sectionsResponse.json()
+      ]);
       if (!budgetResponse.ok) throw new Error(budget.detail ?? budget.title ?? "Impossible de charger le budget.");
       if (!categoriesResponse.ok) throw new Error(categories.detail ?? categories.title ?? "Impossible de charger les catégories.");
+      if (!sectionsResponse.ok) throw new Error(sections.detail ?? sections.title ?? "Impossible de charger les sections du budget.");
       this.annualBudget = budget;
       this.annualBudgetCategories = categories.filter(category => category.isActive);
+      this.budgetSections = sections;
       this.renderAnnualBudget();
       this.setAnnualBudgetFeedback("");
       await this.loadAnnualBudgetMonth();
@@ -750,7 +771,7 @@ class KontaApp extends HTMLElement {
       const [response, budgetResponse, sectionsResponse] = await Promise.all([
         fetch(`/api/annual-budgets/${year}/months/${month}`),
         fetch(`/api/annual-budgets/${year}`),
-        fetch("/api/monthly-display-sections")
+        fetch("/api/budget-sections")
       ]);
       const [result, budget, sections] = await Promise.all([response.json(), budgetResponse.json(), sectionsResponse.json()]);
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible de charger le suivi mensuel.");
@@ -759,8 +780,8 @@ class KontaApp extends HTMLElement {
       if (requestId !== this.monthlyRequestId || year !== this.selectedMonthlyYear || month !== this.selectedBudgetMonth) return;
       this.annualBudgetMonth = result;
       this.monthlyBudget = budget;
-      this.monthlySections = sections;
-      this.shadowRoot.querySelector("#monthly-section-add").disabled = false;
+      this.budgetSections = sections;
+      this.renderBudgetSectionForm();
       this.renderAnnualBudgetMonth();
     } catch (exception) {
       if (requestId !== this.monthlyRequestId) return;
@@ -769,74 +790,90 @@ class KontaApp extends HTMLElement {
     }
   }
 
-  openMonthlySectionDialog(id = null) {
-    const section = id ? this.monthlySections.find(item => item.id === id) : null;
-    if (id && !section) return;
-    this.editingMonthlySectionId = id;
-    const dialog = this.shadowRoot.querySelector("#monthly-section-dialog");
-    const name = this.shadowRoot.querySelector("#monthly-section-name");
-    const choices = this.shadowRoot.querySelector("#monthly-section-choices");
-    this.shadowRoot.querySelector("#monthly-section-title").textContent = section ? "Modifier la section" : "Créer une section";
-    this.shadowRoot.querySelector("#monthly-section-save").textContent = section ? "Enregistrer" : "Créer";
-    this.shadowRoot.querySelector("#monthly-section-error").hidden = true;
-    name.value = section?.name ?? "";
-    choices.replaceChildren();
-    const selected = new Set(section?.postIds ?? []);
-    const otherSections = new Map(this.monthlySections
-      .filter(item => item.id !== id)
+  renderBudgetSectionForm(postIds = null) {
+    const form = this.shadowRoot.querySelector("#budget-section-form");
+    const nameInput = this.shadowRoot.querySelector("#budget-section-name");
+    const postOptions = this.shadowRoot.querySelector("#budget-section-post-options");
+    const section = this.budgetSections.find(item => item.id === this.editingBudgetSectionId);
+    const selectedPostIds = new Set(postIds ?? [...postOptions.querySelectorAll('input[type="checkbox"]:checked')]
+      .map(input => input.value));
+    const otherSections = new Map(this.budgetSections
+      .filter(item => item.id !== section?.id)
       .flatMap(item => item.postIds.map(postId => [postId, item.name])));
-    const posts = this.monthlyBudget.posts.filter(post =>
-      (post.isActive && (post.type === "Income" || post.type === "Expense")) || selected.has(post.id));
+    const posts = (this.annualBudget?.posts ?? []).filter(post =>
+      (post.isActive && (post.type === "Income" || post.type === "Expense")) || selectedPostIds.has(post.id));
+
+    this.shadowRoot.querySelector("#budget-section-save").textContent =
+      section ? "Enregistrer la section" : "Créer une section custom";
+    postOptions.replaceChildren();
     for (const [type, label] of [["Income", "Revenus"], ["Expense", "Dépenses"], ["Savings", "Épargne déjà sélectionnée"]]) {
       const group = posts.filter(post => post.type === type);
       if (type === "Expense") group.sort((first, second) => first.name.localeCompare(second.name, "fr", { sensitivity: "base" }));
       if (!group.length) continue;
       const heading = document.createElement("strong");
       heading.textContent = label;
-      choices.append(heading);
+      postOptions.append(heading);
       for (const post of group) {
         const labelElement = document.createElement("label");
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.value = post.id;
-        input.checked = selected.has(post.id);
-        input.disabled = otherSections.has(post.id);
+        labelElement.className = "budget-section-post-option";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = post.id;
+        checkbox.checked = selectedPostIds.has(post.id);
+        checkbox.disabled = otherSections.has(post.id);
         const text = document.createElement("span");
         text.textContent = `${post.name}${post.isActive ? "" : " (désactivé)"}${otherSections.has(post.id) ? ` · Déjà dans ${otherSections.get(post.id)}` : ""}`;
-        labelElement.append(input, text);
-        choices.append(labelElement);
+        labelElement.append(checkbox, text);
+        postOptions.append(labelElement);
       }
     }
     if (!posts.length) {
       const empty = document.createElement("p");
       empty.textContent = "Aucun poste de revenu ou de dépense disponible.";
-      choices.append(empty);
+      postOptions.append(empty);
     }
-    dialog.showModal();
-    name.focus();
+    this.closeBudgetSectionPicker();
+    this.updateBudgetSectionPickerLabel();
+    form.querySelectorAll("input, select, button").forEach(control => { control.disabled = this.budgetSectionSaving; });
   }
 
-  async saveMonthlySection(event) {
+  updateBudgetSectionPickerLabel() {
+    const selected = [...this.shadowRoot.querySelectorAll('#budget-section-post-options input[type="checkbox"]:checked')]
+      .map(input => input.nextElementSibling.textContent);
+    const summary = this.shadowRoot.querySelector("#budget-section-posts-summary");
+    summary.textContent = selected.length === 0 ? "Sélectionner des postes"
+      : selected.length <= 2 ? selected.join(", ")
+        : `${selected.length} postes sélectionnés`;
+  }
+
+  closeBudgetSectionPicker() {
+    const options = this.shadowRoot.querySelector("#budget-section-post-options");
+    options.hidden = true;
+    this.shadowRoot.querySelector("#budget-section-posts-toggle").setAttribute("aria-expanded", "false");
+    this.shadowRoot.querySelector(".annual-budget-panel").classList.remove("section-picker-open");
+  }
+
+  async saveBudgetSection(event) {
     event.preventDefault();
-    if (this.monthlySectionSaving) return;
-    const dialog = this.shadowRoot.querySelector("#monthly-section-dialog");
-    const form = event.target;
-    const error = this.shadowRoot.querySelector("#monthly-section-error");
-    const id = this.editingMonthlySectionId;
+    if (this.budgetSectionSaving) return;
+    const form = event.currentTarget;
+    const feedback = this.shadowRoot.querySelector("#budget-section-feedback");
+    const id = this.editingBudgetSectionId;
     const payload = {
-      name: this.shadowRoot.querySelector("#monthly-section-name").value.trim(),
-      postIds: [...form.querySelectorAll('#monthly-section-choices input:checked')].map(input => input.value)
+      name: this.shadowRoot.querySelector("#budget-section-name").value.trim(),
+      postIds: [...form.querySelectorAll('#budget-section-post-options input[type="checkbox"]:checked')]
+        .filter(input => !input.disabled)
+        .map(input => input.value)
     };
     if (!payload.name) {
-      error.textContent = "Saisissez un nom pour la section.";
-      error.hidden = false;
+      this.setBudgetSectionFeedback("Saisissez un nom pour la section.", true);
       return;
     }
-    this.monthlySectionSaving = true;
-    form.querySelectorAll("input, button").forEach(control => { control.disabled = true; });
-    error.hidden = true;
+    this.budgetSectionSaving = true;
+    this.renderBudgetSectionForm();
+    this.setBudgetSectionFeedback("");
     try {
-      const response = await fetch(id ? `/api/monthly-display-sections/${id}` : "/api/monthly-display-sections", {
+      const response = await fetch(id ? `/api/budget-sections/${id}` : "/api/budget-sections", {
         method: id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -844,47 +881,71 @@ class KontaApp extends HTMLElement {
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? result.title ?? "Impossible d’enregistrer la section.");
       ++this.monthlyRequestId;
-      this.monthlySections = [...this.monthlySections.filter(item => item.id !== result.id), result]
-        .sort((a, b) => a.name.localeCompare(b.name, "fr"));
-      dialog.close();
+      this.budgetSections = [...this.budgetSections.filter(item => item.id !== result.id), result]
+        .sort((first, second) => first.name.localeCompare(second.name, "fr"));
+      this.editingBudgetSectionId = null;
+      this.shadowRoot.querySelector("#budget-section-name").value = "";
+      this.shadowRoot.querySelectorAll('#budget-section-post-options input[type="checkbox"]')
+        .forEach(input => { input.checked = false; });
+      this.setBudgetSectionFeedback("Section enregistrée.");
+      this.renderBudgetSectionForm();
+      this.renderAnnualBudget();
       this.renderAnnualBudgetMonth();
-      this.shadowRoot.querySelector("#monthly-section-add").focus();
-      this.loadAnnualBudgetMonth();
     } catch (exception) {
-      error.textContent = exception.message;
-      error.hidden = false;
+      this.setBudgetSectionFeedback(exception.message, true);
     } finally {
-      this.monthlySectionSaving = false;
-      form.querySelectorAll("input, button").forEach(control => { control.disabled = false; });
-      for (const input of form.querySelectorAll('#monthly-section-choices input')) {
-        input.disabled = this.monthlySections.some(section => section.id !== id && section.postIds.includes(input.value));
-      }
+      this.budgetSectionSaving = false;
+      this.renderBudgetSectionForm();
     }
   }
 
-  async deleteMonthlySection(id) {
-    const section = this.monthlySections.find(item => item.id === id);
+  async handleBudgetSectionAction(event) {
+    const edit = event.target.closest("[data-edit-budget-section]");
+    if (edit) {
+      const section = this.budgetSections.find(item => item.id === edit.dataset.editBudgetSection);
+      if (!section) return;
+      this.editingBudgetSectionId = section.id;
+      this.shadowRoot.querySelector("#budget-section-name").value = section.name;
+      this.renderBudgetSectionForm(section.postIds);
+      this.shadowRoot.querySelector("#budget-section-name").focus();
+      return;
+    }
+    const remove = event.target.closest("[data-delete-budget-section]");
+    if (!remove) return;
+    const id = remove.dataset.deleteBudgetSection;
+    const section = this.budgetSections.find(item => item.id === id);
     if (!section || !window.confirm(`Supprimer la section « ${section.name} » ? Ses postes retourneront dans leurs sections d’origine.`)) return;
-    const feedback = this.shadowRoot.querySelector("#budget-month-feedback");
-    const buttons = this.shadowRoot.querySelectorAll(`[data-delete-monthly-section="${id}"], [data-edit-monthly-section="${id}"]`);
+    const buttons = this.shadowRoot.querySelectorAll(`[data-delete-budget-section="${id}"], [data-edit-budget-section="${id}"]`);
     buttons.forEach(button => { button.disabled = true; });
     try {
-      const response = await fetch(`/api/monthly-display-sections/${id}`, { method: "DELETE" });
+      const response = await fetch(`/api/budget-sections/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const problem = response.headers.get("content-type")?.includes("json") ? await response.json() : null;
         throw new Error(problem?.detail ?? problem?.title ?? "Impossible de supprimer la section.");
       }
       ++this.monthlyRequestId;
-      this.monthlySections = this.monthlySections.filter(item => item.id !== id);
+      this.budgetSections = this.budgetSections.filter(item => item.id !== id);
+      if (this.editingBudgetSectionId === id) {
+        this.editingBudgetSectionId = null;
+        this.shadowRoot.querySelector("#budget-section-name").value = "";
+        this.shadowRoot.querySelectorAll('#budget-section-post-options input[type="checkbox"]')
+          .forEach(input => { input.checked = false; });
+      }
+      this.setBudgetSectionFeedback("Section supprimée.");
+      this.renderBudgetSectionForm();
+      this.renderAnnualBudget();
       this.renderAnnualBudgetMonth();
-      feedback.hidden = true;
-      this.shadowRoot.querySelector("#monthly-section-add").focus();
-      this.loadAnnualBudgetMonth();
     } catch (exception) {
-      feedback.textContent = exception.message;
-      feedback.hidden = false;
+      this.setBudgetSectionFeedback(exception.message, true);
       buttons.forEach(button => { button.disabled = false; });
     }
+  }
+
+  setBudgetSectionFeedback(message, isError = false) {
+    const feedback = this.shadowRoot.querySelector("#budget-section-feedback");
+    feedback.textContent = message;
+    feedback.classList.toggle("error", isError);
+    feedback.hidden = !message;
   }
 
   renderAnnualBudget() {
@@ -910,6 +971,7 @@ class KontaApp extends HTMLElement {
 
     const body = this.shadowRoot.querySelector("#annual-budget-body");
     body.replaceChildren();
+    const assignedPostIds = new Set(this.budgetSections.flatMap(section => section.postIds));
     for (const { type, expenseKind, label, emptyLabel } of BUDGET_GROUPS) {
       const sectionRow = document.createElement("tr");
       sectionRow.className = `budget-section-row ${type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
@@ -918,8 +980,9 @@ class KontaApp extends HTMLElement {
       sectionRow.append(sectionCell);
       body.append(sectionRow);
 
-      const groupPosts = activePosts.filter(post => post.type === type
+      const allGroupPosts = activePosts.filter(post => post.type === type
         && (type !== "Expense" || (post.expenseKind ?? "Variable") === expenseKind));
+      const groupPosts = allGroupPosts.filter(post => !assignedPostIds.has(post.id));
       for (const post of groupPosts) {
         const row = this.annualBudgetPostRow(post, months);
         row.dataset.orderGroup = `${type}:${expenseKind ?? ""}`;
@@ -928,13 +991,35 @@ class KontaApp extends HTMLElement {
         body.append(row);
       }
 
-      if (groupPosts.length === 0) {
+      if (groupPosts.length === 0 && allGroupPosts.length === 0) {
         const emptyRow = document.createElement("tr");
         emptyRow.className = "budget-empty-row";
         const emptyCell = this.budgetCell(emptyLabel, "td");
         emptyCell.colSpan = months.length + 3;
         emptyRow.append(emptyCell);
         body.append(emptyRow);
+      }
+
+      if (type === "Income") {
+        for (const section of this.budgetSections) {
+          const sectionPosts = activePosts.filter(post => section.postIds.includes(post.id));
+          body.append(this.budgetSectionHeader(section, months.length + 3, true));
+          if (sectionPosts.length === 0) {
+            const emptyRow = document.createElement("tr");
+            emptyRow.className = "budget-empty-row";
+            const emptyCell = this.budgetCell("Aucun poste dans cette section.", "td");
+            emptyCell.colSpan = months.length + 3;
+            emptyRow.append(emptyCell);
+            body.append(emptyRow);
+          }
+          for (const post of sectionPosts) {
+            const row = this.annualBudgetPostRow(post, months, true);
+            row.dataset.orderGroup = `${post.type}:${post.type === "Expense" ? post.expenseKind ?? "Variable" : ""}`;
+            row.dataset.orderType = post.type;
+            if (post.type === "Expense") row.dataset.orderExpenseKind = post.expenseKind ?? "Variable";
+            body.append(row);
+          }
+        }
       }
     }
 
@@ -950,9 +1035,35 @@ class KontaApp extends HTMLElement {
     }
 
     this.renderAnnualBudgetTotals(months);
+    this.renderBudgetSectionForm();
     this.shadowRoot.querySelector("#annual-budget-empty").hidden = budget.posts.length > 0;
     this.shadowRoot.querySelector(".annual-budget-table-wrap").hidden = false;
     this.updateMonthlyTitle();
+  }
+
+  budgetSectionHeader(section, colSpan, editable = false) {
+    const row = document.createElement("tr");
+    row.className = "budget-section-row custom";
+    const cell = this.budgetCell(section.name, "th");
+    cell.colSpan = colSpan;
+    if (editable) {
+      const actions = document.createElement("span");
+      actions.className = "budget-section-row-actions";
+      const edit = this.budgetIconButton({
+        label: `Modifier la section ${section.name}`, title: "Modifier la section",
+        dataAttribute: "editBudgetSection", paths: ["M4 20l4-1 11-11-3-3L5 16l-1 4", "M14 7l3 3"]
+      });
+      edit.dataset.editBudgetSection = section.id;
+      const remove = this.budgetIconButton({
+        label: `Supprimer la section ${section.name}`, title: "Supprimer la section",
+        dataAttribute: "deleteBudgetSection", paths: ["M4 7h16", "M10 11v6", "M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3"]
+      });
+      remove.dataset.deleteBudgetSection = section.id;
+      actions.append(edit, remove);
+      cell.append(actions);
+    }
+    row.append(cell);
+    return row;
   }
 
   updateMonthlyTitle() {
@@ -961,7 +1072,7 @@ class KontaApp extends HTMLElement {
         .format(new Date(this.selectedMonthlyYear, this.selectedBudgetMonth - 1, 1))}`;
   }
 
-  annualBudgetPostRow(post, months) {
+  annualBudgetPostRow(post, months, showType = false) {
     const inlineCopy = months.length > 1;
     const row = document.createElement("tr");
     row.dataset.postId = post.id;
@@ -995,6 +1106,12 @@ class KontaApp extends HTMLElement {
     nameInput.setAttribute("aria-label", `Nom du poste, ${post.name}`);
     nameControls.append(nameInput);
     nameCell.append(nameControls);
+    if (showType) {
+      const typeLabel = document.createElement("small");
+      typeLabel.className = `budget-post-type-label ${post.type.toLowerCase()}`;
+      typeLabel.textContent = BUDGET_GROUPS.find(group => group.type === post.type)?.typeLabel ?? post.type;
+      nameCell.append(typeLabel);
+    }
     row.append(nameCell);
 
     for (const month of months) {
@@ -1264,43 +1381,31 @@ class KontaApp extends HTMLElement {
 
     const body = this.shadowRoot.querySelector("#budget-monthly-body");
     body.replaceChildren();
-    const assigned = new Set(this.monthlySections.flatMap(section => section.postIds));
-    const groups = BUDGET_GROUPS.map(group => ({
-      ...group,
-      posts: summary.posts.filter(post => !assigned.has(post.id) && post.type === group.type
-        && (group.type !== "Expense" || (post.expenseKind ?? "Variable") === group.expenseKind))
-    }));
-    groups.splice(1, 0, ...this.monthlySections.map(section => ({
+    const assigned = new Set(this.budgetSections.flatMap(section => section.postIds));
+    const groups = BUDGET_GROUPS.map(group => {
+      const allPosts = summary.posts.filter(post => post.type === group.type
+        && (group.type !== "Expense" || (post.expenseKind ?? "Variable") === group.expenseKind));
+      return { ...group, allPosts, posts: allPosts.filter(post => !assigned.has(post.id)) };
+    });
+    groups.splice(1, 0, ...this.budgetSections.map(section => ({
       label: section.name,
       emptyLabel: "Aucun poste dans cette section",
       section,
       posts: summary.posts.filter(post => section.postIds.includes(post.id))
     })));
-    for (const { type, label, emptyLabel, section, posts } of groups) {
-      const sectionRow = document.createElement("tr");
-      sectionRow.className = `budget-section-row ${section ? "custom" : type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
-      const sectionCell = this.budgetCell(label, "th");
-      sectionCell.colSpan = 5;
-      if (section) {
-        const actions = document.createElement("span");
-        actions.className = "monthly-section-row-actions";
-        const edit = this.budgetIconButton({
-          label: `Modifier la section ${section.name}`, title: "Modifier la section",
-          dataAttribute: "editMonthlySection", paths: ["M4 20l4-1 11-11-3-3L5 16l-1 4", "M14 7l3 3"]
-        });
-        edit.dataset.editMonthlySection = section.id;
-        const remove = this.budgetIconButton({
-          label: `Supprimer la section ${section.name}`, title: "Supprimer la section",
-          dataAttribute: "deleteMonthlySection", paths: ["M4 7h16", "M10 11v6", "M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3"]
-        });
-        remove.dataset.deleteMonthlySection = section.id;
-        actions.append(edit, remove);
-        sectionCell.append(actions);
+    for (const { type, label, emptyLabel, section, posts, allPosts } of groups) {
+      const sectionRow = section
+        ? this.budgetSectionHeader(section, 5)
+        : document.createElement("tr");
+      if (!section) {
+        sectionRow.className = `budget-section-row ${type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
+        const sectionCell = this.budgetCell(label, "th");
+        sectionCell.colSpan = 5;
+        sectionRow.append(sectionCell);
       }
-      sectionRow.append(sectionCell);
       body.append(sectionRow);
 
-      if (posts.length === 0) {
+      if (posts.length === 0 && (section || allPosts.length === 0)) {
         const row = document.createElement("tr");
         const emptyCell = this.budgetCell(emptyLabel, "td");
         emptyCell.colSpan = 5;
@@ -1364,10 +1469,6 @@ class KontaApp extends HTMLElement {
     body.onclick = event => {
       const button = event.target.closest("[data-align-planned]");
       if (button) this.alignPlannedWithActual(button);
-      const edit = event.target.closest("[data-edit-monthly-section]");
-      if (edit) this.openMonthlySectionDialog(edit.dataset.editMonthlySection);
-      const remove = event.target.closest("[data-delete-monthly-section]");
-      if (remove) this.deleteMonthlySection(remove.dataset.deleteMonthlySection);
     };
 
     const unassigned = this.shadowRoot.querySelector("#budget-unassigned");

@@ -8,5 +8,5 @@ public interface IMonthlyDisplaySectionService
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken);
 }
 
-/// <summary>A custom grouping of budget posts in the monthly review.</summary>
+/// <summary>A custom grouping of budget posts shared by the forecast and monthly review.</summary>
 public sealed record MonthlyDisplaySectionItem(Guid Id, string Name, IReadOnlyList<Guid> PostIds);

@@ -281,7 +281,36 @@ button:disabled { cursor: wait; opacity: .65; }
   padding: 0 9px;
   width: 100%;
 }
-.annual-budget-form button { min-height: 40px; width: auto; white-space: nowrap; }
+.annual-budget-form button { min-height: 40px; min-width: 190px; width: 100%; white-space: nowrap; }
+.budget-section-form { align-items: end; background: var(--surface-subtle); border-bottom: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: minmax(180px, 1fr) minmax(150px, .5fr) minmax(190px, .6fr) auto; padding: 14px 22px; position: relative; z-index: 2; }
+.budget-section-form > label { color: var(--muted); display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
+.budget-section-form input:not([type="checkbox"]) { background: var(--field); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font: inherit; font-size: 12px; min-height: 40px; min-width: 0; padding: 0 9px; width: 100%; }
+.budget-section-post-picker { color: var(--muted); display: grid; font-size: 11px; font-weight: 700; gap: 6px; min-width: 0; }
+.budget-section-multiselect { position: relative; }
+.budget-section-multiselect-trigger { align-items: center; background: var(--field); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); display: flex; font: inherit; font-size: 12px; gap: 8px; justify-content: space-between; min-height: 40px; min-width: 0; padding: 0 9px; text-align: left; width: 100%; }
+.budget-section-multiselect-trigger:hover, .budget-section-multiselect-trigger[aria-expanded="true"] { background: var(--field); border-color: var(--wine); color: var(--ink); }
+.budget-section-multiselect-trigger > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.budget-section-post-options { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 8px 20px rgba(0, 0, 0, .2); color: var(--ink); left: 0; max-height: 260px; min-width: 100%; overflow-y: auto; padding: 8px; position: absolute; right: 0; top: calc(100% + 4px); z-index: 10; }
+.budget-section-post-options strong { color: var(--wine-dark); display: block; font-size: 10px; margin: 6px 0 4px; }
+.budget-section-post-option { align-items: start; border-radius: 3px; color: var(--ink); display: flex; font-size: 11px; font-weight: 400; gap: 8px; padding: 5px 4px; }
+.budget-section-post-option:hover { background: var(--surface-subtle); }
+.budget-section-post-option input[type="checkbox"] { accent-color: var(--wine); flex: none; height: 16px; margin: 0; width: 16px; }
+.budget-section-post-option input:disabled + span { color: var(--muted); }
+.budget-section-post-options p { color: var(--muted); font-size: 11px; margin: 4px; }
+.budget-section-form button { min-height: 40px; white-space: nowrap; }
+.budget-section-submit { grid-column: 3; min-width: 190px; width: 100%; }
+.budget-section-form button.budget-section-submit { background: #304d91; border: 1px solid #304d91; color: #fff; }
+.budget-section-form button.budget-section-submit:hover { background: #253e7c; border-color: #253e7c; color: #fff; }
+.annual-budget-panel.section-picker-open { overflow: visible; position: relative; z-index: 5; }
+.budget-section-row-actions { align-items: center; display: inline-flex; gap: 5px; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
+.budget-section-row-actions .icon-button { background: transparent; border: 1px solid transparent; border-radius: 6px; color: #304d91; height: 28px; min-height: 28px; transition: background-color .15s, border-color .15s, color .15s; width: 28px; }
+.budget-section-row-actions .icon-button:hover, .budget-section-row-actions .icon-button:focus-visible { background: rgba(48, 77, 145, .14); border-color: rgba(48, 77, 145, .14); color: #304d91; }
+:host([data-theme="dark"]) .budget-section-row-actions .icon-button { background: transparent; border: 1px solid transparent; color: #b6c5ff; }
+:host([data-theme="dark"]) .budget-section-row-actions .icon-button:hover,
+:host([data-theme="dark"]) .budget-section-row-actions .icon-button:focus-visible { background: rgba(182, 197, 255, .14); border-color: rgba(182, 197, 255, .14); color: #b6c5ff; }
+.budget-section-row-actions .icon-button svg { height: 15px; width: 15px; }
+.budget-section-row.custom th { background: #e9efff; color: #304d91; padding-right: 73px; position: relative; }
+.budget-post-type-label { color: var(--muted); display: block; font-size: 9px; margin: 3px 0 0 34px; }
 main[data-current-page="budget"] { max-width: 1560px; }
 .budget-month-label select { text-transform: capitalize; }
 .budget-monthly-panel .budget-monthly-review { border-top: 0; margin-top: 0; }
@@ -335,29 +364,6 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .budget-monthly-table { min-width: 780px; }
 .budget-monthly-table th { background: var(--surface-subtle); }
 .budget-monthly-table th.monthly-last-heading { position: sticky; right: 0; z-index: 2; }
-.monthly-last-heading > div { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
-.monthly-section-add { flex: none; font-size: 20px; line-height: 1; }
-:host .secondary-button.monthly-section-add { background: #e9efff; border-color: #9eafe0; color: #304d91; }
-:host .secondary-button.monthly-section-add:hover { background: #dce5fc; color: #304d91; }
-.monthly-section-row-actions { display: inline-flex; gap: 5px; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
-:host .monthly-section-row-actions .icon-button { background: transparent; border: 1px solid transparent; color: #304d91; height: 22px; min-height: 22px; width: 22px; }
-:host .monthly-section-row-actions .icon-button:hover, :host .monthly-section-row-actions .icon-button:focus-visible { background: rgba(48, 77, 145, .14); color: #304d91; }
-.monthly-section-row-actions svg { height: 14px; width: 14px; }
-.monthly-section-dialog { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); max-height: calc(100vh - 32px); max-width: 500px; padding: 22px; width: calc(100% - 32px); }
-.monthly-section-dialog::backdrop { background: rgba(0, 0, 0, .5); }
-.monthly-section-dialog h3 { font-size: 16px; margin: 0 0 18px; }
-.monthly-section-name { color: var(--muted); display: grid; font-size: 12px; font-weight: 700; gap: 6px; }
-.monthly-section-name input { background: var(--field); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font: inherit; min-height: 40px; padding: 0 9px; width: 100%; }
-.monthly-section-dialog fieldset { border: 1px solid var(--line); border-radius: 4px; margin: 16px 0 0; padding: 10px 12px; }
-.monthly-section-dialog legend { color: var(--muted); font-size: 12px; font-weight: 700; padding: 0 4px; }
-.monthly-section-choices { display: grid; gap: 8px; max-height: 40vh; overflow-y: auto; }
-.monthly-section-choices strong { color: var(--wine-dark); font-size: 12px; margin-top: 6px; }
-.monthly-section-choices label { align-items: start; display: flex; font-size: 12px; gap: 8px; }
-.monthly-section-choices input { accent-color: var(--wine); flex: none; height: 16px; margin: 0; width: 16px; }
-.monthly-section-choices input:disabled + span { color: var(--muted); }
-.monthly-section-choices p { color: var(--muted); font-size: 12px; margin: 0; }
-.monthly-section-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
-.monthly-section-actions button { width: auto; }
 .budget-month-post-name { font-weight: 700; }
 .budget-unmapped { color: var(--muted); font-size: 11px; }
 .budget-transaction-details { margin-top: 6px; }
@@ -371,7 +377,6 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .budget-section-row th { background: var(--surface-accent); color: var(--wine-dark); font-size: 10px; padding: 10px 12px; }
 .budget-section-row.income th { background: var(--positive-soft); color: var(--positive); }
 .budget-section-row.savings th { background: #eeeaf4; color: #66577f; }
-.budget-section-row.custom th { background: #e9efff; color: #304d91; padding-right: 73px; position: relative; }
 .budget-section-row.archived th { background: var(--surface-subtle); color: var(--muted); }
 .budget-empty-row td { color: var(--muted); font-size: 11px; padding: 10px 12px; }
 .budget-archived-row { opacity: .7; }
@@ -529,10 +534,11 @@ main[data-current-page="budget"] { max-width: 1560px; }
 :host([data-theme="dark"]) .budget-drag-handle-savings:hover { background: #443a53; border-color: #8b7aab; color: #e0d4f1; }
 :host([data-theme="dark"]) .budget-section-row.savings th { background: #342d3e; color: #c9badd; }
 :host([data-theme="dark"]) .budget-section-row.custom th { background: #252e47; color: #b6c5ff; }
-:host([data-theme="dark"]) .secondary-button.monthly-section-add { background: #252e47; border-color: #596a9a; color: #b6c5ff; }
-:host([data-theme="dark"]) .secondary-button.monthly-section-add:hover { background: #354463; color: #b6c5ff; }
-:host([data-theme="dark"]) .monthly-section-row-actions .icon-button { background: transparent; border-color: transparent; color: #f3edf0; }
-:host([data-theme="dark"]) .monthly-section-row-actions .icon-button:hover, :host([data-theme="dark"]) .monthly-section-row-actions .icon-button:focus-visible { background: rgba(255, 255, 255, .12); color: #f3edf0; }
+:host([data-theme="dark"]) .budget-section-submit { background: #304d91; border-color: #304d91; color: #fff; }
+:host([data-theme="dark"]) .budget-section-submit:hover { background: #253e7c; border-color: #253e7c; color: #fff; }
+:host([data-theme="dark"]) .budget-section-form button.budget-section-submit { background: #252e47; border: 1px solid #596a9a; color: #b6c5ff; }
+:host([data-theme="dark"]) .budget-section-form button.budget-section-submit:hover { background: #354463; border-color: #596a9a; color: #b6c5ff; }
+:host([data-theme="dark"]) .budget-section-multiselect-trigger { background: var(--field); border-color: var(--line); color: var(--ink); }
 :host([data-theme="dark"]) .annual-budget-table tfoot .budget-carry-forward-row th,
 :host([data-theme="dark"]) .annual-budget-table tfoot .budget-carry-forward-row td { background: #1c2438; color: #9db4ee; }
 :host([data-theme="dark"]) .annual-budget-table tfoot .budget-month-result-row th,
@@ -560,6 +566,10 @@ main[data-current-page="budget"] { max-width: 1560px; }
   .annual-budget-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 16px; padding-right: 16px; }
   .annual-budget-form { grid-template-columns: 1fr 1fr; padding-left: 16px; padding-right: 16px; }
   .annual-budget-form button { grid-column: 1 / -1; width: 100%; }
+  .budget-section-form { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; }
+  .budget-section-submit { grid-column: 1; }
+  .budget-section-form button { width: 100%; }
+  .budget-section-post-options { bottom: calc(100% + 4px); top: auto; }
   .annual-budget-table { min-width: 0; table-layout: fixed; }
   .annual-budget-table th:first-child, .annual-budget-table td:first-child { min-width: 0; width: 28%; }
   .annual-budget-table th:nth-child(2), .annual-budget-table td:nth-child(2) { width: 20%; }
