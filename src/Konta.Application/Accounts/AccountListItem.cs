@@ -8,4 +8,5 @@ public sealed record AccountListItem(
     string BankAccountNumber,
     string BankLabel,
     AccountKind Kind,
-    bool IsActive);
+    bool IsActive,
+    bool IsCommon);

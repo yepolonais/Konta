@@ -26,6 +26,8 @@ builder.Services.AddScoped<IImportPreviewService, ImportPreviewService>();
 builder.Services.AddScoped<ITransactionQueryService, TransactionQueryService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IAccountBalanceService, AccountBalanceService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<IMonthlyProjectionService, MonthlyProjectionService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ICategoryRuleService, CategoryRuleService>();
 builder.Services.AddScoped<IAnnualBudgetService, AnnualBudgetService>();

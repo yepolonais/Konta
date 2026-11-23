@@ -70,6 +70,7 @@ class KontaApp extends HTMLElement {
     this.selectedBudgetMonth = new Date().getMonth() + 1;
     this.selectedMonthlyYear = new Date().getFullYear();
     this.monthlyBudget = null;
+    this.projectionRequestId = 0;
   }
 
   connectedCallback() {
@@ -108,6 +109,7 @@ class KontaApp extends HTMLElement {
             <a class="nav-plan" href="#budget" aria-current="page"><span class="nav-plan-kicker">Prévisionnel</span>Budget</a>
             <span class="nav-separator" aria-hidden="true"></span>
             <a href="#monthly">Prévu vs réalisé</a>
+            <a href="#projection">Projection</a>
             <a href="#summary">Synthèses</a>
             <a href="#transactions">Opérations</a>
             <a href="#import">Import CSV</a>
@@ -143,7 +145,7 @@ class KontaApp extends HTMLElement {
           </div>
           <section class="panel annual-budget-panel" id="budget" data-page="budget" aria-labelledby="annual-budget-title">
             <div class="panel-head annual-budget-heading">
-              <div><span class="section-kicker">Prévision annuelle</span><h2 id="annual-budget-title">Budget du foyer</h2></div>
+              <div><span class="section-kicker">Prévision annuelle · compte commun</span><h2 id="annual-budget-title">Budget du compte commun</h2><span id="budget-common-account">Compte commun non défini</span> · <a href="#projection">Configurer</a></div>
               <div class="budget-year-label" role="group" aria-label="Année du budget">
                 <button type="button" class="secondary-button" id="annual-budget-year-prev" aria-label="Année précédente">‹</button>
                 <input id="annual-budget-year" type="number" min="1" max="9998" aria-label="Année" required>
@@ -197,7 +199,7 @@ class KontaApp extends HTMLElement {
                 <div><span class="section-kicker">Comparatif mensuel</span><div class="rules-title-group"><h3 id="budget-monthly-title">Prévu et réalisé</h3>
                   <span class="info-tip">
                     <button type="button" class="info-tip-button" aria-label="À propos du calcul du réalisé" aria-describedby="monthly-info"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg></button>
-                    <span class="info-tip-bubble" id="monthly-info" role="tooltip">Les virements entre vos comptes ne sont comptés ni dans les revenus ni dans les dépenses. Le réalisé d’une enveloppe d’épargne correspond aux versements sortants des catégories rattachées.</span>
+                    <span class="info-tip-bubble" id="monthly-info" role="tooltip">Seules les opérations du compte commun sont comptées, y compris les virements. Le réalisé d’une enveloppe d’épargne correspond aux versements sortants des catégories rattachées.</span>
                   </span></div></div>
                 <div class="budget-monthly-filters">
                   <div class="budget-year-label" role="group" aria-label="Année du suivi">
@@ -329,6 +331,23 @@ class KontaApp extends HTMLElement {
             <div class="preview-actions"><button id="commit-button" type="button" disabled>Enregistrer les opérations</button></div>
             <div class="errors" id="preview-errors" hidden></div>
           </section>
+          <section class="panel projection-panel" id="projection" data-page="projection" aria-labelledby="projection-title" hidden>
+            <div class="panel-head"><div><span class="section-kicker">Mois en cours</span><h2 id="projection-title">Projection du compte commun</h2></div></div>
+            <div class="projection-content">
+              <form id="common-account-form" class="projection-account-form">
+                <label>Compte commun<select id="common-account" required></select></label>
+                <button type="submit">Désigner ce compte</button>
+              </form>
+              <p id="projection-status" class="feedback" role="status" aria-live="polite"></p>
+              <div id="projection-result" hidden>
+                <div class="projection-totals" id="projection-totals"></div>
+                <p class="projection-note">Projection indicative calculée à partir des opérations importées et du budget restant. Les bandes ne représentent pas des dates de paiement.</p>
+                <p id="projection-warning" class="projection-note"></p>
+                <div class="projection-chart-wrap"><svg id="projection-chart" viewBox="0 0 900 410" role="img" aria-label="Évolution du solde connu et projection jusqu’à la fin du mois"></svg></div>
+                <div class="projection-legend" id="projection-legend" aria-label="Détail des montants restants"></div>
+              </div>
+            </div>
+          </section>
           <section class="panel balance-panel" id="account-balance" data-page="import" aria-labelledby="balance-title">
             <div class="eyebrow">Après l’import</div>
             <h2 id="balance-title">Solde constaté d’un compte</h2>
@@ -441,6 +460,7 @@ class KontaApp extends HTMLElement {
     this.shadowRoot.querySelector("#return-monthly").addEventListener("click", () => {
       window.location.hash = "monthly";
     });
+    this.shadowRoot.querySelector("#common-account-form").addEventListener("submit", event => this.setCommonAccount(event));
     this.shadowRoot.querySelector(".theme-toggle").addEventListener("click", () => {
       this.setTheme(this.dataset.theme === "dark" ? "light" : "dark", true);
     });
@@ -659,6 +679,7 @@ class KontaApp extends HTMLElement {
     const pages = {
       budget: ["Budget", "Planifiez les revenus, dépenses et montants mis de côté sur l’année."],
       monthly: ["Prévu vs réalisé", "Comparez le prévu et le réalisé du mois."],
+      projection: ["Projection", "Visualisez le solde du compte commun et son évolution estimée jusqu’à la fin du mois."],
       transactions: ["Opérations", "Consultez les mouvements enregistrés sur vos comptes."],
       summary: ["Synthèses", "Comparez les revenus et les dépenses par mois ou par année."],
       import: ["Import CSV", "Prévisualisez, vérifiez et confirmez l’import de vos relevés."],
@@ -698,6 +719,7 @@ class KontaApp extends HTMLElement {
       }
     }
     if (this.transactionDetailId) this.renderTransactionDetail();
+    if (page === "projection") this.loadProjection();
     window.scrollTo(0, 0);
   }
 
@@ -759,6 +781,150 @@ class KontaApp extends HTMLElement {
     } catch (exception) {
       this.setAnnualBudgetFeedback(exception.message, true);
     }
+  }
+
+  async setCommonAccount(event) {
+    event.preventDefault();
+    const select = this.shadowRoot.querySelector("#common-account");
+    const existing = this.accounts.find(account => account.isCommon);
+    if (existing && existing.id !== select.value
+      && !window.confirm("Changer le compte commun applique le budget existant et son suivi à ce nouveau compte. Continuer ?")) return;
+    const button = event.currentTarget.querySelector("button");
+    button.disabled = true;
+    try {
+      const response = await fetch(`/api/accounts/${select.value}/common`, { method: "PUT" });
+      if (!response.ok) throw new Error("Impossible de désigner le compte commun.");
+      await this.loadProjection();
+      await Promise.all([this.loadAnnualBudgetMonth(), this.loadMapping()]);
+    } catch (exception) {
+      const status = this.shadowRoot.querySelector("#projection-status");
+      status.textContent = exception.message;
+      status.classList.add("error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async loadProjection() {
+    const requestId = ++this.projectionRequestId;
+    const status = this.shadowRoot.querySelector("#projection-status");
+    const result = this.shadowRoot.querySelector("#projection-result");
+    status.textContent = "Chargement de la projection…";
+    status.classList.remove("error");
+    result.hidden = true;
+    try {
+      const accountsResponse = await fetch("/api/accounts");
+      if (!accountsResponse.ok) throw new Error("Impossible de charger les comptes.");
+      const accounts = await accountsResponse.json();
+      if (requestId !== this.projectionRequestId) return;
+      this.accounts = accounts;
+      const select = this.shadowRoot.querySelector("#common-account");
+      select.replaceChildren(this.option("", "Choisir un compte"));
+      for (const account of accounts.filter(item => item.isActive)) select.append(this.option(account.id, account.name));
+      const common = accounts.find(account => account.isCommon);
+      select.value = common?.id ?? "";
+      this.renderBudgetCommonAccount();
+      if (!common) {
+        status.textContent = accounts.length
+          ? "Désignez le compte commun pour utiliser le budget et son suivi."
+          : "Importez ou créez d’abord un compte, puis désignez-le comme compte commun.";
+        return;
+      }
+      const response = await fetch("/api/projection");
+      if (!response.ok) throw new Error("Impossible de charger la projection.");
+      const projection = await response.json();
+      if (requestId !== this.projectionRequestId) return;
+      if (projection.currentBalance === null) {
+        status.textContent = "Aucun solde de référence pour ce compte. Importez un relevé avec solde ou définissez-le dans Import CSV.";
+        return;
+      }
+      status.textContent = `Compte commun : ${projection.accountName} · au ${this.formatDate(projection.today)}`;
+      this.renderProjection(projection);
+      result.hidden = false;
+    } catch (exception) {
+      if (requestId !== this.projectionRequestId) return;
+      status.textContent = exception.message;
+      status.classList.add("error");
+    }
+  }
+
+  renderProjection(projection) {
+    const totals = this.shadowRoot.querySelector("#projection-totals");
+    totals.replaceChildren();
+    for (const [label, amount] of [["Solde actuel", projection.currentBalance], ["Solde prévisionnel", projection.projectedBalance]]) {
+      const card = document.createElement("div");
+      const title = document.createElement("span");
+      const value = document.createElement("strong");
+      title.textContent = label;
+      value.textContent = this.formatCurrency(amount);
+      card.append(title, value);
+      totals.append(card);
+    }
+    const warnings = ["Historique et solde reconstitués à partir des opérations importées : un relevé incomplet peut fausser les montants."];
+    if (projection.unassignedTransactionCount) warnings.push(`${projection.unassignedTransactionCount} opération(s) à rapprocher.`);
+    if (projection.unmappedPostCount) warnings.push(`${projection.unmappedPostCount} poste(s) prévu(s) sans rapprochement : leur réalisé est considéré comme nul.`);
+    if (projection.unplannedPostCount) warnings.push(`${projection.unplannedPostCount} poste(s) sans prévision ce mois-ci : aucun montant restant ne peut être calculé pour ces postes.`);
+    this.shadowRoot.querySelector("#projection-warning").textContent = warnings.join(" ");
+
+    const svg = this.shadowRoot.querySelector("#projection-chart");
+    svg.replaceChildren();
+    const add = (name, attributes, text, parent = svg) => {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+      for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
+      if (text !== undefined) node.textContent = text;
+      parent.append(node);
+      return node;
+    };
+    const [year, month, day] = projection.today.split("-").map(Number);
+    const days = new Date(year, month, 0).getDate();
+    const x = value => 85 + (value - 1) * 710 / (days - 1);
+    const income = projection.bands.filter(band => band.type === "Income");
+    const expense = projection.bands.filter(band => band.type !== "Income");
+    const high = projection.currentBalance + income.reduce((sum, band) => sum + band.amount, 0);
+    const low = projection.currentBalance - expense.reduce((sum, band) => sum + band.amount, 0);
+    const values = [...projection.history.map(point => point.balance), projection.projectedBalance, high, low];
+    let min = Math.min(...values), max = Math.max(...values);
+    const padding = Math.max((max - min) * .12, 10);
+    min -= padding;
+    max += padding;
+    const y = value => 320 - (value - min) * 270 / (max - min);
+    for (let index = 0; index <= 4; index++) {
+      const value = min + (max - min) * index / 4;
+      add("line", { x1: 85, x2: 795, y1: y(value), y2: y(value), class: "projection-grid" });
+      add("text", { x: 78, y: y(value) + 4, "text-anchor": "end", class: "projection-axis" }, this.formatCurrency(value));
+    }
+    for (const tick of [...new Set([1, 5, 10, 15, 20, 25, days].filter(value => value <= days))]) {
+      add("text", { x: x(tick), y: 345, "text-anchor": "middle", class: "projection-axis" }, String(tick));
+    }
+    add("text", { x: 440, y: 375, "text-anchor": "middle", class: "projection-axis" }, "Jours du mois");
+    const startX = Math.min(x(day), x(days) - 2);
+    for (const [bands, direction] of [[income, 1], [expense, -1]]) {
+      let level = projection.currentBalance;
+      for (const band of bands) {
+        const next = level + direction * band.amount;
+        const rect = add("rect", {
+          x: startX, y: Math.min(y(level), y(next)), width: x(days) - startX,
+          height: Math.abs(y(next) - y(level)), class: direction > 0 ? "projection-band income" : "projection-band expense",
+          tabindex: "0", "aria-label": `${band.name} : ${this.formatCurrency(band.amount)} restant`
+        });
+        add("title", {}, `${band.name} : ${this.formatCurrency(band.amount)} restant`, rect);
+        level = next;
+      }
+    }
+    const points = projection.history.map(point => `${x(Number(point.date.slice(-2)))},${y(point.balance)}`).join(" ");
+    add("polyline", { points, class: "projection-history" });
+    add("line", { x1: x(day), y1: y(projection.currentBalance), x2: x(days), y2: y(projection.projectedBalance), class: "projection-forecast" });
+    add("circle", { cx: x(day), cy: y(projection.currentBalance), r: 5, class: "projection-current" });
+    add("text", { x: 790, y: y(projection.projectedBalance) - 8, "text-anchor": "end", class: "projection-end" }, this.formatCurrency(projection.projectedBalance));
+    const legend = this.shadowRoot.querySelector("#projection-legend");
+    legend.replaceChildren();
+    for (const band of projection.bands) {
+      const item = document.createElement("span");
+      item.className = `projection-legend-item ${band.type === "Income" ? "income" : "expense"}`;
+      item.textContent = `${band.name} : ${band.type === "Income" ? "+" : "−"} ${this.formatCurrency(band.amount)}`;
+      legend.append(item);
+    }
+    if (!projection.bands.length) legend.textContent = "Aucun montant restant calculé.";
   }
 
   async loadAnnualBudgetMonth() {
@@ -1201,7 +1367,7 @@ class KontaApp extends HTMLElement {
       ["Income", "Total revenus"],
       ["Expense", "Total dépenses"],
       ["Savings", "Total épargne prévue"],
-      ["Available", "Disponible prévisionnel"]
+      ["Available", "Total du mois"]
     ];
     const foot = this.shadowRoot.querySelector("#annual-budget-foot");
     foot.replaceChildren();
@@ -1250,7 +1416,7 @@ class KontaApp extends HTMLElement {
     );
     this.appendAnnualBudgetBalanceRow(
       foot,
-      "Résultat prévisionnel du mois",
+      "Total attendu",
       "MonthlyNet",
       months,
       null,
@@ -1661,7 +1827,8 @@ class KontaApp extends HTMLElement {
       this.mappingPosts = budget.posts.filter(post => post.isActive);
       this.mappingOrphans = orphans;
       this.mappingMultiCategories = categories.filter(category => category.isMultiPost);
-      this.mappingTransactions = transactions;
+      const commonAccount = this.accounts.find(account => account.isCommon);
+      this.mappingTransactions = transactions.filter(transaction => commonAccount && transaction.accountId === commonAccount.id);
       this.renderMapping();
       if (this.transactionDetailId) this.updateTransactionDetailPost();
       return true;
@@ -1854,7 +2021,7 @@ class KontaApp extends HTMLElement {
         open.addEventListener("click", async () => {
           if (await this.saveMultiPostTransaction({ target: open, type: "open" })) this.openTransaction(transaction.id);
         });
-        details.append(operation, info, open);
+        details.append(operation, info);
         const descriptionLabel = document.createElement("label");
         descriptionLabel.textContent = "Libellé";
         const description = document.createElement("input");
@@ -1876,7 +2043,8 @@ class KontaApp extends HTMLElement {
         select.append(this.option("", "À rapprocher"));
         for (const { type, expenseKind, label } of BUDGET_GROUPS) {
           if ((type === "Income") !== (transaction.type === "Income")) continue;
-          if (transaction.isTransfer && type !== "Savings") continue;
+          if (transaction.isTransfer && type !== "Savings"
+            && transaction.accountId !== this.accounts.find(account => account.isCommon)?.id) continue;
           const posts = this.mappingPosts.filter(post => post.type === type
             && (type !== "Expense" || (post.expenseKind ?? "Variable") === expenseKind))
             .sort((first, second) => first.name.localeCompare(second.name, "fr", { sensitivity: "base" }));
@@ -1891,7 +2059,7 @@ class KontaApp extends HTMLElement {
           select,
           `Rechercher un poste pour l’opération ${transaction.details || transaction.label}`
         ));
-        form.append(details, descriptionLabel, postField);
+        form.append(details, descriptionLabel, postField, open);
         body.append(form);
       }
       container.append(section);
@@ -2619,6 +2787,7 @@ class KontaApp extends HTMLElement {
   }
 
   renderPhase2Data() {
+    this.renderBudgetCommonAccount();
     this.renderCategoryOptions(this.shadowRoot.querySelector("#rule-category"));
     this.renderCategoryOptions(this.shadowRoot.querySelector("#summary-category"), "Toutes les catégories");
     const accountSelect = this.shadowRoot.querySelector("#summary-account");
@@ -2629,6 +2798,12 @@ class KontaApp extends HTMLElement {
     this.renderCategoryRules();
     this.renderCategories();
     this.renderBalanceForm();
+  }
+
+  renderBudgetCommonAccount() {
+    const account = this.accounts.find(item => item.isCommon);
+    this.shadowRoot.querySelector("#budget-common-account").textContent =
+      account ? `Compte : ${account.name}` : "Compte commun non défini";
   }
 
   renderCategoryOptions(select, placeholder = "Choisir une catégorie") {
@@ -3214,6 +3389,7 @@ class KontaApp extends HTMLElement {
       const categorySummary = row.querySelector("[data-category-summary]");
       categorySummary.textContent = categorySelect.selectedOptions[0]?.textContent ?? "Non catégorisé";
       categorySummary.setAttribute("aria-label", `Catégorie de l'opération, ligne ${row.dataset.rowNumber} : ${categorySummary.textContent}`);
+      row.querySelector(".category-picker").dataset.unassigned = String(!categorySelect.value);
       const searchLink = row.querySelector("[data-beneficiary-search]");
       if (searchLink) searchLink.hidden = Boolean(categoryName);
       row.hidden = (hideDuplicates && row.classList.contains("duplicate-row"))

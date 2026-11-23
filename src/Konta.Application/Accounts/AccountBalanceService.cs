@@ -2,7 +2,7 @@ using Konta.Domain.Transactions;
 
 namespace Konta.Application.Accounts;
 
-public sealed class AccountBalanceService(IAccountRepository repository) : IAccountBalanceService
+public sealed class AccountBalanceService(IAccountRepository repository, TimeProvider clock) : IAccountBalanceService
 {
     public async Task<AccountBalanceSummary> SetReferenceBalanceAsync(
         Guid accountId,
@@ -34,10 +34,8 @@ public sealed class AccountBalanceService(IAccountRepository repository) : IAcco
 
         var transactions = await repository.ListTransactionsAsync(accountId, cancellationToken);
         var referenceTransaction = transactions.Single(transaction => transaction.Id == reference.TransactionId);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var actual = reference.BalanceAfterTransaction + transactions
-            .Where(transaction => IsAfterReference(transaction, referenceTransaction) && transaction.Date <= today)
-            .Sum(SignedAmount);
+        var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+        var actual = CalculateBalance(reference.BalanceAfterTransaction, referenceTransaction, transactions, today);
 
         return new AccountBalanceSummary(
             account.Id,
@@ -47,6 +45,12 @@ public sealed class AccountBalanceService(IAccountRepository repository) : IAcco
             reference.BalanceAfterTransaction,
             actual);
     }
+
+    internal static decimal CalculateBalance(
+        decimal referenceBalance, Transaction reference, IReadOnlyList<Transaction> transactions, DateOnly date) =>
+        referenceBalance
+        + transactions.Where(transaction => IsAfterReference(transaction, reference) && transaction.Date <= date).Sum(SignedAmount)
+        - transactions.Where(transaction => !IsAfterReference(transaction, reference) && transaction.Date > date).Sum(SignedAmount);
 
     private static bool IsAfterReference(Transaction transaction, Transaction reference) =>
         transaction.Date > reference.Date

@@ -2,13 +2,15 @@ using Konta.Application.Categories;
 using Konta.Application.Budgets;
 using Konta.Domain.Budgets;
 using Konta.Domain.Transactions;
+using Konta.Application.Accounts;
 
 namespace Konta.Application.Transactions;
 
 public sealed class TransactionQueryService(
     ITransactionRepository repository,
     ICategoryRepository categoryRepository,
-    IAnnualBudgetRepository budgetRepository) : ITransactionQueryService
+    IAnnualBudgetRepository budgetRepository,
+    IAccountRepository accountRepository) : ITransactionQueryService
 {
     public async Task<bool> ChangeCategoryAsync(
         Guid transactionId,
@@ -117,7 +119,11 @@ public sealed class TransactionQueryService(
             if (post.Type != AnnualBudgetPostType.Savings
                 && await repository.IsTransferAsync(transactionId, cancellationToken))
             {
-                throw new ArgumentException("Un transfert interne ne peut être rattaché qu'à un poste d'épargne.", nameof(postId));
+                var commonAccount = await accountRepository.GetCommonAsync(cancellationToken);
+                if (commonAccount is null || transaction.AccountId != commonAccount.Id)
+                {
+                    throw new ArgumentException("Un transfert interne ne peut être rattaché qu'à un poste d'épargne hors du compte commun.", nameof(postId));
+                }
             }
         }
 

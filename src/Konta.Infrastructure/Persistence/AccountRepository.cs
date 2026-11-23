@@ -16,6 +16,35 @@ public sealed class AccountRepository(KontaDbContext dbContext) : IAccountReposi
     public Task<Account?> GetAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Accounts.AsNoTracking().FirstOrDefaultAsync(account => account.Id == id, cancellationToken);
 
+    public Task<Account?> GetCommonAsync(CancellationToken cancellationToken) =>
+        dbContext.Accounts.AsNoTracking().SingleOrDefaultAsync(account => account.IsCommon, cancellationToken);
+
+    public async Task<bool> SetCommonAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var target = await dbContext.Accounts.SingleOrDefaultAsync(account => account.Id == id, cancellationToken);
+        if (target is null)
+        {
+            return false;
+        }
+
+        var current = await dbContext.Accounts.SingleOrDefaultAsync(account => account.IsCommon, cancellationToken);
+        if (current?.Id != id)
+        {
+            if (current is not null)
+            {
+                current.SetCommon(false);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            target.SetCommon(true);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<IReadOnlyDictionary<string, Account>> FindByBankAccountNumbersAsync(
         IReadOnlyCollection<string> accountNumbers,
         CancellationToken cancellationToken)

@@ -36,6 +36,9 @@ namespace Konta.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsCommon")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -50,6 +53,10 @@ namespace Konta.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BankAccountNumber")
                         .IsUnique();
+
+                    b.HasIndex("IsCommon")
+                        .IsUnique()
+                        .HasFilter("\"IsCommon\" = 1");
 
                     b.ToTable("Accounts");
                 });

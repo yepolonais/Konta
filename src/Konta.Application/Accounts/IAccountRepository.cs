@@ -7,6 +7,8 @@ public interface IAccountRepository
 {
     Task<IReadOnlyList<Account>> ListAsync(CancellationToken cancellationToken);
     Task<Account?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<Account?> GetCommonAsync(CancellationToken cancellationToken);
+    Task<bool> SetCommonAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, Account>> FindByBankAccountNumbersAsync(
         IReadOnlyCollection<string> accountNumbers,
         CancellationToken cancellationToken);

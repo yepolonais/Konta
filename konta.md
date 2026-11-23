@@ -15,6 +15,7 @@ L'objectif est d'éviter de découvrir trop tard qu'une dépense importante ou u
 
 - L'application sert à gérer le budget partagé du foyer.
 - Les membres du foyer consultent et font évoluer le même budget et les mêmes opérations.
+- Le budget concerne uniquement le compte commun désigné parmi les comptes enregistrés. Son suivi inclut les virements entrants et sortants de ce compte, y compris vers ou depuis les comptes personnels. Les opérations des autres comptes ne contribuent pas au réalisé du budget.
 - Le vocabulaire et les catégories doivent pouvoir être adaptés au foyer ; aucun exemple de poste ne doit être imposé comme une taxonomie figée.
 
 ## 3. Le plan budgétaire annuel
@@ -56,6 +57,8 @@ L'utilisateur doit pouvoir :
 Un extra doit apparaître séparément des revenus réguliers et des postes ordinaires afin que son effet sur le budget soit compréhensible. Il ne doit pas être traité comme un salaire récurrent. La façon de distinguer un nouvel apport d'une réaffectation interne doit être explicite dans l'interface et dans les calculs.
 
 ## 4. Suivi du réalisé
+
+L'onglet Projection présente le solde reconstitué du compte commun depuis le début du mois et estime son solde de fin de mois à partir du solde connu et des montants encore prévus par poste. Le restant est limité à zéro pour chaque poste ; les revenus sont ajoutés, les dépenses et l'épargne retranchées. Les bandes illustrent ces montants sans attribuer de dates aux opérations futures. Les chiffres dépendent des relevés importés, du solde de référence et du rapprochement ; un poste sans prévision ou sans rapprochement est signalé et le réalisé d'un poste sans rapprochement est supposé nul.
 
 ### 4.1 Opérations bancaires
 

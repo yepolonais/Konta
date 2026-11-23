@@ -121,6 +121,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "common-test");
         var postId = await CreatePostAsync(client, "Loyer", "Expense");
         await SetMonthlyAmountAsync(client, postId, 1, 800m);
 
@@ -150,6 +151,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "common-test");
         var rentId = await CreatePostAsync(client, "Loyer", "Expense", "Fixed");
         var internetId = await CreatePostAsync(client, "Internet", "Expense", "Fixed");
         var groceriesId = await CreatePostAsync(client, "Courses", "Expense", "Variable");
@@ -1079,6 +1081,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "common-test");
         var incomeId = await CreatePostAsync(client, "Salaires", "Income");
         var expenseId = await CreatePostAsync(client, "Dépenses", "Expense");
         await SetMonthlyAmountAsync(client, incomeId, 12, 1000m, 2025);
@@ -1113,6 +1116,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "common-test");
 
         // Act
         using var response = await client.GetAsync("/api/annual-budgets/2026/months/4");
@@ -1166,6 +1170,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "common-test");
         var postId = await CreatePostAsync(client, "Courses", "Expense", "Variable");
         await SetMonthlyAmountAsync(client, postId, 9, 100m);
 
@@ -1232,6 +1237,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "common-test");
         var categoryId = await CreateCategoryAsync(client, "Catégorie test");
         var postId = await CreatePostAsync(client, "Poste test", "Expense");
         using var mappingResponse = await client.PutAsync(
@@ -1365,6 +1371,7 @@ public sealed class AnnualBudgetsApiIntegrationTests
         using var dataDirectory = new TemporaryDirectory();
         using var factory = CreateFactory(dataDirectory);
         using var client = factory.CreateClient();
+        await CreateAccountAsync(client, "Compte commun", "common-test");
         var incomeId = await CreatePostAsync(client, "Remboursement impôts", "Income");
         var expenseId = await CreatePostAsync(client, "Impôts", "Expense");
         await SetMonthlyAmountAsync(client, incomeId, 10, 500m);
@@ -1492,7 +1499,10 @@ public sealed class AnnualBudgetsApiIntegrationTests
             JsonSerializer.Serialize(new { name, bankAccountNumber = accountNumber, bankLabel = name, kind = "Current" })));
         response.EnsureSuccessStatusCode();
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        return payload.RootElement.GetProperty("id").GetGuid();
+        var id = payload.RootElement.GetProperty("id").GetGuid();
+        using var designated = await client.PutAsync($"/api/accounts/{id}/common", null);
+        designated.EnsureSuccessStatusCode();
+        return id;
     }
 
     private static async Task<Guid> CreateCategoryAsync(HttpClient client, string name)

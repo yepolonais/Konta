@@ -27,6 +27,16 @@ public sealed class AccountsController(IAccountService accountService, IAccountB
         return account is null ? NotFound() : Ok(account);
     }
 
+    /// <summary>Designates the account used by the shared budget.</summary>
+    [HttpPut("{id:guid}/common")]
+    [ProducesResponseType<AccountListItem>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AccountListItem>> SetCommon(Guid id, CancellationToken cancellationToken)
+    {
+        var account = await accountService.SetCommonAsync(id, cancellationToken);
+        return account is null ? NotFound() : Ok(account);
+    }
+
     /// <summary>Associates a Société Générale account number with a Konta account.</summary>
     [HttpPost]
     [ProducesResponseType<AccountListItem>(StatusCodes.Status201Created)]

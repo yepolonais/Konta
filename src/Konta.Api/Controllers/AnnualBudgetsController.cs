@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Konta.Application.Budgets;
+using Konta.Application.Accounts;
 using Konta.Domain.Budgets;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,6 +28,7 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
     [HttpGet("{year:int}/months/{month:int}")]
     [ProducesResponseType<AnnualBudgetMonthSummary>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AnnualBudgetMonthSummary>> GetMonth(
         int year,
         int month,
@@ -39,6 +41,15 @@ public sealed class AnnualBudgetsController(IAnnualBudgetService annualBudgetSer
         catch (ArgumentOutOfRangeException exception)
         {
             return BadRequest(InvalidRequest(exception));
+        }
+        catch (CommonAccountRequiredException exception)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Compte commun non défini",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            });
         }
     }
 

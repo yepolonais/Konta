@@ -6,6 +6,7 @@ public interface IAnnualBudgetService
 {
     Task<AnnualBudgetSummary> GetAsync(int year, CancellationToken cancellationToken);
     Task<AnnualBudgetMonthSummary> GetMonthAsync(int year, int month, CancellationToken cancellationToken);
+    Task<AnnualBudgetMonthSummary> GetMonthAsOfAsync(int year, int month, DateOnly? asOf, CancellationToken cancellationToken);
     Task<AnnualBudgetPostItem> CreatePostAsync(
         string name,
         AnnualBudgetPostType type,

@@ -66,6 +66,7 @@ public sealed class KontaDbContext(DbContextOptions<KontaDbContext> options) : D
             entity.Property(account => account.BankLabel).HasMaxLength(200).IsRequired();
             entity.Property(account => account.Kind).HasConversion<string>().HasMaxLength(16);
             entity.HasIndex(account => account.BankAccountNumber).IsUnique();
+            entity.HasIndex(account => account.IsCommon).IsUnique().HasFilter("\"IsCommon\" = 1");
         });
 
         modelBuilder.Entity<Category>(entity =>

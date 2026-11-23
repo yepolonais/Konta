@@ -2,13 +2,15 @@ using Konta.Domain.Budgets;
 using Konta.Application.Categories;
 using Konta.Application.Transactions;
 using Konta.Domain.Transactions;
+using Konta.Application.Accounts;
 
 namespace Konta.Application.Budgets;
 
 public sealed class AnnualBudgetService(
     IAnnualBudgetRepository repository,
     ICategoryRepository categoryRepository,
-    ITransactionRepository transactionRepository) : IAnnualBudgetService
+    ITransactionRepository transactionRepository,
+    IAccountRepository accountRepository) : IAnnualBudgetService
 {
     public async Task<AnnualBudgetSummary> GetAsync(int year, CancellationToken cancellationToken)
     {
@@ -43,7 +45,11 @@ public sealed class AnnualBudgetService(
     public async Task<AnnualBudgetMonthSummary> GetMonthAsync(
         int year,
         int month,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        await GetMonthAsOfAsync(year, month, null, cancellationToken);
+
+    public async Task<AnnualBudgetMonthSummary> GetMonthAsOfAsync(
+        int year, int month, DateOnly? asOf, CancellationToken cancellationToken)
     {
         ValidateYear(year);
         if (month is < 1 or > 12)
@@ -52,17 +58,21 @@ public sealed class AnnualBudgetService(
         }
 
         var posts = await repository.ListPostsAsync(cancellationToken);
-        var allTransactions = await transactionRepository.ListForBudgetMonthAsync(year, month, cancellationToken);
-        var assignedPostIds = await transactionRepository.ListAssignedBudgetPostIdsAsync(cancellationToken);
+        var commonAccount = await accountRepository.GetCommonAsync(cancellationToken)
+            ?? throw new CommonAccountRequiredException();
+        var allTransactions = (await transactionRepository.ListForBudgetMonthAsync(year, month, cancellationToken))
+            .Where(transaction => transaction.AccountId == commonAccount.Id
+                && (!asOf.HasValue || transaction.Date <= asOf.Value))
+            .ToArray();
+        var assignedPostIds = await transactionRepository.ListAssignedBudgetPostIdsAsync(commonAccount.Id, cancellationToken);
         var activePosts = posts.Where(post => post.IsActive).ToArray();
         var savingsPostIds = activePosts
             .Where(post => post.Type == AnnualBudgetPostType.Savings)
             .Select(post => post.Id)
             .ToHashSet();
-        // Les transferts sont écartés du réel, sauf pour l'épargne où ils constituent le versement.
         var transactions = allTransactions
-            .Where(transaction => !transaction.IsTransfer
-                && !(transaction.BudgetPostId.HasValue && savingsPostIds.Contains(transaction.BudgetPostId.Value)))
+            .Where(transaction => !(transaction.Type == TransactionType.Expense
+                && transaction.BudgetPostId.HasValue && savingsPostIds.Contains(transaction.BudgetPostId.Value)))
             .ToArray();
         var postsById = activePosts.ToDictionary(post => post.Id);
         var postItems = activePosts.Select(post =>

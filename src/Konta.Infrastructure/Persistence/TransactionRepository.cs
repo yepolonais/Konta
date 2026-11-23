@@ -26,9 +26,9 @@ public sealed class TransactionRepository(KontaDbContext dbContext) : ITransacti
             transfer.SourceTransactionId == transactionId || transfer.DestinationTransactionId == transactionId,
             cancellationToken);
 
-    public async Task<IReadOnlySet<Guid>> ListAssignedBudgetPostIdsAsync(CancellationToken cancellationToken) =>
+    public async Task<IReadOnlySet<Guid>> ListAssignedBudgetPostIdsAsync(Guid accountId, CancellationToken cancellationToken) =>
         (await dbContext.Transactions.AsNoTracking()
-            .Where(transaction => transaction.BudgetPostId.HasValue)
+            .Where(transaction => transaction.AccountId == accountId && transaction.BudgetPostId.HasValue)
             .Select(transaction => transaction.BudgetPostId!.Value)
             .Distinct()
             .ToListAsync(cancellationToken)).ToHashSet();

@@ -47,9 +47,14 @@ public sealed class CategoryRepository(KontaDbContext dbContext) : ICategoryRepo
             .Select(category => new { category.Id, category.Name })
             .ToListAsync(cancellationToken);
         var ids = categories.Select(category => category.Id).ToArray();
+        var commonAccountId = await dbContext.Accounts.AsNoTracking()
+            .Where(account => account.IsCommon)
+            .Select(account => (Guid?)account.Id)
+            .SingleOrDefaultAsync(cancellationToken);
         var amounts = await dbContext.Transactions
             .AsNoTracking()
-            .Where(transaction => transaction.CategoryId != null && ids.Contains(transaction.CategoryId.Value))
+            .Where(transaction => commonAccountId.HasValue && transaction.AccountId == commonAccountId
+                && transaction.CategoryId != null && ids.Contains(transaction.CategoryId.Value))
             .Select(transaction => new { CategoryId = transaction.CategoryId!.Value, transaction.Amount })
             .ToListAsync(cancellationToken);
         var totals = amounts

@@ -1,5 +1,12 @@
 @baseUrl = http://localhost:5255
 
+### Designate the common account (replace the ID)
+PUT {{baseUrl}}/api/accounts/00000000-0000-0000-0000-000000000001/common
+
+### Current month's projection (404 until an account is designated)
+GET {{baseUrl}}/api/projection
+Accept: application/json
+
 ### Custom monthly review sections
 GET {{baseUrl}}/api/monthly-display-sections
 Accept: application/json

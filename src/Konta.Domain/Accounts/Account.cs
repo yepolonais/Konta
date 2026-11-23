@@ -37,4 +37,7 @@ public sealed class Account
     public string BankLabel { get; private set; } = string.Empty;
     public AccountKind Kind { get; private set; }
     public bool IsActive { get; private set; }
+    public bool IsCommon { get; private set; }
+
+    public void SetCommon(bool isCommon) => IsCommon = isCommon;
 }

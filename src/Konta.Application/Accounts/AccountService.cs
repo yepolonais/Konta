@@ -16,6 +16,16 @@ public sealed class AccountService(IAccountRepository repository) : IAccountServ
         return account is null ? null : ToListItem(account);
     }
 
+    public async Task<AccountListItem?> SetCommonAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!await repository.SetCommonAsync(id, cancellationToken))
+        {
+            return null;
+        }
+
+        return await GetAsync(id, cancellationToken);
+    }
+
     public async Task<AccountListItem> CreateAsync(
         string name,
         string bankAccountNumber,
@@ -40,5 +50,6 @@ public sealed class AccountService(IAccountRepository repository) : IAccountServ
         account.BankAccountNumber,
         account.BankLabel,
         account.Kind,
-        account.IsActive);
+        account.IsActive,
+        account.IsCommon);
 }

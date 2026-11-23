@@ -6,6 +6,7 @@ public interface IAccountService
 {
     Task<IReadOnlyList<AccountListItem>> ListAsync(CancellationToken cancellationToken);
     Task<AccountListItem?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<AccountListItem?> SetCommonAsync(Guid id, CancellationToken cancellationToken);
     Task<AccountListItem> CreateAsync(
         string name,
         string bankAccountNumber,

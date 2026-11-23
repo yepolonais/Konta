@@ -8,7 +8,7 @@ public interface ITransactionRepository
     Task UpdateAsync(Transaction transaction, CancellationToken cancellationToken);
     Task<Guid?> GetCategoryBudgetPostIdAsync(Guid categoryId, CancellationToken cancellationToken);
     Task<bool> IsTransferAsync(Guid transactionId, CancellationToken cancellationToken);
-    Task<IReadOnlySet<Guid>> ListAssignedBudgetPostIdsAsync(CancellationToken cancellationToken);
+    Task<IReadOnlySet<Guid>> ListAssignedBudgetPostIdsAsync(Guid accountId, CancellationToken cancellationToken);
     Task<IReadOnlyList<TransactionListItem>> ListAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<TransactionListItem>> ListForBudgetMonthAsync(
         int year,
