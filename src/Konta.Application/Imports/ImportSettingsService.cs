@@ -24,9 +24,9 @@ public sealed class ImportSettingsService(IImportSettingsRepository repository) 
         CancellationToken cancellationToken)
     {
         var normalizedIdentifier = bankIdentifier.Trim();
-        if (normalizedIdentifier.Length is 0 or > 100)
+        if (normalizedIdentifier.Length > 100)
         {
-            throw new ArgumentException("Saisissez un identifiant de 1 à 100 caractères.", nameof(bankIdentifier));
+            throw new ArgumentException("Saisissez un identifiant de 100 caractères maximum.", nameof(bankIdentifier));
         }
 
         if (bankUrl.Length > 2048

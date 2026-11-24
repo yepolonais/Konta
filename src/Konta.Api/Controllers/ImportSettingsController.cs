@@ -43,7 +43,7 @@ public sealed class ImportSettingsController(IImportSettingsService importSettin
 
 public sealed record UpdateImportSettingsRequest
 {
-    [Required]
+    [Required(AllowEmptyStrings = true)]
     [StringLength(100)]
     public string BankIdentifier { get; init; } = "";
 

@@ -57,6 +57,25 @@ public sealed class ImportSettingsApiIntegrationTests
     }
 
     [Fact]
+    public async Task Save_PersistsBankUrl_WhenIdentifierIsEmpty()
+    {
+        using var dataDirectory = new TemporaryDirectory();
+        using var factory = CreateFactory(dataDirectory);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PutAsJsonAsync("/api/import-settings", new
+        {
+            bankIdentifier = "",
+            bankUrl = "https://bank.example.test/export"
+        });
+        using var persisted = JsonDocument.Parse(await client.GetStringAsync("/api/import-settings"));
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("", persisted.RootElement.GetProperty("bankIdentifier").GetString());
+        Assert.Equal("https://bank.example.test/export", persisted.RootElement.GetProperty("bankUrl").GetString());
+    }
+
+    [Fact]
     public async Task Save_ReturnsBadRequest_WhenBankUrlUsesUnsupportedScheme()
     {
         // Arrange

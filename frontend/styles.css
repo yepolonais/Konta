@@ -149,15 +149,14 @@ td.amount { font-family: "DM Mono", monospace; font-size: 12px; text-align: righ
 .import-source-panel { order: -2; padding: 22px; }
 .import-source-panel h2 { margin: 6px 0 8px; }
 .import-source-panel p { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 16px; }
-.import-source-panel label { color: var(--muted); display: block; font-size: 11px; font-weight: 700; margin-bottom: 12px; }
+.import-source-fields { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.import-source-panel label { color: var(--muted); display: block; font-size: 11px; font-weight: 700; }
 .import-source-panel input { background: var(--field); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font: inherit; font-size: 12px; margin-top: 6px; min-height: 42px; padding: 0 12px; width: 100%; }
-.import-source-controls { align-items: stretch; display: flex; gap: 10px; }
-.import-source-controls input { flex: 1; min-width: 0; }
+.import-source-controls { position: relative; }
 .import-source-panel .import-source-controls { margin-top: 6px; }
-.import-source-panel .import-source-controls input { margin-top: 0; }
-.import-source-controls button { flex: none; width: auto; }
-.import-source-panel #import-source-save { margin-top: 4px; }
-.import-source-panel .feedback { margin-bottom: 0; }
+.import-source-panel .import-source-controls input { margin-top: 0; padding-right: 64px; }
+.import-source-controls button { bottom: 4px; min-height: 0; position: absolute; right: 4px; top: 4px; width: auto; }
+.import-source-panel .feedback { margin: 12px 0 0; }
 .import-panel { padding: 22px; }
 .import-panel h2 { margin-bottom: 8px; }
 .import-panel p { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 18px; }
@@ -408,6 +407,13 @@ main[data-current-page="budget"] { max-width: 1560px; }
 .budget-section-row.income th { background: var(--positive-soft); color: var(--positive); }
 .budget-section-row.savings th { background: #eeeaf4; color: #66577f; }
 .budget-section-row.archived th { background: var(--surface-subtle); color: var(--muted); }
+.annual-budget-table .budget-section-row th { padding: 0; }
+.annual-budget-table .budget-section-row.custom th { padding-right: 73px; }
+.budget-section-toggle { align-items: center; background: transparent; color: inherit; display: flex; font: inherit; gap: 8px; letter-spacing: inherit; min-height: 34px; padding: 8px 12px; text-align: left; text-transform: inherit; }
+.budget-section-toggle:hover { background: transparent; color: inherit; text-decoration: underline; }
+.budget-section-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+.budget-section-caret { display: inline-block; font-size: 14px; line-height: 1; transition: transform .15s; }
+.budget-section-toggle[aria-expanded="true"] .budget-section-caret { transform: rotate(90deg); }
 .budget-empty-row td { color: var(--muted); font-size: 11px; padding: 10px 12px; }
 .budget-archived-row { opacity: .7; }
 .budget-actions-cell { white-space: nowrap; width: 1%; }
@@ -553,8 +559,8 @@ main[data-current-page="budget"] { max-width: 1560px; }
 :host([data-theme="dark"]) .preview-actions button:disabled { background: #63575c; }
 :host([data-theme="dark"]) .transfer-suggestion { color: #b6c5ff; }
 :host([data-theme="dark"]) .preview-category select[data-transfer-match] { border-color: #596a9a; }
-:host([data-theme="dark"]) button:not(.secondary-button):not(.text-button) { background: #e5a2b4; color: #32131e; }
-:host([data-theme="dark"]) button:not(.secondary-button):not(.text-button):hover { background: #f0b5c4; }
+:host([data-theme="dark"]) button:not(.secondary-button):not(.text-button):not(.budget-section-toggle) { background: #e5a2b4; color: #32131e; }
+:host([data-theme="dark"]) button:not(.secondary-button):not(.text-button):not(.budget-section-toggle):hover { background: #f0b5c4; }
 :host([data-theme="dark"]) .secondary-button { background: #704052; border: 1px solid #a87587; color: #fff4f7; }
 :host([data-theme="dark"]) .secondary-button:hover { background: #835064; border-color: #ca8da1; color: #ffffff; }
 :host([data-theme="dark"]) .budget-drag-handle,
@@ -622,6 +628,7 @@ main[data-current-page="budget"] { max-width: 1560px; }
 }
 
 @media (max-width: 520px) {
+  .import-source-fields { grid-template-columns: minmax(0, 1fr); }
   .topbar { flex-wrap: wrap; gap: 0 20px; height: auto; min-height: 66px; padding-top: 10px; }
   .brand { font-size: 18px; }
   .appearance-controls { margin-left: auto; }

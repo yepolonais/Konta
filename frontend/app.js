@@ -63,6 +63,7 @@ class KontaApp extends HTMLElement {
     this.mappingRequestId = 0;
     this.annualBudgetMonth = null;
     this.budgetSections = [];
+    this.annualBudgetSectionExpanded = new Map();
     this.monthlyRequestId = 0;
     this.editingBudgetSectionId = null;
     this.budgetSectionSaving = false;
@@ -71,6 +72,9 @@ class KontaApp extends HTMLElement {
     this.selectedMonthlyYear = new Date().getFullYear();
     this.monthlyBudget = null;
     this.projectionRequestId = 0;
+    this.importSettings = null;
+    this.importSettingsSave = Promise.resolve();
+    this.importSettingsErrors = {};
   }
 
   connectedCallback() {
@@ -138,7 +142,7 @@ class KontaApp extends HTMLElement {
             </span>
             <button type="button" class="secondary-button heading-action" id="return-monthly" hidden>← Retour à Prévu vs réalisé</button>
             <span class="info-tip heading-action" id="categorization-action" hidden>
-              <button type="button" class="secondary-button" id="open-categorization" aria-describedby="categorization-tip">Catégorisation des opérations</button>
+            <button type="button" class="secondary-button" id="open-categorization" aria-describedby="categorization-tip">Catégorisation Auto des Opérations</button>
               <span class="info-tip-bubble" id="categorization-tip" role="tooltip">catégorise automatiquement une opération via son libellé</span>
             </span>
             <button type="button" class="secondary-button heading-action" id="return-import" hidden>← Retour à Import CSV</button>
@@ -251,17 +255,16 @@ class KontaApp extends HTMLElement {
             <section class="panel import-source-panel" data-page="import" aria-labelledby="import-source-title">
               <div class="eyebrow">Relevé bancaire</div>
               <h2 id="import-source-title">Récupérer un relevé</h2>
-              <p>Ces paramètres sont enregistrés dans la base locale de Konta.</p>
-              <form id="import-source-form">
-                <label for="import-bank-identifier">Mon identifiant<input id="import-bank-identifier" name="bankIdentifier" maxlength="100" required></label>
-                <label for="import-source-url">Adresse de la banque
-                  <span class="import-source-controls">
-                    <input id="import-source-url" name="bankUrl" type="url" maxlength="2048" required>
-                    <button id="import-source-go" type="button">Go</button>
-                  </span>
-                </label>
-                <button id="import-source-save" type="submit">Enregistrer</button>
-              </form>
+              <p>Ces paramètres sont enregistrés automatiquement dans la base locale de Konta.</p>
+              <div class="import-source-fields">
+                <div><label for="import-bank-identifier">Mon identifiant</label><input id="import-bank-identifier" name="bankIdentifier" maxlength="100" disabled></div>
+                <div><label for="import-source-url">Adresse de la banque</label>
+                  <div class="import-source-controls">
+                    <input id="import-source-url" name="bankUrl" type="url" maxlength="2048" required disabled>
+                    <button id="import-source-go" type="button" disabled>Go</button>
+                  </div>
+                </div>
+              </div>
               <p class="feedback" id="import-source-feedback" role="status" aria-live="polite" hidden></p>
             </section>
             <section class="panel" id="transactions" data-page="transactions" aria-labelledby="transactions-title">
@@ -407,7 +410,11 @@ class KontaApp extends HTMLElement {
       this.selectedFile = event.target.files[0] ?? null;
       this.shadowRoot.querySelector("#file-name").textContent = event.target.files[0]?.name ?? "Aucun fichier choisi";
     });
-    this.shadowRoot.querySelector("#import-source-form").addEventListener("submit", event => this.saveImportSettings(event));
+    for (const id of ["import-bank-identifier", "import-source-url"]) {
+      const input = this.shadowRoot.querySelector(`#${id}`);
+      input.addEventListener("input", () => input.setCustomValidity(""));
+      input.addEventListener("blur", () => this.saveImportSettings(input));
+    }
     this.shadowRoot.querySelector("#import-source-go").addEventListener("click", () => {
       const input = this.shadowRoot.querySelector("#import-source-url");
       if (!input.reportValidity()) return;
@@ -429,12 +436,6 @@ class KontaApp extends HTMLElement {
 
       input.setCustomValidity("");
       window.open(destination.href, "_blank", "noopener,noreferrer");
-    });
-    this.shadowRoot.querySelector("#import-source-url").addEventListener("input", event => {
-      event.target.setCustomValidity("");
-    });
-    this.shadowRoot.querySelector("#import-bank-identifier").addEventListener("input", event => {
-      event.target.setCustomValidity("");
     });
     this.shadowRoot.querySelector(".nav").addEventListener("click", event => {
       const link = event.target.closest("a[href^='#']");
@@ -1139,10 +1140,13 @@ class KontaApp extends HTMLElement {
     body.replaceChildren();
     const assignedPostIds = new Set(this.budgetSections.flatMap(section => section.postIds));
     for (const { type, expenseKind, label, emptyLabel } of BUDGET_GROUPS) {
+      const sectionKey = `group:${type}:${expenseKind ?? ""}`;
+      const expanded = this.annualBudgetSectionExpanded.get(sectionKey) ?? type !== "Savings";
       const sectionRow = document.createElement("tr");
       sectionRow.className = `budget-section-row ${type === "Income" ? "income" : type === "Savings" ? "savings" : ""}`;
-      const sectionCell = this.budgetCell(label, "th");
+      const sectionCell = document.createElement("th");
       sectionCell.colSpan = months.length + 3;
+      this.addAnnualBudgetSectionToggle(sectionCell, label, sectionKey, expanded);
       sectionRow.append(sectionCell);
       body.append(sectionRow);
 
@@ -1154,7 +1158,7 @@ class KontaApp extends HTMLElement {
         row.dataset.orderGroup = `${type}:${expenseKind ?? ""}`;
         row.dataset.orderType = type;
         if (expenseKind) row.dataset.orderExpenseKind = expenseKind;
-        body.append(row);
+        this.appendAnnualBudgetSectionRow(body, row, sectionKey, expanded);
       }
 
       if (groupPosts.length === 0 && allGroupPosts.length === 0) {
@@ -1163,12 +1167,14 @@ class KontaApp extends HTMLElement {
         const emptyCell = this.budgetCell(emptyLabel, "td");
         emptyCell.colSpan = months.length + 3;
         emptyRow.append(emptyCell);
-        body.append(emptyRow);
+        this.appendAnnualBudgetSectionRow(body, emptyRow, sectionKey, expanded);
       }
 
       if (type === "Income") {
         for (const section of this.budgetSections) {
           const sectionPosts = activePosts.filter(post => section.postIds.includes(post.id));
+          const sectionKey = `custom:${section.id}`;
+          const expanded = this.annualBudgetSectionExpanded.get(sectionKey) ?? false;
           body.append(this.budgetSectionHeader(section, months.length + 3, true));
           if (sectionPosts.length === 0) {
             const emptyRow = document.createElement("tr");
@@ -1176,14 +1182,14 @@ class KontaApp extends HTMLElement {
             const emptyCell = this.budgetCell("Aucun poste dans cette section.", "td");
             emptyCell.colSpan = months.length + 3;
             emptyRow.append(emptyCell);
-            body.append(emptyRow);
+            this.appendAnnualBudgetSectionRow(body, emptyRow, sectionKey, expanded);
           }
           for (const post of sectionPosts) {
             const row = this.annualBudgetPostRow(post, months, true);
             row.dataset.orderGroup = `${post.type}:${post.type === "Expense" ? post.expenseKind ?? "Variable" : ""}`;
             row.dataset.orderType = post.type;
             if (post.type === "Expense") row.dataset.orderExpenseKind = post.expenseKind ?? "Variable";
-            body.append(row);
+            this.appendAnnualBudgetSectionRow(body, row, sectionKey, expanded);
           }
         }
       }
@@ -1191,13 +1197,18 @@ class KontaApp extends HTMLElement {
 
     const archivedPosts = budget.posts.filter(post => !post.isActive);
     if (archivedPosts.length > 0) {
+      const sectionKey = "archived";
+      const expanded = this.annualBudgetSectionExpanded.get(sectionKey) ?? true;
       const sectionRow = document.createElement("tr");
       sectionRow.className = "budget-section-row archived";
-      const sectionCell = this.budgetCell("Postes archivés", "th");
+      const sectionCell = document.createElement("th");
       sectionCell.colSpan = months.length + 3;
+      this.addAnnualBudgetSectionToggle(sectionCell, "Postes archivés", sectionKey, expanded);
       sectionRow.append(sectionCell);
       body.append(sectionRow);
-      for (const post of archivedPosts) body.append(this.annualBudgetPostRow(post, months));
+      for (const post of archivedPosts) {
+        this.appendAnnualBudgetSectionRow(body, this.annualBudgetPostRow(post, months), sectionKey, expanded);
+      }
     }
 
     this.renderAnnualBudgetTotals(months);
@@ -1207,12 +1218,44 @@ class KontaApp extends HTMLElement {
     this.updateMonthlyTitle();
   }
 
+  addAnnualBudgetSectionToggle(cell, label, sectionKey, expanded) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "budget-section-toggle";
+    button.setAttribute("aria-expanded", String(expanded));
+    const caret = document.createElement("span");
+    caret.className = "budget-section-caret";
+    caret.setAttribute("aria-hidden", "true");
+    caret.textContent = "▸";
+    const text = document.createElement("span");
+    text.textContent = label;
+    button.append(caret, text);
+    button.addEventListener("click", () => {
+      const isExpanded = button.getAttribute("aria-expanded") !== "true";
+      this.annualBudgetSectionExpanded.set(sectionKey, isExpanded);
+      button.setAttribute("aria-expanded", String(isExpanded));
+      this.shadowRoot.querySelectorAll("#annual-budget-body tr[data-budget-section]").forEach(row => {
+        if (row.dataset.budgetSection === sectionKey) row.hidden = !isExpanded;
+      });
+    });
+    cell.append(button);
+  }
+
+  appendAnnualBudgetSectionRow(body, row, sectionKey, expanded) {
+    row.dataset.budgetSection = sectionKey;
+    row.hidden = !expanded;
+    body.append(row);
+  }
+
   budgetSectionHeader(section, colSpan, editable = false) {
     const row = document.createElement("tr");
     row.className = "budget-section-row custom";
-    const cell = this.budgetCell(section.name, "th");
+    const cell = this.budgetCell(editable ? "" : section.name, "th");
     cell.colSpan = colSpan;
     if (editable) {
+      const sectionKey = `custom:${section.id}`;
+      this.addAnnualBudgetSectionToggle(cell, section.name, sectionKey,
+        this.annualBudgetSectionExpanded.get(sectionKey) ?? false);
       const actions = document.createElement("span");
       actions.className = "budget-section-row-actions";
       const edit = this.budgetIconButton({
@@ -3262,48 +3305,59 @@ class KontaApp extends HTMLElement {
       const response = await fetch("/api/import-settings");
       const settings = await response.json();
       if (!response.ok) throw new Error(settings.detail ?? settings.title ?? "Impossible de charger les paramètres d’import.");
+      this.importSettings = settings;
       this.shadowRoot.querySelector("#import-bank-identifier").value = settings.bankIdentifier;
       this.shadowRoot.querySelector("#import-source-url").value = settings.bankUrl;
+      for (const id of ["import-bank-identifier", "import-source-url", "import-source-go"]) {
+        this.shadowRoot.querySelector(`#${id}`).disabled = false;
+      }
     } catch (exception) {
       feedback.className = "feedback error";
-      feedback.textContent = exception.message;
+      feedback.textContent = `${exception.message} Rechargez la page pour réessayer.`;
       feedback.hidden = false;
     }
   }
 
-  async saveImportSettings(event) {
-    event.preventDefault();
-    const form = this.shadowRoot.querySelector("#import-source-form");
-    if (!form.reportValidity()) return;
-
-    const button = this.shadowRoot.querySelector("#import-source-save");
-    const feedback = this.shadowRoot.querySelector("#import-source-feedback");
-    button.disabled = true;
-    feedback.hidden = true;
-    try {
-      const response = await fetch("/api/import-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bankIdentifier: this.shadowRoot.querySelector("#import-bank-identifier").value,
-          bankUrl: this.shadowRoot.querySelector("#import-source-url").value
-        })
-      });
-      const settings = await response.json();
-      if (!response.ok) throw new Error(settings.detail ?? settings.title ?? "Impossible d’enregistrer les paramètres d’import.");
-
-      this.shadowRoot.querySelector("#import-bank-identifier").value = settings.bankIdentifier;
-      this.shadowRoot.querySelector("#import-source-url").value = settings.bankUrl;
-      feedback.className = "feedback success";
-      feedback.textContent = "Paramètres enregistrés.";
-      feedback.hidden = false;
-    } catch (exception) {
-      feedback.className = "feedback error";
-      feedback.textContent = exception.message;
-      feedback.hidden = false;
-    } finally {
-      button.disabled = false;
+  saveImportSettings(input) {
+    const value = input.value;
+    if (!input.checkValidity()) {
+      this.importSettingsErrors[input.name] = input.validationMessage;
+      this.showImportSettingsFeedback();
+      return;
     }
+
+    this.importSettingsSave = this.importSettingsSave.then(async () => {
+      try {
+        if (value !== this.importSettings[input.name]) {
+          const response = await fetch("/api/import-settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...this.importSettings, [input.name]: value })
+          });
+          const settings = await response.json();
+          if (!response.ok) throw new Error(settings.detail ?? settings.title ?? "Impossible d’enregistrer les paramètres d’import.");
+
+          this.importSettings = settings;
+          if (input.value === value) input.value = settings[input.name];
+        }
+        if (input.value === value || input.value === this.importSettings[input.name]) {
+          delete this.importSettingsErrors[input.name];
+        }
+        this.showImportSettingsFeedback();
+      } catch (exception) {
+        this.importSettingsErrors[input.name] = exception.message;
+        this.showImportSettingsFeedback();
+      }
+    });
+  }
+
+  showImportSettingsFeedback() {
+    const feedback = this.shadowRoot.querySelector("#import-source-feedback");
+    const errors = Object.entries(this.importSettingsErrors).map(([field, message]) =>
+      `${field === "bankIdentifier" ? "Mon identifiant" : "Adresse de la banque"} : ${message}`);
+    feedback.className = `feedback ${errors.length ? "error" : "success"}`;
+    feedback.textContent = errors.length ? errors.join(" ") : "Paramètres enregistrés.";
+    feedback.hidden = false;
   }
 
   async previewFile(event) {
